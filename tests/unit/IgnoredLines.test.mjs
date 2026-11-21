@@ -4,6 +4,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({
   Localize: {getMessage: (key, subs) => subs ? `${key}(${subs.join('|')})` : key},
 }));
+const env = vi.hoisted(() => ({extension: true}));
+vi.mock('../../chrome/player/utils/EnvUtils.mjs', () => ({EnvUtils: {isExtension: () => env.extension}}));
 
 const {ignoredPatternLines, ignoredUrlLines, showIgnoredLines} = await import('../../chrome/player/options/IgnoredLines.mjs');
 
@@ -11,10 +13,10 @@ const {ignoredPatternLines, ignoredUrlLines, showIgnoredLines} = await import('.
 // word: a typo in a list left the user wondering why a site was not picked up.
 
 describe('ignoredUrlLines', () => {
-  it('names the lines no entry can be read from', () => {
+  it('names the lines no entry can be read from', async () => {
     const text = [
       'example.com',
-      '~(unclosed',
+      '~^(unclosed',
       '# a comment',
       '',
       '-',
@@ -22,33 +24,74 @@ describe('ignoredUrlLines', () => {
       '~',
       '@movie',
     ].join('\n');
-    expect(ignoredUrlLines(text)).toEqual([2, 5, 7, 8]);
+    expect(await ignoredUrlLines(text)).toEqual([2, 5, 7, 8]);
   });
 
-  it('names nothing in a list it reads whole', () => {
-    expect(ignoredUrlLines('netflix.com\ncrunchyroll.com @anime\n~^https:\\/\\/example\\.com\\/movie\\/')).toEqual([]);
-    expect(ignoredUrlLines('')).toEqual([]);
+  it('names nothing in a list it reads whole', async () => {
+    expect(await ignoredUrlLines('netflix.com\ncrunchyroll.com @anime\n~^https:\\/\\/example\\.com\\/movie\\/')).toEqual([]);
+    expect(await ignoredUrlLines('')).toEqual([]);
   });
 });
 
 describe('ignoredPatternLines', () => {
-  it('names the lines the patterns leave out, counted as the field shows them', () => {
-    const text = '# comment\nm3u8 /\\.m3u8/i\n\nmp4 notaregex\nxyz /a/\nvtt /(/';
-    expect(ignoredPatternLines(text)).toEqual([4, 5, 6]);
+  it('names the lines the patterns leave out, counted as the field shows them', async () => {
+    const text = '# comment\nm3u8 /\\.m3u8/i\n\nmp4 notaregex\nxyz /a/\nvtt /^(/';
+    expect(await ignoredPatternLines(text)).toEqual([4, 5, 6]);
   });
 });
 
 describe('showIgnoredLines', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    env.extension = true;
+  });
 
-  it('names the lines under the field, and hides once they are fixed', () => {
+  /**
+   * @param {string} value - The field's text.
+   * @return {{hint: Object, input: Object}} The field and its hint, in a stand-in page.
+   */
+  function field(value) {
     const hint = {textContent: '', hidden: true};
     vi.stubGlobal('document', {getElementById: (id) => id === 'autoEnableURLsignored' ? hint : null});
-    const input = {id: 'autoEnableURLs'};
-    showIgnoredLines(input, [2, 5]);
-    expect(hint.textContent).toBe('options_list_ignored_lines(2, 5)');
+    return {hint, input: {id: 'autoEnableURLs', value}};
+  }
+
+  it('names the lines under the field, and hides once they are fixed', async () => {
+    const {hint, input} = field('example.com\n~');
+    await showIgnoredLines(input, ignoredUrlLines);
+    expect(hint.textContent).toBe('options_list_ignored_lines(2)');
     expect(hint.hidden).toBe(false);
-    showIgnoredLines(input, []);
+    input.value = 'example.com';
+    await showIgnoredLines(input, ignoredUrlLines);
+    expect(hint.hidden).toBe(true);
+  });
+
+  it('leaves the hint to the call for a text changed meanwhile', async () => {
+    const {hint, input} = field('~');
+    const shown = showIgnoredLines(input, async (text) => {
+      input.value = 'example.com';
+      return ignoredUrlLines(text);
+    });
+    await shown;
+    expect(hint.hidden).toBe(true);
+    expect(hint.textContent).toBe('');
+  });
+
+  it('reads nothing outside the extension, where the web build has no background folder', async () => {
+    env.extension = false;
+    const {hint, input} = field('~');
+    const find = vi.fn(ignoredUrlLines);
+    await showIgnoredLines(input, find);
+    expect(find).not.toHaveBeenCalled();
+    expect(hint.hidden).toBe(true);
+  });
+
+  it('never rejects: a list that cannot be read shows nothing', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const {hint, input} = field('~');
+    await expect(showIgnoredLines(input, async () => {
+      throw new Error('no parser');
+    })).resolves.toBeUndefined();
     expect(hint.hidden).toBe(true);
   });
 });
@@ -66,7 +109,7 @@ describe('the options page', () => {
     ['mpvAllowlistInput', 'ignoredUrlLines'],
     ['customSourcePatterns', 'ignoredPatternLines'],
   ])('shows %s\'s ignored lines when loaded and when changed', (field, finder) => {
-    const call = `showIgnoredLines(${field}, ${finder}(${field}.value));`;
+    const call = `showIgnoredLines(${field}, ${finder});`;
     expect(page.split(call).length - 1).toBe(2);
   });
 });

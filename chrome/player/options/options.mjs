@@ -196,7 +196,7 @@ async function loadOptions(newOptions) {
   mpvModeToggle.checked = !!Options.mpvMode;
   mpvModeSectionToggle.checked = !!Options.mpvMode;
   mpvAllowlistInput.value = (Options.mpvAllowlist || []).join('\n');
-  showIgnoredLines(mpvAllowlistInput, ignoredUrlLines(mpvAllowlistInput.value));
+  showIgnoredLines(mpvAllowlistInput, ignoredUrlLines);
   mpvPathInput.value = Options.mpvPath || '';
   mpvFullscreenToggle.checked = !!Options.mpvFullscreen;
   mpvPausePageToggle.checked = !!Options.mpvPausePage;
@@ -219,7 +219,7 @@ async function loadOptions(newOptions) {
   showSeconds(bufferBehind, Options.bufferBehind);
   seekStepSize.value = /** @type {any} */ (Math.round(Options.seekStepSize * 100) / 100);
   customSourcePatterns.value = Options.customSourcePatterns || '';
-  showIgnoredLines(customSourcePatterns, ignoredPatternLines(customSourcePatterns.value));
+  showIgnoredLines(customSourcePatterns, ignoredPatternLines);
   // A share of the player, shown in percent.
   miniSize.value = /** @type {any} */ (Math.round(Options.miniSize * 1000) / 10);
   storeProgress.checked = !!Options.storeProgress;
@@ -259,7 +259,7 @@ async function loadOptions(newOptions) {
   });
 
   autoEnableURLSInput.value = Options.autoEnableURLs.join('\n');
-  showIgnoredLines(autoEnableURLSInput, ignoredUrlLines(autoEnableURLSInput.value));
+  showIgnoredLines(autoEnableURLSInput, ignoredUrlLines);
 
   if (Options.dev) {
     /** @type {HTMLElement} */ (document.getElementById('dev')).style.display = '';
@@ -593,7 +593,7 @@ mpvModeSectionToggle.addEventListener('change', () => {
 mpvAllowlistInput.addEventListener('change', (e) => {
   Options.mpvAllowlist = mpvAllowlistInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
   mpvAllowlistInput.value = Options.mpvAllowlist.join('\n');
-  showIgnoredLines(mpvAllowlistInput, ignoredUrlLines(mpvAllowlistInput.value));
+  showIgnoredLines(mpvAllowlistInput, ignoredUrlLines);
   optionChanged();
 });
 
@@ -1029,13 +1029,13 @@ WebUtils.setupTabIndex(/** @type {HTMLElement} */ (document.getElementById('rese
 autoEnableURLSInput.addEventListener('change', (e) => {
   Options.autoEnableURLs = autoEnableURLSInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
   autoEnableURLSInput.value = Options.autoEnableURLs.join('\n');
-  showIgnoredLines(autoEnableURLSInput, ignoredUrlLines(autoEnableURLSInput.value));
+  showIgnoredLines(autoEnableURLSInput, ignoredUrlLines);
   optionChanged();
 });
 
 customSourcePatterns.addEventListener('change', (e) => {
   Options.customSourcePatterns = customSourcePatterns.value;
-  showIgnoredLines(customSourcePatterns, ignoredPatternLines(customSourcePatterns.value));
+  showIgnoredLines(customSourcePatterns, ignoredPatternLines);
   optionChanged();
 });
 
