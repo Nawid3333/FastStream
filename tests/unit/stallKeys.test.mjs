@@ -8,7 +8,7 @@ const listeners = {};
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({
   DOMElements: {osd: {textContent: '', classList: {add() {}, remove() {}}}, playerContainer: {addEventListener() {}}},
 }));
-vi.stubGlobal('document', {addEventListener: (type, fn) => (listeners[type] ??= []).push(fn)});
+vi.stubGlobal('document', {addEventListener: (type, fn, capture) => (listeners[type + (capture ? ':capture' : '')] ??= []).push(fn)});
 vi.stubGlobal('navigator', {userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0',
   platform: 'Win32'});
 
@@ -44,9 +44,29 @@ describe('AltGr', () => {
   const down = {key: 'AltGraph', code: 'AltRight', ctrlKey: true, altKey: true, altGraph: true};
   const control = {key: 'Control', code: 'ControlLeft', ctrlKey: true};
 
-  it('listens for keys let go', () => {
+  it('listens for keys let go before the windows that stop them (sources, options, subtitle search)', () => {
     manager();
-    expect(listeners.keyup?.length).toBeGreaterThan(0);
+    expect(listeners['keyup:capture']?.length).toBeGreaterThan(0);
+  });
+
+  it('is cancelled by a key or a click the manager does not see: a field stops its keys', () => {
+    const {keys, fired} = manager();
+    const latest = (type) => listeners[type + ':capture'].at(-1);
+    keys.onKeyDown(key(down));
+    // Clicked into the sources window's address field while held, and typed '@' there.
+    latest('keydown')(key({key: '@', code: 'KeyQ', ctrlKey: true, altKey: true, altGraph: true}));
+    latest('keyup')(key({key: 'AltGraph', code: 'AltRight'}));
+    expect(fired).toEqual([]);
+    keys.onKeyDown(key(down));
+    latest('pointerdown')({});
+    latest('keyup')(key({key: 'AltGraph', code: 'AltRight'}));
+    expect(fired).toEqual([]);
+    // Pressed and let go alone: the capture listener fires it.
+    latest('keydown')(key(control));
+    keys.onKeyDown(key(down));
+    latest('keydown')(key(down));
+    latest('keyup')(key({key: 'AltGraph', code: 'AltRight'}));
+    expect(fired).toEqual(['HidePlayer']);
   });
 
   it('types the character it is held for, and does not hide the player first', () => {

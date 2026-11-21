@@ -40,9 +40,18 @@ export class KeybindManager extends EventEmitter {
       this.onKeyDown(e);
     });
 
+    // Before the windows' own handlers, which stop keys from bubbling (sources, options, subtitle search): a held AltGr
+    // fires on its release there too, and a key typed or a click made meanwhile (in a field, which stops its keys)
+    // cancels it.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'AltGraph' && e.key !== 'Control') this.altGraphPress = null;
+    }, true);
+    document.addEventListener('pointerdown', () => {
+      this.altGraphPress = null;
+    }, true);
     document.addEventListener('keyup', (e) => {
       this.onKeyUp(e);
-    });
+    }, true);
 
     this.on('HidePlayer', /** @param {KeyboardEvent} e */ (e) => {
       this.client.interfaceController.toggleHide();

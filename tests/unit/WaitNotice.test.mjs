@@ -11,7 +11,7 @@ const {WaitNotice, waitCause} = await import('../../chrome/player/ui/WaitNotice.
 // only the players' own 10-30 s are buffered and a short slowdown of the line stops the video.
 
 const MB = 1e6;
-const video = {rate: 1.25 * MB, ramOnly: false, aheadKept: 120, live: false};
+const video = {rate: 1.25 * MB, speed: 0.5 * MB, ramOnly: false, aheadKept: 120, live: false};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -35,6 +35,13 @@ describe('waitCause', () => {
     expect(waitCause({maxSpeed: 0.5 * MB}, {...video, rate: 0})).toBeNull();
   });
 
+  it('does not blame the speed limit when the line is slower than it: raising the limit would not help', () => {
+    // A 10 Mbit/s video over a 2 Mbit/s line with a limit of 4: the downloads never reach the limit.
+    expect(waitCause({maxSpeed: 0.5 * MB}, {...video, speed: 0.25 * MB})).toBeNull();
+    // Held at the limit: they stop above it and start again below it.
+    expect(waitCause({maxSpeed: 0.5 * MB}, {...video, speed: 0.45 * MB})?.key).toBe('player_wait_speed_low');
+  });
+
   it('names 0 seconds ahead only when the client keeps none ahead', () => {
     expect(waitCause({bufferAhead: 0}, {...video, aheadKept: 0})).toEqual({key: 'player_wait_ahead_zero'});
     // Predownload on keeps more ahead than the setting.
@@ -56,7 +63,7 @@ describe('WaitNotice', () => {
   const stalled = (options) => {
     const client = {
       options, source: {}, state: {buffering: true, playing: true, bufferAhead: 0},
-      videoRate: () => 1.25 * MB, isLive: () => false, downloadManager: {},
+      videoRate: () => 1.25 * MB, isLive: () => false, downloadManager: {paused: false, getSpeed: () => 0},
       interfaceController: {setStatusMessage: vi.fn()},
     };
     return {client, notice: new WaitNotice(/** @type {any} */ (client))};
@@ -99,6 +106,16 @@ describe('WaitNotice', () => {
     expect(said(client)).toEqual([]);
     client.state.playing = false;
     notice.check(9000);
+    expect(said(client)).toEqual([]);
+  });
+
+  it('leaves a download pause to its own message, which names the key that resumes', () => {
+    vi.spyOn(Localize, 'getMessage').mockImplementation((key) => key);
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(false);
+    const {client, notice} = stalled({maxSpeed: 0});
+    client.downloadManager.paused = true;
+    notice.check(0);
+    notice.check(5000);
     expect(said(client)).toEqual([]);
   });
 

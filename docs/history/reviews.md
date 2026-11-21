@@ -1335,3 +1335,18 @@ Rejected:
   write fails only on a broken or full profile.
 - **An imported regex can hang the URL lists** (`autoEnableURLs`, custom source patterns): the cloud
   copy is the user's own, from their own Mozilla account, as if typed into the options.
+
+## Codex's review of #801 (2026-11-21)
+
+Fixed:
+
+- **The speed-limit notice blamed the limit on a line slower than it.** The gate holds downloads only
+  while their measured speed is above the limit, so the notice now names the limit only while the
+  downloads reach 80% of it (`WaitNotice.LimitReachedShare`).
+- **The notice replaced the download-pause message**, which names the key that resumes. It now stays
+  quiet while the downloads are paused.
+- **A lone AltGr never fired where a window stops keys from bubbling** (sources, options, subtitle
+  search), and a held AltGr fired after `@` was typed into such a window's field. The release, the
+  keys typed meanwhile and clicks are now listened for in the capture phase.
+
+Rejected: **the five new strings are missing.** They are in all 16 locales; the review saw a cut diff.
