@@ -324,6 +324,48 @@ describe('FastStreamClient, autoplay', () => {
   });
 });
 
+describe('FastStreamClient, a video built again after autoplay', () => {
+  // Another quality of the page's, or a recovery, builds the same video again with play: whether it played.
+  // Autoplay (an automatic continuation's) started it, the user paused: the new build stays paused.
+
+  /**
+   * The same video at 30 s built again, with start, after autoplay started the first build or was blocked.
+   * @param {Object} start - setSource's third argument.
+   * @param {boolean} blocked - Whether the browser blocked the first autoplay.
+   * @return {Promise<number>} How often the new build was played.
+   */
+  async function rebuild(start, blocked) {
+    const client = makeClient({autoPlay: true});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    client.play = vi.fn(async () => {
+      if (blocked) throw new Error('NotAllowedError: autoplay blocked');
+    });
+    await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    expect(client.state.autoPlayTriggered).toBe(!blocked);
+    client.play = vi.fn(async () => {});
+    const player = await setSourceStarting(client, makeSource('http://127.0.0.1/film-720.mp4?faststream-timestamp=30'),
+        {...start, keepChoice: true});
+    player.emit(DefaultPlayerEvents.CANPLAY);
+    await settle();
+    expect(player.seeks).toContain(30);
+    return client.play.mock.calls.length;
+  }
+
+  it('stays paused when the user paused it', async () => {
+    expect(await rebuild({play: false}, false)).toBe(0);
+  });
+
+  it('plays when it was playing', async () => {
+    expect(await rebuild({play: true}, false)).toBe(1);
+  });
+
+  it('still autoplays when the browser had blocked autoplay', async () => {
+    expect(await rebuild({play: false}, true)).toBeGreaterThan(0);
+  });
+});
+
 describe('FastStreamClient, a change of quality', () => {
   /**
    * A downloaded fragment of a level.
@@ -415,6 +457,22 @@ describe('FastStreamClient, remembered times', () => {
     client.progressMemory = makeProgressMemory({lastTime: 30});
     const player = await setSource(client, makeSource('http://127.0.0.1/vod.mp4'));
     expect(player.seeks).toContain(30);
+  });
+
+  it('does not seek to it over a seek the user made while the player got ready', async () => {
+    // An MP4's duration, and with it the seek bar, comes before its first frame; the time was looked up by then.
+    const client = makeClient({storeProgress: true});
+    client.progressMemory = makeProgressMemory({lastTime: 1200});
+    const player = await setSource(client, makeSource('http://127.0.0.1/vod.mp4'), (made) => {
+      made.duration = 7200;
+      made.video.readyState = 0;
+    });
+    client.currentTime = 300;
+    player.video.readyState = 1;
+    player.emit(DefaultPlayerEvents.LOADEDMETADATA);
+    await settle();
+    expect(player.seeks).toContain(300);
+    expect(player.seeks).not.toContain(1200);
   });
 
   it('does not remember a time for a live stream', () => {

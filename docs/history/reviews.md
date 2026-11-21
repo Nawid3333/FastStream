@@ -1292,3 +1292,30 @@ Rejected:
   the https-to-http case needs the stream's own server to redirect to plain http.
 - **The manual MPV repeat-click guard is keyed by the URL only**: two tabs sending the same stream
   within three seconds is no real flow, and one mpv window for both is what the guard is for.
+
+## Codex's area reviews (2026-11-21)
+
+Codex reviewed areas of the code while Ollama's usage window was used up; each finding was checked
+against the code.
+
+Changed:
+
+- **A rebuild played a video the user had paused** (`FastStreamClient.setSourceInternal`): after an
+  automatic continuation turned autoplay on, another page quality or a recovery started the paused
+  video again. Test: `FastStreamClient.test.mjs`, "a video built again after autoplay".
+- **The remembered time undid a seek made while the player got ready** (MP4: the seek bar comes
+  before the first frame). Test: "does not seek to it over a seek the user made while the player got
+  ready".
+
+## Codex's pass over the cloud settings (#789, 2026-11-21)
+
+Rejected:
+
+- **Two exports at once can delete each other's chunks** (`CloudSettings.mjs`, the cleanup after
+  `set()`): it needs two exports interleaved on one device (Sync merges devices minutes apart), and
+  the copy's hash turns the damage into "incomplete" on import, never into wrong settings.
+- **A half-failed import says it worked** (`applyImportedSettings`): the file import and every option
+  on the page save the same way (`Utils.setConfig` logs a refused `storage.local` write); such a
+  write fails only on a broken or full profile.
+- **An imported regex can hang the URL lists** (`autoEnableURLs`, custom source patterns): the cloud
+  copy is the user's own, from their own Mozilla account, as if typed into the options.

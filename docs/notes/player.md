@@ -1038,6 +1038,15 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
     autoplay checks too; `setSource(..., {play})` resumes after it). `player-recovery.e2e.mjs`
     notes every time a rebuilt player plays at: on main the MP4 one played at 0 before 101 s;
     the HLS one did not show it (hls.js loads nothing at 0), so there it only guards.
+  - **A rebuild keeps a pause (2026-11-21).** `options.autoPlay` (an automatic continuation's) also
+    played a rebuild of a video the user had paused (another page quality, a recovery): its
+    `play: false` lost to autoplay, at `setSource` and at `canplay`. Once autoplay has started a
+    video, a rebuild with `play: false` stays paused (`autoPlayTriggered` carried over); autoplay
+    that never started (blocked) still runs.
+  - **The remembered time never overrides a seek of the user's.** An MP4's duration, and with it
+    the seek bar, comes before its first frame, while the start waits for the init hook: a seek
+    then was undone by the remembered time once the player was ready. It goes only while
+    `pastSeeks` is empty, whenever the lookup ends.
 - **The load error names its reason** (`describePlayerError`): the client's handler read a
   second argument that nothing passes, so every failure said only "Failed to load video!".
   Now e.g. "Failed to load video! (manifestLoadError (HTTP 404))" (`failed-load.e2e.mjs`).
