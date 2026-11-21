@@ -1,8 +1,8 @@
-diff --git a/dist/styp-BV5G3FS-.mjs b/dist/styp-BV5G3FS-.mjs
-index d306f0a75b472510c5d96e3db524e1a59219ba7e..7263311687cee1b9a10134b9a0c97f3e068b92ec 100644
---- a/dist/styp-BV5G3FS-.mjs
-+++ b/dist/styp-BV5G3FS-.mjs	
-@@ -6879,6 +6879,7 @@ var ISOFile = class ISOFile {
+diff --git a/dist/styp-BbiO7KT1.mjs b/dist/styp-BbiO7KT1.mjs
+index 4d475b7970359dfaa796e78ac7eacf35c45cfcb7..73134d5d9e65d57547a22f80e7531d55b99b2f4a 100644
+--- a/dist/styp-BbiO7KT1.mjs
++++ b/dist/styp-BbiO7KT1.mjs
+@@ -6903,6 +6903,7 @@ var ISOFile = class ISOFile {
  		let offset_in_chunk;
  		let last_sample_in_chunk;
  		trak.samples = [];
@@ -10,7 +10,7 @@ index d306f0a75b472510c5d96e3db524e1a59219ba7e..7263311687cee1b9a10134b9a0c97f3e
  		trak.samples_duration = 0;
  		trak.samples_size = 0;
  		const stco = trak.mdia.minf.stbl.stco || trak.mdia.minf.stbl.co64;
-@@ -7102,6 +7103,7 @@ var ISOFile = class ISOFile {
+@@ -7127,6 +7128,7 @@ var ISOFile = class ISOFile {
  		if (!sample.data) {
  			sample.data = new Uint8Array(sample.size);
  			sample.alreadyRead = 0;
@@ -18,7 +18,7 @@ index d306f0a75b472510c5d96e3db524e1a59219ba7e..7263311687cee1b9a10134b9a0c97f3e
  			this.samplesDataSize += sample.size;
  			Log.debug("ISOFile", "Allocating sample #" + sampleNum + " on track #" + trak.tkhd.track_id + " of size " + sample.size + " (total: " + this.samplesDataSize + ")");
  		} else if (sample.alreadyRead === sample.size) return sample;
-@@ -7147,6 +7149,100 @@ var ISOFile = class ISOFile {
+@@ -7172,6 +7174,100 @@ var ISOFile = class ISOFile {
  		}
  	}
  	/**

@@ -14,7 +14,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 
 /** The chunks mp4box's dist/mp4box.all.mjs imports; checked by checkMp4boxImports. */
-const MP4BOX_CHUNKS = ['styp-BV5G3FS-.mjs', 'rolldown-runtime-CNh9ExCG.mjs'];
+const MP4BOX_CHUNKS = ['styp-BbiO7KT1.mjs', 'rolldown-runtime-CNh9ExCG.mjs'];
 
 const VENDOR = [
   {
