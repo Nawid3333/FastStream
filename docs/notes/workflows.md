@@ -193,7 +193,11 @@
   newest public listed release, on `toolchain/ublock-origin-<version>`,
   changing only its entry there. Nothing in CI downloads the add-on, so the run downloads
   the file and checks it against AMO's SHA-256 before it pushes; a mismatch is a red run
-  and no pull request. The plan's output carries every track (`updates`), so an open one
+  and no pull request. The download is tried again, 15 s, 30 s and 1 min apart, when AMO
+  does not answer, answers 408, 429 or 5xx, or the transfer breaks off (a warning in the log
+  for each), as `e2e-setup`'s geckodriver fetch does; a 404 is not. curl's own `--retry`
+  was not enough: it leaves out a TLS handshake AMO cut off (curl exit 35), which turned the
+  daily run red once (#791, 2026-11-21). The plan's output carries every track (`updates`), so an open one
   that conflicts with `main` is rebuilt with its file, or left for the plan to replace
   when a newer release is out. The player libraries the live suite plays
   (`tests/e2e/live-specs/player-libraries.json`; 2026-10-24; a Dependabot entry for that

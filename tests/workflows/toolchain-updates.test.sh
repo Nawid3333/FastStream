@@ -115,7 +115,10 @@ fi
 exec "$REAL_NODE" "\$@"
 EOF
   printf '#!/usr/bin/env bash\necho "$*" >> "$STATE/sleeps"\n' > "$BIN/sleep"
-  # The add-on's download: the bytes in $STATE/addon.xpi, the URL logged.
+  # The add-on's download, the URL logged. Each call takes the next line of
+  # $STATE/curl.answers, "<exit code> <HTTP code>" (a failed connection is "35 000"); with
+  # none left, 200 with the bytes in $STATE/addon.xpi, or 404 when there are none. The HTTP
+  # code is printed, as -w '%{http_code}' does.
   cat > "$BIN/curl" <<'EOF'
 #!/usr/bin/env bash
 out=''
@@ -125,8 +128,17 @@ for a in "$@"; do
   prev=$a
 done
 printf 'curl %s\n' "${!#}" >> "$STATE/gh.log"
-[ -f "$STATE/addon.xpi" ] || { echo 'curl: (22) 404' >&2; exit 22; }
-cp "$STATE/addon.xpi" "$out"
+exit=0
+code=200
+if [ -s "$STATE/curl.answers" ]; then
+  read -r exit code < "$STATE/curl.answers"
+  sed -i 1d "$STATE/curl.answers"
+elif [ ! -f "$STATE/addon.xpi" ]; then
+  code=404
+fi
+if [ "$exit:$code" = 0:200 ]; then cp "$STATE/addon.xpi" "$out"; fi
+printf '%s' "$code"
+exit "$exit"
 EOF
   chmod +x "$BIN/gh" "$BIN/node" "$BIN/sleep" "$BIN/curl"
 }
@@ -499,13 +511,47 @@ ublock_wrong_file() {
 }
 
 ublock_download_fails() {
-  # AMO does not serve the file: nothing is pushed, and the run is red.
+  # AMO answers 404: no outage, so not tried again; nothing is pushed, and the run is red.
   setup
   plan "[$(ublock_update 1.76.0 "$(printf 'a%.0s' {1..64})")]" '[]'
   run_step
   check 'fails, not stopped by the timeout' test "$rc" -eq 1
-  check 'tried' has_call 'curl https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi'
-  check 'says why' grep -qF 'uBlock Origin 1.76.0: https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi could not be downloaded.' "$T/out"
+  check 'tried once' test "$(n_calls '^curl https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi$')" = 1
+  check 'no wait' test ! -s "$STATE/sleeps"
+  check 'says why' grep -qF 'uBlock Origin 1.76.0: https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi could not be downloaded (HTTP 404, curl exit 0).' "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+  check 'no pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
+}
+
+ublock_download_retried() {
+  # AMO cuts the TLS handshake off, then answers 503, then serves the file: tried again
+  # after 15 s and 30 s, and the pull request is raised.
+  setup
+  printf 'an add-on\n' > "$STATE/addon.xpi"
+  printf '35 000\n0 503\n' > "$STATE/curl.answers"
+  plan "[$(ublock_update 1.76.0 "$(sha256sum "$STATE/addon.xpi" | cut -d ' ' -f 1)")]" '[]'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'tried three times' test "$(n_calls '^curl ')" = 3
+  check 'waits 15 s, then 30 s' test "$(cat "$STATE/sleeps")" = "$(printf '15\n30')"
+  check 'warns of the cut-off' grep -qF '::warning::https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi did not answer (HTTP 000, curl exit 35); trying again in 15 s.' "$T/out"
+  check 'warns of the 503' grep -qF 'did not answer (HTTP 503, curl exit 0); trying again in 30 s.' "$T/out"
+  check 'branch pushed' origin show-ref -q --verify refs/heads/toolchain/ublock-origin-1.76.0
+  check 'pull request' has_call 'pr create --base main --head toolchain/ublock-origin-1.76.0 --title Toolchain update: uBlock Origin 1.76.0'
+}
+
+ublock_download_outage() {
+  # AMO never answers: four tries, 15 s, 30 s and 1 min apart; nothing is pushed, and the
+  # run is red.
+  setup
+  printf 'an add-on\n' > "$STATE/addon.xpi"
+  printf '35 000\n35 000\n28 200\n35 000\n' > "$STATE/curl.answers"
+  plan "[$(ublock_update 1.76.0 "$(sha256sum "$STATE/addon.xpi" | cut -d ' ' -f 1)")]" '[]'
+  run_step
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
+  check 'tried four times' test "$(n_calls '^curl ')" = 4
+  check 'waits 15 s, 30 s, 1 min' test "$(cat "$STATE/sleeps")" = "$(printf '15\n30\n60')"
+  check 'says why' grep -qF 'uBlock Origin 1.76.0: https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi could not be downloaded (HTTP 000, curl exit 35).' "$T/out"
   check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
   check 'no pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
 }
@@ -1064,6 +1110,8 @@ players_malformed_hold_problems
 weekly_ublock
 ublock_wrong_file
 ublock_download_fails
+ublock_download_retried
+ublock_download_outage
 ublock_no_file
 ublock_repair_main_has_it
 unread_source_fails_after

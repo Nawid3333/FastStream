@@ -128,7 +128,7 @@ jobs:
           # digest come in it).
           # shellcheck disable=SC2016 # the backticks in $what are Markdown
           build() { # <name> <version> <branch> [<update>]
-            local allowed changed file url sha digest
+            local allowed changed file url sha digest fetched wait code rc
             git checkout -q -f -B "$3" "$start"
             case $1 in
               Node.js)
@@ -157,8 +157,25 @@ jobs:
                 fi
                 # The file the entry will name, as AMO serves it now, against AMO's SHA-256: the
                 # developer's profile setup checks the same, and fails on a mismatch.
-                if ! curl -fsSL --retry 2 --max-time 300 -o "$RUNNER_TEMP/addon.xpi" "$url"; then
-                  echo "uBlock Origin $2: $url could not be downloaded." >&2
+                # Tried again when AMO did not answer, answered 408, 429 or 5xx, or the transfer
+                # broke off (curl's --retry skips a cut-off TLS handshake): after 15 s, 30 s and
+                # 1 min, each try at most 90 s, under 8 min of the step's 13. Any other answer,
+                # a 404 say, is no outage and is not tried again.
+                fetched=''
+                for wait in 15 30 60 0; do
+                  rc=0
+                  code=$(curl -sSL --connect-timeout 15 --max-time 90 -o "$RUNNER_TEMP/addon.xpi" -w '%{http_code}' "$url") || rc=$?
+                  case $rc:$code in
+                    0:200) fetched=1; break ;;
+                    0:408|0:429|0:5??) ;;
+                    0:*) break ;;
+                  esac
+                  if [ "$wait" = 0 ]; then break; fi
+                  echo "::warning::$url did not answer (HTTP $code, curl exit $rc); trying again in $wait s."
+                  sleep "$wait"
+                done
+                if [ -z "$fetched" ]; then
+                  echo "uBlock Origin $2: $url could not be downloaded (HTTP $code, curl exit $rc)." >&2
                   exit 1
                 fi
                 if [ "$(sha256sum "$RUNNER_TEMP/addon.xpi" | cut -d ' ' -f 1)" != "$sha" ]; then
