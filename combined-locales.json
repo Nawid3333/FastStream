@@ -294,7 +294,7 @@
     "fr": "C'est réglé : FastStream garde jusqu'à $1 de vidéo en mémoire vive, le reste sur le disque. Vous pouvez le modifier dans les options, sous « Options générales ».",
     "id": "Sudah diatur: FastStream menyimpan hingga $1 video di RAM, sisanya di disk. Anda dapat mengubahnya di opsi, pada \"Opsi Umum\".",
     "it": "Fatto: FastStream tiene fino a $1 di video nella RAM, il resto su disco. Puoi cambiarlo nelle opzioni, in «Opzioni Generali».",
-    "ja": "設定しました：FastStreamはRAMに最大$1の動画を保持し、残りはディスクに保存します。オプションの「一般設定」でいつでも変更できます。",
+    "ja": "設定しました：FastStreamはRAMに最大$1の動画を保持し、残りはディスクに保存します。オプションの「一般設定」で変更できます。",
     "ko": "설정됨: FastStream은 RAM에 동영상을 최대 $1까지 두고 나머지는 디스크에 보관합니다. 옵션의 \"일반 옵션\"에서 바꿀 수 있습니다.",
     "ms": "Sudah ditetapkan: FastStream menyimpan sehingga $1 video dalam RAM, selebihnya pada cakera. Anda boleh mengubahnya dalam pilihan, di bawah \"Pilihan Umum\".",
     "nl": "Ingesteld: FastStream bewaart tot $1 video in het RAM, de rest op schijf. Je kunt dit wijzigen in de opties, onder \"Algemene opties\".",
@@ -5023,7 +5023,7 @@
   },
   "options_general_rambudget_none": {
     "en": "No limit: all downloaded video stays in RAM, none goes to disk. A long video can take more memory than the computer has and freeze it: set a limit unless it has plenty.",
-    "de": "Kein Limit: Alles heruntergeladene Video bleibt im Arbeitsspeicher, nichts kommt auf die Festplatte. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren: Lege ein Limit fest, außer er hat reichlich davon.",
+    "de": "Kein Limit: Das gesamte heruntergeladene Video bleibt im Arbeitsspeicher, nichts kommt auf die Festplatte. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren: Lege ein Limit fest, außer er hat reichlich davon.",
     "es": "Sin límite: todo el vídeo descargado se queda en la RAM y nada va al disco. Un vídeo largo puede ocupar más memoria de la que tiene el ordenador y congelarlo: pon un límite salvo que tenga mucha.",
     "fr": "Aucune limite : toute la vidéo téléchargée reste en mémoire vive, rien ne va sur le disque. Une longue vidéo peut prendre plus de mémoire que l'ordinateur n'en a et le figer : fixez une limite, sauf s'il en a beaucoup.",
     "id": "Tanpa batas: semua video yang diunduh tetap di RAM, tidak ada yang ke disk. Video panjang dapat memakai lebih banyak memori daripada yang dimiliki komputer dan membuatnya macet: tetapkan batas kecuali memorinya banyak.",

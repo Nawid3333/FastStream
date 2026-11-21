@@ -837,7 +837,7 @@
         "message": "0: Heruntergeladenes Video wird nicht beibehalten, und wenn „Video auf der Festplatte speichern“ deaktiviert ist, wird nichts vor der Wiedergabe heruntergeladen, sodass Videos stoppen könnten. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_rambudget_none": {
-        "message": "Kein Limit: Alles heruntergeladene Video bleibt im Arbeitsspeicher, nichts kommt auf die Festplatte. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren: Lege ein Limit fest, außer er hat reichlich davon."
+        "message": "Kein Limit: Das gesamte heruntergeladene Video bleibt im Arbeitsspeicher, nichts kommt auf die Festplatte. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren: Lege ein Limit fest, außer er hat reichlich davon."
     },
     "options_general_rambudget_high": {
         "message": "So viel Video im Arbeitsspeicher kann einen Computer einfrieren: Windows und Firefox brauchen den Großteil davon. Mit „Video auf der Festplatte speichern, wenn dieser Arbeitsspeicher voll ist“ bleibt der Rest des Videos auf der Festplatte und spielt genauso."

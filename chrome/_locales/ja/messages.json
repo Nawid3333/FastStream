@@ -48,7 +48,7 @@
         "message": "このコンピューターのメモリ（RAM）はどれくらいですか？FastStreamは各動画の一部をRAMに、残りをディスクに保存します。回答に応じて使用できるRAMの量が決まります。"
     },
     "welcome_page_ram_set": {
-        "message": "設定しました：FastStreamはRAMに最大$1の動画を保持し、残りはディスクに保存します。オプションの「一般設定」でいつでも変更できます。"
+        "message": "設定しました：FastStreamはRAMに最大$1の動画を保持し、残りはディスクに保存します。オプションの「一般設定」で変更できます。"
     },
     "welcome_page_keybinds_header": {
         "message": "デフォルトのキーボードコントロール"
