@@ -1267,3 +1267,28 @@ disattiva" (the pronoun is the subtitles); the content type "Nativ"/"Natif"/"Nat
 left as it is (Movie is translated, Anime and Native are names); zh_TW 您 in the cloud strings
 (the locale uses 您 in its dialog-style strings); ko "$1은(는)" (the usual form for a
 placeholder); ms "Sync Sekarang" (Firefox's own Malay label could not be checked).
+
+## The area reviews by kimi-k3.1-pro and deepseek-v4-pro (2026-11-21)
+
+Read-only agents reviewed the mpv helper, the background script's message handlers and the header
+rules. Each finding was checked against the code.
+
+Changed:
+
+- **A play's subtitle files no mpv reads are removed** (host 31, `docs/notes/mpv.md`): a private
+  window's stayed a day when mpv was not found or the load failed, and a failed write left its
+  folder. Tests: `mpvHlsHelper.test.mjs` ("removes the subtitle files of a play that did not go"),
+  `MpvNativeHost.test.mjs` ("removes a private window's folders after two minutes", "leaves no
+  folder when a file cannot be written").
+
+Rejected:
+
+- **install.ps1's wrapper escapes only `%`**: inside double quotes cmd takes `& | < > ( ) ^`
+  literally; `%` is the one character it still expands there.
+- **A bare `mpv` looked up on a UNC entry of PATH**: PATH is the user's own setting, not anything a
+  page sends; `NetworkOrDevicePath` guards the path a message names.
+- **Header rules match http as well as https, and as a prefix** (`NetRequestRuleManager`): the
+  trade recorded in `docs/notes/player.md` - one tab, the extension's own requests, five seconds;
+  the https-to-http case needs the stream's own server to redirect to plain http.
+- **The manual MPV repeat-click guard is keyed by the URL only**: two tabs sending the same stream
+  within three seconds is no real flow, and one mpv window for both is what the guard is for.

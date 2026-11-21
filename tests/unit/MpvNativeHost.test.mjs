@@ -3,7 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {afterAll, afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {MaxLogBytes, PrivateSubtitleDirPrefix, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, takeLaunchLock, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxLogBytes, PrivateSubtitleDirPrefix, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, takeLaunchLock, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, removeOldSubtitleDirs, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides from mpvIpcRequest's replies whether reusing our window worked; injected
 // (no pipes on Linux CI).
@@ -480,6 +480,41 @@ describe('start and subtitles from the player', () => {
     expect(fs.existsSync(old)).toBe(false);
     expect(fs.existsSync(recent)).toBe(true);
     expect(fs.existsSync(foreign)).toBe(true);
+  });
+
+  // As a private window's playlists: should no mpv remove them (none started, killed), the next helper to end does.
+  it('removes a private window\'s folders after two minutes', () => {
+    const base = scratch();
+    const now = Date.now();
+    const folders = {
+      privateOld: [PrivateSubtitleDirPrefix + 'old', 3 * 60 * 1000, false],
+      privateNew: [PrivateSubtitleDirPrefix + 'new', 60 * 1000, true],
+      otherHours: [SubtitleDirPrefix + 'hours', 3 * 3600 * 1000, true],
+      otherDays: [SubtitleDirPrefix + 'days', 2 * 24 * 3600 * 1000, false],
+      foreign: ['someone-else', 2 * 24 * 3600 * 1000, true],
+    };
+    for (const [name, age] of Object.values(folders)) {
+      fs.mkdirSync(path.join(base, name));
+      fs.utimesSync(path.join(base, name), (now - age) / 1000, (now - age) / 1000);
+    }
+    removeOldSubtitleDirs(base, now);
+    for (const [name, , kept] of Object.values(folders)) expect([name, fs.existsSync(path.join(base, name))]).toEqual([name, kept]);
+  });
+
+  it('leaves no folder when a file cannot be written', () => {
+    const base = scratch();
+    const write = fs.writeFileSync;
+    let calls = 0;
+    const spy = vi.spyOn(fs, 'writeFileSync').mockImplementation((...args) => {
+      if (++calls === 2) throw new Error('ENOSPC: no space left on device');
+      return write(...args);
+    });
+    try {
+      expect(() => writeSubtitleFiles([{srt: 'one', label: 'a'}, {srt: 'two', label: 'b'}], base, true)).toThrow(/ENOSPC/);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fs.readdirSync(base)).toEqual([]);
   });
 
   it('gives mpv the start and the files as per-file options', () => {
