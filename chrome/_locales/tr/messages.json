@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "İndirme duraklatıldı"
     },
+    "player_download_paused_key": {
+        "message": "İndirme duraklatıldı: devam etmek için $1 tuşuna basın"
+    },
+    "player_wait_speed_zero": {
+        "message": "Video veri bekliyor, çünkü \"Ön indiricinin hedef indirme hızı\" 0: önceden hiçbir şey indirilmiyor. Sınır olmaması için bu ayarı boş bırakın."
+    },
+    "player_wait_speed_low": {
+        "message": "Video veri bekliyor, çünkü \"Ön indiricinin hedef indirme hızı\" ($1 Mbit/s) bu videonun ihtiyacının (yaklaşık $2 Mbit/s) altında: önceden çok az şey indiriliyor. Bu ayarı yükseltin veya sınır olmaması için boş bırakın."
+    },
+    "player_wait_ahead_zero": {
+        "message": "Video veri bekliyor, çünkü \"Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı\" 0: önceden hiçbir şey tutulmuyor. Bu ayarı yükseltin veya sınır olmaması için boş bırakın."
+    },
+    "player_wait_ram_zero": {
+        "message": "Video veri bekliyor, çünkü \"Arabelleğe alınan video için RAM\" 0 ve burada diskte hiçbir şey tutulmuyor: önceden hiçbir şey indirilmiyor. Bu ayarı yükseltin veya sınır olmaması için boş bırakın."
+    },
     "player_fragment_failed_singular": {
         "message": "Videonun $1 parçası indirilemedi. Tekrar denemek için tıklayın."
     },

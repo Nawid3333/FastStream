@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "Download paused"
     },
+    "player_download_paused_key": {
+        "message": "Download paused: press $1 to resume"
+    },
+    "player_wait_speed_zero": {
+        "message": "The video waits for data because \"Target download speed of predownloader\" is 0: nothing is downloaded ahead. Leave that setting empty for no limit."
+    },
+    "player_wait_speed_low": {
+        "message": "The video waits for data because \"Target download speed of predownloader\" ($1 Mbit/s) is below what this video needs (about $2 Mbit/s): little is downloaded ahead. Raise that setting, or leave it empty for no limit."
+    },
+    "player_wait_ahead_zero": {
+        "message": "The video waits for data because \"Seconds to keep buffered ahead\" is 0: nothing is kept ahead. Raise that setting, or leave it empty for no limit."
+    },
+    "player_wait_ram_zero": {
+        "message": "The video waits for data because \"RAM for buffered video\" is 0 and nothing is kept on disk here: nothing is downloaded ahead. Raise that setting, or leave it empty for no limit."
+    },
     "player_fragment_failed_singular": {
         "message": "$1 part of the video failed to download. Click to try again."
     },

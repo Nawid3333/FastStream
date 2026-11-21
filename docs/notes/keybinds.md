@@ -13,6 +13,18 @@ that matches them) are off there; the player's own keys still work with a keyboa
 The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node can test it);
 `KeybindManager.mjs` and the options page use it.
 
+- **AltGr fires its binding when let go** (2026-11-21). On a German keyboard Right Alt is AltGr
+  (`e.key` "AltGraph") and is held for '[' (AltGr+8): its keydown hid the player (Right Alt's
+  `HidePlayer`, which also pauses) before '[' paused the downloads. An AltGraph keydown now only
+  marks the press; any other key meanwhile (Windows' extra Control press aside) drops it, and the
+  keyup fires the binding. Right Alt where it is plain Alt (US) fires on the press as before.
+  `stallKeys.test.mjs`.
+- **Keys that stall downloading say so** (2026-11-21). `-` (`RemoveDownloader`) keeps the last
+  downloader: at 0 nothing downloaded, playback's requests included, and nothing added one back.
+  While `[` (`PauseDownloaders`) holds them, the status names the key that resumes
+  (`player_download_paused_key`, the key by `keyDisplayName`): playback's requests wait too, so
+  the video stops once its buffer runs out.
+
 - **Percent seeks**: `SeekPercent10..90` on `Digit1..Digit9`. A live stream reports an infinite
   duration, which the `currentTime` setter throws on, so `seekPercentTarget` returns null for it.
 - **mpv seeks** (layout version 3, from Nawid's mpv `input.conf`): `SeekBackward60s/SeekForward60s`

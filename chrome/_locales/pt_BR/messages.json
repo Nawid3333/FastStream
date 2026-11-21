@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "Download pausado"
     },
+    "player_download_paused_key": {
+        "message": "Download pausado: pressione $1 para continuar"
+    },
+    "player_wait_speed_zero": {
+        "message": "O vídeo está esperando dados porque \"Velocidade alvo de download do pré-downloader\" está em 0: nada é baixado com antecedência. Deixe essa configuração vazia para não ter limite."
+    },
+    "player_wait_speed_low": {
+        "message": "O vídeo está esperando dados porque \"Velocidade alvo de download do pré-downloader\" ($1 Mbit/s) está abaixo do que este vídeo precisa (cerca de $2 Mbit/s): pouco é baixado com antecedência. Aumente essa configuração ou deixe-a vazia para não ter limite."
+    },
+    "player_wait_ahead_zero": {
+        "message": "O vídeo está esperando dados porque \"Segundos a manter em buffer à frente da reprodução\" está em 0: nada é mantido com antecedência. Aumente essa configuração ou deixe-a vazia para não ter limite."
+    },
+    "player_wait_ram_zero": {
+        "message": "O vídeo está esperando dados porque \"RAM para o vídeo em buffer\" está em 0 e aqui nada é mantido no disco: nada é baixado com antecedência. Aumente essa configuração ou deixe-a vazia para não ter limite."
+    },
     "player_fragment_failed_singular": {
         "message": "$1 parte do vídeo não foi baixada. Clique para tentar novamente."
     },

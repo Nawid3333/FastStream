@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "Unduhan dijeda"
     },
+    "player_download_paused_key": {
+        "message": "Unduhan dijeda: tekan $1 untuk melanjutkan"
+    },
+    "player_wait_speed_zero": {
+        "message": "Video menunggu data karena \"Kecepatan unduh target predownloader\" bernilai 0: tidak ada yang diunduh lebih dulu. Kosongkan pengaturan itu agar tanpa batas."
+    },
+    "player_wait_speed_low": {
+        "message": "Video menunggu data karena \"Kecepatan unduh target predownloader\" ($1 Mbit/s) di bawah kebutuhan video ini (sekitar $2 Mbit/s): hanya sedikit yang diunduh lebih dulu. Naikkan pengaturan itu, atau kosongkan agar tanpa batas."
+    },
+    "player_wait_ahead_zero": {
+        "message": "Video menunggu data karena \"Detik yang tetap dibuffer di depan pemutaran\" bernilai 0: tidak ada yang disimpan lebih dulu. Naikkan pengaturan itu, atau kosongkan agar tanpa batas."
+    },
+    "player_wait_ram_zero": {
+        "message": "Video menunggu data karena \"RAM untuk video yang di-buffer\" bernilai 0 dan tidak ada yang disimpan di disk di sini: tidak ada yang diunduh lebih dulu. Naikkan pengaturan itu, atau kosongkan agar tanpa batas."
+    },
     "player_fragment_failed_singular": {
         "message": "$1 bagian video gagal diunduh. Klik untuk mencoba lagi."
     },

@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "Download pausiert"
     },
+    "player_download_paused_key": {
+        "message": "Download pausiert: $1 drücken, um fortzufahren"
+    },
+    "player_wait_speed_zero": {
+        "message": "Das Video wartet auf Daten, weil „Zielgeschwindigkeit fürs Vorladen“ auf 0 steht: Es wird nichts im Voraus geladen. Lass das Feld leer, um keine Grenze zu setzen."
+    },
+    "player_wait_speed_low": {
+        "message": "Das Video wartet auf Daten, weil „Zielgeschwindigkeit fürs Vorladen“ ($1 Mbit/s) unter dem liegt, was dieses Video braucht (etwa $2 Mbit/s): Es wird wenig im Voraus geladen. Erhöhe die Einstellung oder lass das Feld leer, um keine Grenze zu setzen."
+    },
+    "player_wait_ahead_zero": {
+        "message": "Das Video wartet auf Daten, weil „Sekunden, die im Voraus gepuffert bleiben“ auf 0 steht: Es wird nichts im Voraus gehalten. Erhöhe die Einstellung oder lass das Feld leer, um keine Grenze zu setzen."
+    },
+    "player_wait_ram_zero": {
+        "message": "Das Video wartet auf Daten, weil „Arbeitsspeicher für gepuffertes Video“ auf 0 steht und hier nichts auf der Festplatte gehalten wird: Es wird nichts im Voraus geladen. Erhöhe die Einstellung oder lass das Feld leer, um keine Grenze zu setzen."
+    },
     "player_fragment_failed_singular": {
         "message": "$1 Teil des Videos konnte nicht heruntergeladen werden. Klicke, um es erneut zu versuchen."
     },

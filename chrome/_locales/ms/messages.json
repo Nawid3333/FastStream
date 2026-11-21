@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "Muat turun dijeda"
     },
+    "player_download_paused_key": {
+        "message": "Muat turun dijeda: tekan $1 untuk menyambung semula"
+    },
+    "player_wait_speed_zero": {
+        "message": "Video menunggu data kerana \"Sasaran kelajuan muat turun bagi pemuat turun awal\" ialah 0: tiada apa-apa dimuat turun lebih awal. Biarkan tetapan itu kosong untuk tiada had."
+    },
+    "player_wait_speed_low": {
+        "message": "Video menunggu data kerana \"Sasaran kelajuan muat turun bagi pemuat turun awal\" ($1 Mbit/s) lebih rendah daripada keperluan video ini (kira-kira $2 Mbit/s): hanya sedikit dimuat turun lebih awal. Naikkan tetapan itu, atau biarkan kosong untuk tiada had."
+    },
+    "player_wait_ahead_zero": {
+        "message": "Video menunggu data kerana \"Detik yang dikekalkan dalam penampan di hadapan main balik\" ialah 0: tiada apa-apa disimpan lebih awal. Naikkan tetapan itu, atau biarkan kosong untuk tiada had."
+    },
+    "player_wait_ram_zero": {
+        "message": "Video menunggu data kerana \"RAM untuk video yang ditimbal\" ialah 0 dan tiada apa-apa disimpan pada cakera di sini: tiada apa-apa dimuat turun lebih awal. Naikkan tetapan itu, atau biarkan kosong untuk tiada had."
+    },
     "player_fragment_failed_singular": {
         "message": "$1 bahagian video gagal dimuat turun. Klik untuk mencuba semula."
     },

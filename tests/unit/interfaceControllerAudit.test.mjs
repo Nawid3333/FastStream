@@ -71,6 +71,22 @@ describe('InterfaceController.updateDownloadStatus', () => {
     self.updateDownloadStatus();
     expect(status.mock.calls.at(-1)[1]).toBe('player_fragment_allbuffered');
   });
+
+  it('names the key that resumes a pause: the playback requests wait too, and the video stops', () => {
+    Localize.getMessage.mockImplementation((key, subs) => (subs ? key + ':' + subs.join('|') : key));
+    const status = vi.fn();
+    const keybindMap = new Map([['PauseDownloaders', 'BracketLeft']]);
+    const self = withMethods(InterfaceController, ['updateDownloadStatus'], {
+      client: {downloadManager: {paused: true}, keybindManager: {keybindMap}},
+      setStatusMessage: status, shownDownloadComplete: false,
+    });
+    self.updateDownloadStatus();
+    expect(status).toHaveBeenLastCalledWith('download', 'player_download_paused_key:[', 'warning');
+    // No key for it (paused another way): the old words.
+    keybindMap.set('PauseDownloaders', 'None');
+    self.updateDownloadStatus();
+    expect(status).toHaveBeenLastCalledWith('download', 'player_download_paused', 'warning');
+  });
 });
 
 /**

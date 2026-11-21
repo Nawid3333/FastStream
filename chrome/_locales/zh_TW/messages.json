@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "下載已暫停"
     },
+    "player_download_paused_key": {
+        "message": "下載已暫停：按 $1 繼續"
+    },
+    "player_wait_speed_zero": {
+        "message": "影片正在等待資料，因為「預先下載器目標下載速度」為 0：不會預先下載任何內容。將該設定留空即可不設限制。"
+    },
+    "player_wait_speed_low": {
+        "message": "影片正在等待資料，因為「預先下載器目標下載速度」（$1 Mbit/s）低於此影片所需（約 $2 Mbit/s）：預先下載的內容很少。請調高該設定，或將其留空以不設限制。"
+    },
+    "player_wait_ahead_zero": {
+        "message": "影片正在等待資料，因為「在播放位置前方保留緩衝的秒數」為 0：前方不保留任何內容。請調高該設定，或將其留空以不設限制。"
+    },
+    "player_wait_ram_zero": {
+        "message": "影片正在等待資料，因為「緩衝影片所用記憶體」為 0，且此處不會在磁碟上保留任何內容：不會預先下載任何內容。請調高該設定，或將其留空以不設限制。"
+    },
     "player_fragment_failed_singular": {
         "message": "影片的 $1 個片段下載失敗。點擊以重試。"
     },

@@ -548,6 +548,21 @@
     "player_download_paused": {
         "message": "Download gepauzeerd"
     },
+    "player_download_paused_key": {
+        "message": "Download gepauzeerd: druk op $1 om verder te gaan"
+    },
+    "player_wait_speed_zero": {
+        "message": "De video wacht op data omdat \"Gewenste downloadsnelheid voor het voorladen\" op 0 staat: er wordt niets vooruit gedownload. Laat die instelling leeg voor geen limiet."
+    },
+    "player_wait_speed_low": {
+        "message": "De video wacht op data omdat \"Gewenste downloadsnelheid voor het voorladen\" ($1 Mbit/s) lager is dan wat deze video nodig heeft (ongeveer $2 Mbit/s): er wordt weinig vooruit gedownload. Verhoog die instelling of laat haar leeg voor geen limiet."
+    },
+    "player_wait_ahead_zero": {
+        "message": "De video wacht op data omdat \"Seconden die vanaf de afspeelpositie vooruit gebufferd blijven\" op 0 staat: er wordt niets vooruit bewaard. Verhoog die instelling of laat haar leeg voor geen limiet."
+    },
+    "player_wait_ram_zero": {
+        "message": "De video wacht op data omdat \"RAM voor gebufferde video\" op 0 staat en hier niets op de schijf wordt bewaard: er wordt niets vooruit gedownload. Verhoog die instelling of laat haar leeg voor geen limiet."
+    },
     "player_fragment_failed_singular": {
         "message": "$1 deel van de video kon niet worden gedownload. Klik om opnieuw te proberen."
     },

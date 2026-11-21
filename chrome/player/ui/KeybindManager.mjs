@@ -21,6 +21,8 @@ export class KeybindManager extends EventEmitter {
     this.client = client;
     /** @type {Map<string, string>} Action to key string, e.g. 'PlayPause' to 'Space'. */
     this.keybindMap = new Map();
+    /** @type {?KeyboardEvent} An AltGr press nothing was typed with yet. */
+    this.altGraphPress = null;
     this.setup();
   }
   setup() {
@@ -36,6 +38,10 @@ export class KeybindManager extends EventEmitter {
 
     document.addEventListener('keydown', (e) => {
       this.onKeyDown(e);
+    });
+
+    document.addEventListener('keyup', (e) => {
+      this.onKeyUp(e);
     });
 
     this.on('HidePlayer', /** @param {KeyboardEvent} e */ (e) => {
@@ -189,7 +195,8 @@ export class KeybindManager extends EventEmitter {
     });
 
     this.on('RemoveDownloader', /** @param {KeyboardEvent} e */ (e) => {
-      if (this.client.downloadManager.downloaders.length > 0) {
+      // Not the last one: nothing would download, playback's requests included, and nothing adds one back.
+      if (this.client.downloadManager.downloaders.length > 1) {
         this.client.downloadManager.removeDownloader();
         this.client.interfaceController.updateFragmentsLoaded();
       }
@@ -401,9 +408,31 @@ export class KeybindManager extends EventEmitter {
       }
     }
 
+    // AltGr (Right Alt where the layout types with it) is pressed before the character it types: '[' is AltGr+8 on a
+    // German keyboard. Its own binding fires when it is let go with nothing typed meanwhile (onKeyUp). Windows sends a
+    // Control press with it.
+    if (e.key === 'AltGraph') {
+      this.altGraphPress = e;
+      return;
+    }
+    if (e.key !== 'Control') this.altGraphPress = null;
+
     const keyString = WebUtils.getKeyString(e);
 
     if (this.handleKeyString(keyString, e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+
+  /**
+   * @param {KeyboardEvent} e
+   */
+  onKeyUp(e) {
+    if (e.key !== 'AltGraph' || !this.altGraphPress) return;
+    const press = this.altGraphPress;
+    this.altGraphPress = null;
+    if (this.handleKeyString(WebUtils.getKeyString(press), e)) {
       e.preventDefault();
       e.stopPropagation();
     }
