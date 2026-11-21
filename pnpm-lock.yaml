@@ -23,7 +23,7 @@ patchedDependencies:
   dashjs@5.3.0: 9196221c14d86812d6c44b40d5db5d090141bc3c62a897008775f370f23e719b
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
   hls.js@1.7.4: 3a9f687704aa3d840b960ac8afa2664fc9feb0c11ed2f990f8a320d3e6d61af3
-  mp4box@2.5.0: 3091a659c97e24ca32b158848f4677b2cea9286d2943219003f9d817b42d7ece
+  mp4box@2.6.0: 542057760692c3d6c585c48450917f5ac9c334d4087b549f80ae7f07b7c31aff
 
 importers:
 
@@ -99,8 +99,8 @@ importers:
         specifier: 1.66.0
         version: 1.66.0
       mp4box:
-        specifier: 2.5.0
-        version: 2.5.0(patch_hash=3091a659c97e24ca32b158848f4677b2cea9286d2943219003f9d817b42d7ece)
+        specifier: 2.6.0
+        version: 2.6.0(patch_hash=542057760692c3d6c585c48450917f5ac9c334d4087b549f80ae7f07b7c31aff)
       sortablejs:
         specifier: 1.15.7
         version: 1.15.7
@@ -2409,8 +2409,8 @@ packages:
     resolution: {integrity: sha512-snEhs+6G5Tjd4I7tLCDOaoln2RgE0bD19RzEKgvgK2hZ5VKy3MpLhLTZ2fWpXSTg4K2cyPwp+VHATFJhxfnOeA==}
     engines: {node: '>=18.0.0'}
 
-  mp4box@2.5.0:
-    resolution: {integrity: sha512-AK5FQsN5aD2m91HuCGPlRDomDhGxK0o4F8ZVyAbAfcMWBW2QlhZvE0S7v9lBq0Ib4eONq7mT1SBVdrnnIrn4pw==}
+  mp4box@2.6.0:
+    resolution: {integrity: sha512-qsq+0GXcZfbrDpG6CrSsooha4R9+lMBnYGaaIjKgD/7dSddyERe9Q2FaGceXFvGfRLuAJkFrbI6MOZZInAVpGQ==}
     engines: {node: '>=20.8.1'}
 
   ms@2.1.3:
@@ -5483,7 +5483,7 @@ snapshots:
 
   modern-tar@0.8.5: {}
 
-  mp4box@2.5.0(patch_hash=3091a659c97e24ca32b158848f4677b2cea9286d2943219003f9d817b42d7ece): {}
+  mp4box@2.6.0(patch_hash=542057760692c3d6c585c48450917f5ac9c334d4087b549f80ae7f07b7c31aff): {}
 
   ms@2.1.3: {}
 
