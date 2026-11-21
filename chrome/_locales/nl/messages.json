@@ -668,6 +668,12 @@
     "player_error_turn_off": {
         "message": "Zet FastStream uit met de knop in de werkbalk om de video in de eigen speler van de site te bekijken."
     },
+    "player_error_turn_off_android": {
+        "message": "Zet FastStream uit via het Firefox-menu, onder Extensies, om de video in de eigen speler van de site te bekijken."
+    },
+    "player_error_drm_android": {
+        "message": "Deze video is kopieerbeveiligd (DRM) en FastStream kan hem niet afspelen. Zet FastStream uit via het Firefox-menu, onder Extensies, om de video in de eigen speler van de site te bekijken."
+    },
     "source_copied": {
         "message": "URL gekopieerd naar klembord!"
     },
@@ -700,9 +706,6 @@
     },
     "player_source_mode": {
         "message": "Modus"
-    },
-    "player_source_mode_auto_error": {
-        "message": "Selecteer een afspeelmodus!"
     },
     "player_source_url_placeholder": {
         "message": "Bron-URL"

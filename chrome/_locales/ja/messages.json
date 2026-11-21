@@ -668,6 +668,12 @@
     "player_error_turn_off": {
         "message": "ツールバーのボタンで FastStream をオフにして、サイトの標準プレーヤーで再生してください。"
     },
+    "player_error_turn_off_android": {
+        "message": "Firefox のメニューの「拡張機能」から FastStream をオフにして、サイトの標準プレーヤーで再生してください。"
+    },
+    "player_error_drm_android": {
+        "message": "この動画はコピーガード（DRM）がかかっているため、FastStream では再生できません。Firefox のメニューの「拡張機能」から FastStream をオフにして、サイトの標準プレーヤーで再生してください。"
+    },
     "source_copied": {
         "message": "URL をクリップボードにコピーしました!"
     },
@@ -700,9 +706,6 @@
     },
     "player_source_mode": {
         "message": "モード"
-    },
-    "player_source_mode_auto_error": {
-        "message": "プレーヤーモードを選択してください!"
     },
     "player_source_url_placeholder": {
         "message": "ソースの URL"

@@ -2112,7 +2112,8 @@ export class FastStreamClient extends EventEmitter {
   loadErrorMessage(detail) {
     const message = Localize.getMessage('player_error_load') + (detail ? ' (' + detail + ')' : '');
     const inPage = typeof window !== 'undefined' && window.top !== window;
-    return inPage ? message + ' ' + Localize.getMessage('player_error_turn_off') : message;
+    // Android has no toolbar: FastStream's button is in Firefox's menu, under Extensions.
+    return inPage ? message + ' ' + Localize.getMessage(EnvUtils.isAndroid() ? 'player_error_turn_off_android' : 'player_error_turn_off') : message;
   }
 
   /**
@@ -2472,7 +2473,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.NEED_KEY, (/** @type {undefined} */ event) => {
       if (!this.isCurrentAttempt(player)) return;
-      this.failedToLoad(Localize.getMessage('player_error_drm'));
+      this.failedToLoad(Localize.getMessage(EnvUtils.isAndroid() ? 'player_error_drm_android' : 'player_error_drm'));
     });
 
     this.context.on(DefaultPlayerEvents.LOADEDDATA, (/** @type {undefined} */ event) => {

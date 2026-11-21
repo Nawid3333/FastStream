@@ -1356,3 +1356,15 @@ Rejected:
   write fails only on a broken or full profile.
 - **An imported regex can hang the URL lists** (`autoEnableURLs`, custom source patterns): the cloud
   copy is the user's own, from their own Mozilla account, as if typed into the options.
+
+## The audit of the player's messages (2026-11-21)
+
+Messages that stopped the user without telling them what to do:
+
+- **"Please select a player mode!"** A new row in the Sources window starts on "Auto", which takes
+  the mode from the address when the address field is left. Play with the field still being typed
+  in (a tap on Android need not leave it) found "Auto" and said only that. Play now takes the mode
+  from the address too, and the message is gone.
+- **"Turn FastStream off with its toolbar button"** (a load error in a page, DRM). Firefox for
+  Android has no toolbar: FastStream's button is in Firefox's menu, under Extensions, and Android
+  now says so.

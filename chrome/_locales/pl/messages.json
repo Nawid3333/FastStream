@@ -668,6 +668,12 @@
     "player_error_turn_off": {
         "message": "Wyłącz FastStream przyciskiem na pasku narzędzi, aby obejrzeć je w odtwarzaczu strony."
     },
+    "player_error_turn_off_android": {
+        "message": "Wyłącz FastStream w menu Firefoksa, w sekcji Rozszerzenia, aby obejrzeć je w odtwarzaczu strony."
+    },
+    "player_error_drm_android": {
+        "message": "To wideo jest chronione przed kopiowaniem (DRM), a FastStream nie może go odtworzyć. Wyłącz FastStream w menu Firefoksa, w sekcji Rozszerzenia, aby obejrzeć je w odtwarzaczu strony."
+    },
     "source_copied": {
         "message": "Adres URL skopiowany do schowka!"
     },
@@ -700,9 +706,6 @@
     },
     "player_source_mode": {
         "message": "Tryb"
-    },
-    "player_source_mode_auto_error": {
-        "message": "Wybierz tryb odtwarzacza!"
     },
     "player_source_url_placeholder": {
         "message": "URL źródła"

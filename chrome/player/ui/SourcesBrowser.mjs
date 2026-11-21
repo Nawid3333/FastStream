@@ -3,7 +3,6 @@ import {VideoSource} from '../VideoSource.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {Localize} from '../modules/Localize.mjs';
-import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {InterfaceUtils} from '../utils/InterfaceUtils.mjs';
 import {URLUtils} from '../utils/URLUtils.mjs';
@@ -97,17 +96,18 @@ export class SourcesBrowser {
     sourceMode.classList.add('linkui-source-mode');
     sourceContainer.appendChild(sourceMode);
 
-    sourceURL.addEventListener('change', (e) => {
-      if (source.mode === PlayerModes.AUTO) {
-        try {
-          const mode = URLUtils.getModeFromURL(sourceURL.value);
-          /** @type {HTMLElement[]} */ (Array.from(sourceMode.children[1].children)).find((el) => el.dataset.val === mode)?.click();
-          /** @type {HTMLElement[]} */ (Array.from(sourceMode.children[1].children)).find((el) => el.dataset.val === PlayerModes.AUTO)?.remove();
-        } catch (e) {
-          console.error(e);
-        }
-      }
+    // Auto takes the mode from the address: when the field is left, or at Play with the field still being typed in
+    // (a tap on Play need not leave it).
+    const pickMode = () => {
+      if (source.mode !== PlayerModes.AUTO) return;
+      source.mode = URLUtils.getModeFromURL(source.url);
+      const options = /** @type {HTMLElement[]} */ (Array.from(sourceMode.children[1].children));
+      options.find((el) => el.dataset.val === source.mode)?.click();
+      options.find((el) => el.dataset.val === PlayerModes.AUTO)?.remove();
+    };
 
+    sourceURL.addEventListener('change', (e) => {
+      pickMode();
       source.parseHeadersParam();
       sourceHeadersBtn.textContent = Localize.getMessage('player_source_headerbtn', [Object.keys(source.headers).length]);
       headersInput.value = URLUtils.objToHeadersString(source.headers);
@@ -173,11 +173,7 @@ export class SourcesBrowser {
         return;
       }
 
-      // Check if mode is AUTO
-      if (source.mode === PlayerModes.AUTO) {
-        AlertPolyfill.alert(Localize.getMessage('player_source_mode_auto_error'), 'error');
-        return;
-      }
+      pickMode();
 
       // On the source, not the button: the list drawn again meanwhile (a character typed in
       // another row) took the button's mark away, and a second click set the source up twice.

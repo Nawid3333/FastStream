@@ -668,6 +668,12 @@
     "player_error_turn_off": {
         "message": "도구 모음 버튼으로 FastStream을 끄고 사이트의 자체 플레이어에서 시청하세요."
     },
+    "player_error_turn_off_android": {
+        "message": "Firefox 메뉴의 '확장 기능'에서 FastStream을 끄고 사이트의 자체 플레이어에서 시청하세요."
+    },
+    "player_error_drm_android": {
+        "message": "이 비디오는 복사 방지(DRM)가 적용되어 있어 FastStream에서 재생할 수 없습니다. Firefox 메뉴의 '확장 기능'에서 FastStream을 끄고 사이트의 자체 플레이어에서 시청하세요."
+    },
     "source_copied": {
         "message": "URL이 클립보드에 복사되었습니다!"
     },
@@ -700,9 +706,6 @@
     },
     "player_source_mode": {
         "message": "모드"
-    },
-    "player_source_mode_auto_error": {
-        "message": "플레이어 모드를 선택하세요!"
     },
     "player_source_url_placeholder": {
         "message": "소스 URL"
