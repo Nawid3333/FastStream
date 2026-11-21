@@ -58,6 +58,7 @@ const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');
 const {LevelManager} = await import('../../chrome/player/players/LevelManager.mjs');
 const {DroppedFrameWatch} = await import('../../chrome/player/players/DroppedFrameWatch.mjs');
 const {Localize} = await import('../../chrome/player/modules/Localize.mjs');
+const {StringUtils} = await import('../../chrome/player/utils/StringUtils.mjs');
 
 /** A player as the player loader makes one, with what the client reads and sets on it. */
 class FakePlayer extends EventEmitter {
@@ -1039,7 +1040,8 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     // Less the 20 s kept behind, as with the disk: with predownload on, that is how it counts.
     expect(client.state.bufferAhead).toBe(fits(500 * MB) - 20);
     expect(client.interfaceController.setStatusMessage).toHaveBeenCalledTimes(1);
-    expect(client.interfaceController.setStatusMessage.mock.calls[0][1]).toBe('player_buffer_storage_warning');
+    // "Keep video on disk" off: the message names it, and says the video plays on.
+    expect(client.interfaceController.setStatusMessage.mock.calls[0][1]).toBe('player_buffer_ram_warning');
     // Pinned, the budget could not let go of it.
     expect(fragment.addReference).not.toHaveBeenCalled();
 
@@ -1121,7 +1123,75 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     small.updateHasDownloadSpace();
     expect(small.hasDownloadSpace).toBe(false);
     expect(small.state.bufferAhead).toBe(Math.floor((500 * MB * 0.75 + 300 * MB * 0.6) * 8 / 5e6 / 1.1) - 20);
-    expect(small.interfaceController.setStatusMessage.mock.calls.map((call) => call[1])).toEqual(['player_buffer_storage_warning']);
+    expect(small.interfaceController.setStatusMessage.mock.calls.map((call) => call[1])).toEqual(['player_buffer_disk_warning']);
+  });
+
+  describe('why a video is not predownloaded whole (#798)', () => {
+    /**
+     * A 3 h movie at 10 Mbit/s, 13.5 GB, with the settings given; the default 2 GB of RAM beside the disk.
+     * @param {Object} options
+     * @param {number} free - The disk quota left, bytes.
+     * @return {Object} The client, after one look.
+     */
+    const movie = (options, free) => {
+      const client = clientWithVideo({bufferToDisk: true, ramBudget: 2 * GB, ...options});
+      client.player.duration = 3 * 3600;
+      client.player.getVideoLevels = () => new Map([['video-1', {bitrate: 1e7}]]);
+      client.storageAvailable = free;
+      client.updateHasDownloadSpace();
+      return client;
+    };
+    const said = (client) => client.interfaceController.setStatusMessage.mock.calls.map((call) => call[1]);
+
+    it('predownloads it whole with no limit set, on the disk Firefox gives with unlimitedStorage', () => {
+      // unlimitedStorage: a persistent origin, its quota a share of the disk (900 GB measured in Firefox 160).
+      const client = movie({maxVideoSize: -1}, 900 * GB);
+      expect(client.hasDownloadSpace).toBe(true);
+      expect(said(client)).toEqual([]);
+    });
+
+    it('names Firefox\'s disk space when that is what holds it back', () => {
+      // Without unlimitedStorage Firefox gave the extension 10 GiB, whatever the settings: 60 % of it and the RAM
+      // held no 13.5 GB.
+      const message = vi.spyOn(Localize, 'getMessage');
+      const client = movie({maxVideoSize: -1}, 10 * 1024 ** 3);
+      expect(client.hasDownloadSpace).toBe(false);
+      expect(said(client)).toEqual(['player_buffer_disk_warning']);
+      expect(message).toHaveBeenCalledWith('player_buffer_disk_warning', [StringUtils.formatSize(13.5 * GB),
+        StringUtils.formatSize(10 * 1024 ** 3), StringUtils.formatDuration(client.state.bufferAhead)]);
+    });
+
+    it('names the maximum size when the setting holds it back, as an info that stays 12 s', () => {
+      // The default 5 GB: the issue's movie kept 1-2 hours ahead and said only "the predownload limits".
+      const message = vi.spyOn(Localize, 'getMessage');
+      const client = movie({maxVideoSize: 5 * GB}, 900 * GB);
+      expect(client.hasDownloadSpace).toBe(false);
+      expect(client.state.bufferAhead).toBe(Math.floor(5 * GB * 8 / 1e7 / 1.1) - 20);
+      expect(message).toHaveBeenCalledWith('player_buffer_size_warning', [StringUtils.formatSize(13.5 * GB),
+        StringUtils.formatSize(5 * GB), StringUtils.formatDuration(client.state.bufferAhead)]);
+      expect(client.interfaceController.setStatusMessage)
+          .toHaveBeenCalledWith(expect.anything(), 'player_buffer_size_warning', 'info', 12000);
+    });
+
+    it('says nothing for a maximum size of 0: nothing predownloaded is what was asked', () => {
+      const client = movie({maxVideoSize: 0}, 900 * GB);
+      expect(client.hasDownloadSpace).toBe(false);
+      expect(said(client)).toEqual([]);
+    });
+
+    it('says nothing when nothing is kept ahead: RAM only, with "RAM for buffered video" at 0', () => {
+      // "It still plays normally and keeps loading 0 s ahead" would not hold; the options page warns about the 0.
+      const client = movie({bufferToDisk: false, ramBudget: 0}, 900 * GB);
+      expect(client.hasDownloadSpace).toBe(false);
+      expect(said(client)).toEqual([]);
+    });
+
+    it('says it once per video', () => {
+      const client = movie({maxVideoSize: 5 * GB}, 900 * GB);
+      client.updateHasDownloadSpace();
+      client.updateHasDownloadSpace();
+      expect(said(client)).toEqual(['player_buffer_size_warning']);
+    });
   });
 
   it('does not let the disk\'s free space limit what is kept in RAM', () => {
@@ -1167,7 +1237,7 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(client.hasDownloadSpace).toBe(false);
     expect(client.state.bufferAhead).toBe(fits(500 * MB) - 20);
     const said = client.interfaceController.setStatusMessage.mock.calls.map((call) => call[1]);
-    expect(said).toEqual(['player_buffer_incognito_warning']);
+    expect(said).toEqual(['player_buffer_private_warning']);
   });
 
   it('fits the video and its separate audio track together', () => {

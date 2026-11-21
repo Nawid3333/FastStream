@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(不明)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "プライベートウィンドウでは、事前ダウンロードに必要な空き容量が足りないため、FastStream は動画のうち $1 だけをバッファーに保持します。"
+    "player_buffer_size_warning": {
+        "message": "この動画（約 $1）は設定「プリダウンロードする動画の最大サイズ」（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を事前ダウンロードするには、この設定を大きくするか、空欄にしてください。"
     },
-    "player_buffer_storage_warning": {
-        "message": "この動画は、事前ダウンロードの制限（サイズ、ディスク容量、RAM）に収まらないため、FastStream は動画のうち $1 だけをバッファーに保持します。"
+    "player_buffer_private_warning": {
+        "message": "プライベートウィンドウでは FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。"
+    },
+    "player_buffer_ram_warning": {
+        "message": "「このRAMがいっぱいになった時に動画をディスクに保存する」がオフのため、FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を事前ダウンロードするには、この設定をオンにしてください。"
+    },
+    "player_buffer_disk_warning": {
+        "message": "この動画（約 $1）は、Firefox が FastStream に割り当てるディスク容量（空き $2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。ディスクの空き容量を増やすと改善します。"
     },
     "player_error_drm": {
         "message": "この動画はコピーガード（DRM）がかかっているため、FastStream では再生できません。ツールバーのボタンで FastStream をオフにして、サイトの標準プレーヤーで再生してください。"
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "アドレスと種類からストリームと分からないプレーヤーのリクエストについて、FastStream は最初のバイトを読み、HLS プレイリストまたは DASH マニフェストかどうかを判別します。バイトはそのままページに渡され、レスポンスの残りには触れません。"
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "長い動画をディスクに保存する"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "この権限がないと、Firefox はアドオンが保存できる量を最大 10 GB に制限するため、FastStream の設定で制限をなくしても長い動画を全体まで事前ダウンロードできません。FastStream は引き続き「プリダウンロードする動画の最大サイズ」の設定を超えて保存せず、プレーヤーを閉じると動画を削除します。Firefox はこの権限について確認を求めません。"
     },
     "player_audio_output_label": {
         "message": "オーディオ出力"

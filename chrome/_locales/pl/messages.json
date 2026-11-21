@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(nieznane)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Za mało miejsca na wstępne pobieranie w oknie prywatnym: FastStream buforuje tylko $1 wideo."
+    "player_buffer_size_warning": {
+        "message": "To wideo (około $1) jest większe niż ustawienie „Maksymalny rozmiar wstępnie pobranego wideo” ($2), więc nie jest wstępnie pobierane w całości. Mimo to odtwarza się normalnie i ładuje się do $3 do przodu. Aby pobrać je wstępnie w całości, zwiększ to ustawienie lub zostaw pole puste."
     },
-    "player_buffer_storage_warning": {
-        "message": "To wideo nie mieści się w limitach wstępnego pobierania (rozmiar, miejsce na dysku lub RAM): FastStream buforuje tylko $1 wideo."
+    "player_buffer_private_warning": {
+        "message": "W oknie prywatnym FastStream trzyma wideo tylko w RAM, a to wideo (około $1) jest większe niż część „RAM na buforowane wideo”, której FastStream może dla niego użyć ($2), więc nie jest wstępnie pobierane w całości. Mimo to odtwarza się normalnie i ładuje się do $3 do przodu."
+    },
+    "player_buffer_ram_warning": {
+        "message": "„Przechowuj wideo na dysku” jest wyłączone, więc FastStream trzyma wideo tylko w RAM, a to wideo (około $1) jest większe niż część „RAM na buforowane wideo”, której FastStream może dla niego użyć ($2). Nie jest wstępnie pobierane w całości, ale mimo to odtwarza się normalnie i ładuje się do $3 do przodu. Aby pobrać je wstępnie w całości, włącz „Przechowuj wideo na dysku”."
+    },
+    "player_buffer_disk_warning": {
+        "message": "To wideo (około $1) jest większe niż miejsce na dysku, które Firefox daje FastStream (wolne: $2), więc nie jest wstępnie pobierane w całości. Mimo to odtwarza się normalnie i ładuje się do $3 do przodu. Pomaga zwolnienie miejsca na dysku."
     },
     "player_error_drm": {
         "message": "To wideo jest chronione przed kopiowaniem (DRM), a FastStream nie może go odtworzyć. Wyłącz FastStream przyciskiem na pasku narzędzi, aby obejrzeć je w odtwarzaczu strony."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "FastStream odczytuje pierwsze bajty żądania odtwarzacza, którego adres i typ nie wskazują strumienia, aby rozpoznać playlistę HLS lub manifest DASH. Bajty trafiają do strony bez zmian, a reszta odpowiedzi pozostaje nietknięta."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Przechowywanie długich filmów na dysku"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Bez niego Firefox pozwala dodatkowi przechowywać najwyżej 10 GB, więc długiego wideo nie dałoby się wstępnie pobrać w całości nawet bez limitu w ustawieniach FastStream. FastStream nadal przechowuje nie więcej, niż pozwala ustawienie „Maksymalny rozmiar wstępnie pobranego wideo”, i usuwa wideo po zamknięciu odtwarzacza. Firefox nie pyta o to uprawnienie."
     },
     "player_audio_output_label": {
         "message": "Wyjście audio"

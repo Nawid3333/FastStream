@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(unbekannt)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Nicht genügend Arbeitsspeicher, um in einem privaten Fenster vorzuladen: FastStream speichert nur $1 des Videos im Puffer."
+    "player_buffer_size_warning": {
+        "message": "Dieses Video (etwa $1) ist größer als die Einstellung „Maximale Größe für vorgeladene Videos“ ($2) und wird daher nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus. Um es vollständig vorzuladen, erhöhe diese Einstellung oder lass das Feld leer."
     },
-    "player_buffer_storage_warning": {
-        "message": "Dieses Video passt nicht in die Begrenzungen für das Vorab-Laden (Größe, Speicherplatz oder RAM): FastStream speichert nur $1 davon im Puffer."
+    "player_buffer_private_warning": {
+        "message": "In einem privaten Fenster hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für gepuffertes Video“, den FastStream dafür nutzen darf ($2). Daher wird es nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus."
+    },
+    "player_buffer_ram_warning": {
+        "message": "„Video auf der Festplatte speichern“ ist aus, daher hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für gepuffertes Video“, den FastStream dafür nutzen darf ($2). Es wird nicht vollständig vorgeladen, spielt aber trotzdem normal ab und lädt bis zu $3 im Voraus. Um es vollständig vorzuladen, schalte „Video auf der Festplatte speichern“ ein."
+    },
+    "player_buffer_disk_warning": {
+        "message": "Dieses Video (etwa $1) ist größer als der Speicherplatz, den Firefox FastStream auf der Festplatte gibt ($2 frei), und wird daher nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus. Speicherplatz freizugeben hilft."
     },
     "player_error_drm": {
         "message": "Dieses Video ist durch DRM geschützt, und FastStream kann es nicht abspielen. Deaktiviere FastStream mit der Schaltfläche in der Symbolleiste, um es im Player der Website anzusehen."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "FastStream liest die ersten Bytes einer Player-Anfrage, deren Adresse und Typ keinen Stream nennen, um eine HLS-Playlist oder ein DASH-Manifest zu erkennen. Die Bytes gehen unverändert an die Seite weiter, der Rest der Antwort bleibt unberührt."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Lange Videos auf der Festplatte speichern"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Ohne sie lässt Firefox ein Add-on höchstens 10 GB speichern, sodass ein langes Video selbst ohne Begrenzung in den Einstellungen von FastStream nicht vollständig vorgeladen werden könnte. FastStream speichert trotzdem nicht mehr als die Einstellung „Maximale Größe für vorgeladene Videos“ erlaubt und löscht das Video, wenn der Player geschlossen wird. Firefox fragt nach dieser Berechtigung nicht."
     },
     "player_audio_output_label": {
         "message": "Audioausgabe"

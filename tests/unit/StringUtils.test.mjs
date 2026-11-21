@@ -23,6 +23,14 @@ describe('formatTime', () => {
   });
 });
 
+describe('formatSize', () => {
+  it('writes the units of the settings, 1000-based, one decimal for GB', () => {
+    expect(StringUtils.formatSize(6.75e9)).toMatch(/^6[.,]8\s?GB$/);
+    expect(StringUtils.formatSize(5e9)).toMatch(/^5\s?GB$/);
+    expect(StringUtils.formatSize(750e6)).toMatch(/^750\s?MB$/);
+  });
+});
+
 describe('formatDuration', () => {
   it('drops empty leading units', () => {
     expect(StringUtils.formatDuration(5)).toBe('5s');

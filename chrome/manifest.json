@@ -83,7 +83,8 @@
     "nativeMessaging",
     "downloads",
     "cookies",
-    "menus"
+    "menus",
+    "unlimitedStorage"
   ],
   "optional_permissions": [
     "proxy"

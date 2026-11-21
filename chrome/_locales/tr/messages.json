@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(bilinmiyor)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Gizli pencerede ön indirme için yeterli alan yok: FastStream videonun yalnızca $1 kadarını arabellekte tutar."
+    "player_buffer_size_warning": {
+        "message": "Bu video (yaklaşık $1), \"Önceden indirilen videonun maksimum boyutu\" ayarından ($2) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını önceden indirmek için bu ayarı artırın veya alanı boş bırakın."
     },
-    "player_buffer_storage_warning": {
-        "message": "Bu video ön indirme sınırlarına (boyut, disk alanı veya RAM) sığmıyor: FastStream videonun yalnızca $1 kadarını arabellekte tutar."
+    "player_buffer_private_warning": {
+        "message": "Gizli pencerede FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder."
+    },
+    "player_buffer_ram_warning": {
+        "message": "\"Bu RAM dolduğunda videoyu diskte tut\" kapalı olduğu için FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyüktür. Tamamen önceden indirilmez, ancak yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını önceden indirmek için bu ayarı açın."
+    },
+    "player_buffer_disk_warning": {
+        "message": "Bu video (yaklaşık $1), Firefox'un FastStream'e verdiği disk alanından ($2 boş) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Diskte yer açmak yardımcı olur."
     },
     "player_error_drm": {
         "message": "Bu video kopya korumalı (DRM) ve FastStream onu oynatamıyor. Sitenin kendi oynatıcısında izlemek için FastStream'i araç çubuğu düğmesiyle kapatın."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "FastStream, adresi ve türü bir akış belirtmeyen oynatıcı isteklerinin ilk baytlarını okuyarak HLS çalma listesi veya DASH manifestosu olup olmadığını anlar. Baytlar sayfaya değiştirilmeden iletilir ve yanıtın geri kalanına dokunulmaz."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Uzun videoları diskte tutma"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Bu izin olmadan Firefox bir eklentinin en fazla 10 GB saklamasına izin verir; bu yüzden FastStream ayarlarında sınır olmasa bile uzun bir video tamamen önceden indirilemezdi. FastStream yine de \"Önceden indirilen videonun maksimum boyutu\" ayarından fazlasını saklamaz ve oynatıcı kapandığında videoyu siler. Firefox bu izin için soru sormaz."
     },
     "player_audio_output_label": {
         "message": "Ses çıkışı"
