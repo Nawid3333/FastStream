@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Tidak ada subtitle"
     },
+    "player_resumed_key": {
+        "message": "Dilanjutkan di $1, tempat terakhir Anda berhenti: tekan $2 untuk mulai dari awal"
+    },
+    "player_resumed": {
+        "message": "Dilanjutkan di $1, tempat terakhir Anda berhenti"
+    },
+    "player_subtitles_available_key": {
+        "message": "Subtitel tersedia ($1): tekan $2 untuk menyalakannya, atau pilih satu di menu subtitel"
+    },
+    "player_subtitles_available": {
+        "message": "Subtitel tersedia ($1): pilih satu di menu subtitel"
+    },
     "player_subtitles_new_cue": {
         "message": "Subtitle baru"
     },

@@ -1958,6 +1958,12 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   - `subtitle-ttml.e2e.mjs` runs the reader in Firefox (the unit tests have no DOM):
     `TtmlSubtitles.test.mjs` covers times, rates, detection and colours.
 
+- **Two things the player did without a word** (2026-11-21, `ui/PlaybackNotices.mjs`; the owner chose both).
+  A video that starts where it was left ("Play videos from last watched position", on by default) says so for 5 s
+  with the key that goes to the start (`player_resumed_key`): the silent jump read as a bug, and Undo seek cannot
+  take it back. The page's subtitle tracks, loaded with none turned on (auto-enable is off by default), are named for
+  8 s with the subtitles key (`player_subtitles_available_key`). `PlaybackNotices.test.mjs`, `playerStayed.test.mjs`.
+
 ## Utils, options, enums, dash2mp4: reasons behind the code
 
 - **`EnvUtils.os`** - The system comes from `chrome.runtime.getPlatformInfo`: with

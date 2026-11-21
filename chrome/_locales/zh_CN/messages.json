@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "无字幕"
     },
+    "player_resumed_key": {
+        "message": "已从上次停止的位置 $1 继续播放：按 $2 从头开始"
+    },
+    "player_resumed": {
+        "message": "已从上次停止的位置 $1 继续播放"
+    },
+    "player_subtitles_available_key": {
+        "message": "有可用字幕（$1）：按 $2 开启，或在字幕菜单中选择"
+    },
+    "player_subtitles_available": {
+        "message": "有可用字幕（$1）：请在字幕菜单中选择"
+    },
     "player_subtitles_new_cue": {
         "message": "新建字幕"
     },

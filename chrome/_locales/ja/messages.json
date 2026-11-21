@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "字幕なし"
     },
+    "player_resumed_key": {
+        "message": "前回の続き（$1）から再生しています：$2 を押すと最初から再生します"
+    },
+    "player_resumed": {
+        "message": "前回の続き（$1）から再生しています"
+    },
+    "player_subtitles_available_key": {
+        "message": "字幕があります（$1）：$2 を押すとオンになります。字幕メニューから選ぶこともできます"
+    },
+    "player_subtitles_available": {
+        "message": "字幕があります（$1）：字幕メニューから選んでください"
+    },
     "player_subtitles_new_cue": {
         "message": "新しい字幕"
     },

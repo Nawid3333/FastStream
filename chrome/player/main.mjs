@@ -5,6 +5,7 @@ import {PlayerModes} from './enums/PlayerModes.mjs';
 import {FastStreamClient} from './FastStreamClient.mjs';
 import {Localize} from './modules/Localize.mjs';
 import {SubtitleTrack} from './SubtitleTrack.mjs';
+import {subtitlesMessage} from './ui/PlaybackNotices.mjs';
 import {isAddressFromRedirect} from './utils/AddressKey.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {STILLS_LENGTH, StreamLength} from './utils/StreamLength.mjs';
@@ -219,6 +220,7 @@ async function recieveSources(request, sendResponse) {
     subs = await loadSubtitles(subs);
     subs = await sortSubtitles(/** @type {SubtitleData[]} */ (subs));
 
+    let loaded = 0;
     try {
       subs.forEach((sub, i) => {
         const track = new SubtitleTrack(sub.label, sub.language);
@@ -226,6 +228,7 @@ async function recieveSources(request, sendResponse) {
           track.loadText(sub.data);
           if (track.cues.length > 0) {
             /** @type {FastStreamWindow} */ (window).fastStream.loadSubtitleTrack(track, request.autoSetSource);
+            loaded++;
           }
         } catch (e) {
           console.error(e);
@@ -233,6 +236,12 @@ async function recieveSources(request, sendResponse) {
       });
     } catch (e) {
       console.error(e);
+    }
+    // Loaded and none on: say they are there (the auto-enable setting is off by default).
+    const client = /** @type {FastStreamWindow} */ (window).fastStream;
+    if (loaded > 0 && client.interfaceController.subtitlesManager.activeTracks.length === 0) {
+      client.interfaceController.setStatusMessage('info', subtitlesMessage(loaded,
+          client.keybindManager?.keybindMap), 'info', 8000);
     }
   }
 

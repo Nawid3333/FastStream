@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Sin subtítulos"
     },
+    "player_resumed_key": {
+        "message": "Reanudado en $1, donde lo dejaste: pulsa $2 para empezar desde el principio"
+    },
+    "player_resumed": {
+        "message": "Reanudado en $1, donde lo dejaste"
+    },
+    "player_subtitles_available_key": {
+        "message": "Subtítulos disponibles ($1): pulsa $2 para activarlos o elige uno en el menú de subtítulos"
+    },
+    "player_subtitles_available": {
+        "message": "Subtítulos disponibles ($1): elige uno en el menú de subtítulos"
+    },
     "player_subtitles_new_cue": {
         "message": "Nuevo subtítulo"
     },

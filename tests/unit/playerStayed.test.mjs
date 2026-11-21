@@ -179,6 +179,7 @@ describe('the player page\'s messages', () => {
       carryFullscreen: vi.fn(),
       pipToggle: vi.fn(),
       toggleWindowedFullscreen: vi.fn(),
+      subtitlesManager: {activeTracks: []},
     };
     client.addSource = vi.fn(async (s) => s);
     client.clearSubtitles = vi.fn();
@@ -196,7 +197,7 @@ describe('the player page\'s messages', () => {
 
   it('carries the fullscreen and answers when the language of the subtitles cannot be told', async () => {
     const {listener, client} = await withListener();
-    chrome.i18n = {detectLanguage: (text, callback) => callback(undefined)};
+    chrome.i18n = {detectLanguage: (text, callback) => callback(undefined), getMessage: (key) => key};
     const sendResponse = vi.fn();
     listener({
       type: 'SOURCES',
@@ -208,6 +209,9 @@ describe('the player page\'s messages', () => {
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith('sources_recieved'));
     expect(client.interfaceController.carryFullscreen).toHaveBeenCalledTimes(1);
     expect(client.loadSubtitleTrack).toHaveBeenCalledTimes(1);
+    // Loaded and none turned on: the player says they are there, once.
+    const said = client.interfaceController.setStatusMessage.mock.calls.filter((call) => call[0] === 'info' && call[3] === 8000);
+    expect(said).toHaveLength(1);
   });
 
   it('carries the fullscreen before the subtitles are fetched', async () => {

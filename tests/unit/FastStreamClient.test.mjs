@@ -480,6 +480,14 @@ describe('FastStreamClient, remembered times', () => {
     expect(player.seeks).toContain(30);
   });
 
+  it('says where it resumed, and the key that starts from the beginning: a silent jump read as a bug', async () => {
+    const client = makeClient({storeProgress: true});
+    client.keybindManager = {keybindMap: new Map([['GoToStart', 'Digit0']])};
+    client.progressMemory = makeProgressMemory({lastTime: 30});
+    await setSource(client, makeSource('http://127.0.0.1/vod.mp4'));
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('info', 'player_resumed_key', 'info', 5000);
+  });
+
   it('does not seek to it over a seek the user made while the player got ready', async () => {
     // An MP4's duration, and with it the seek bar, comes before its first frame; the time was looked up by then.
     const client = makeClient({storeProgress: true});

@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Нет субтитров"
     },
+    "player_resumed_key": {
+        "message": "Продолжено с $1, где вы остановились в прошлый раз: нажмите $2, чтобы начать сначала"
+    },
+    "player_resumed": {
+        "message": "Продолжено с $1, где вы остановились в прошлый раз"
+    },
+    "player_subtitles_available_key": {
+        "message": "Есть субтитры ($1): нажмите $2, чтобы включить их, или выберите их в меню субтитров"
+    },
+    "player_subtitles_available": {
+        "message": "Есть субтитры ($1): выберите их в меню субтитров"
+    },
     "player_subtitles_new_cue": {
         "message": "Новый субтитр"
     },
