@@ -808,7 +808,9 @@ export class FastStreamClient extends EventEmitter {
    *   (player_outofstorage said it).
    */
   roomWarning({capped, incognito, diskGone, ramShare, ahead, size}) {
-    if (!Number.isFinite(ahead)) return null;
+    // Nothing kept ahead (a RAM share or buffer setting of 0): "plays normally" would not hold, and the options page
+    // already warns about that 0.
+    if (!Number.isFinite(ahead) || ahead <= 0) return null;
     const video = StringUtils.formatSize(size);
     const kept = StringUtils.formatDuration(ahead);
     if (capped) {

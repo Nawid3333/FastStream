@@ -1257,6 +1257,13 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
       expect(said(client)).toEqual([]);
     });
 
+    it('says nothing when nothing is kept ahead: RAM only, with "RAM for buffered video" at 0', () => {
+      // "It still plays normally and keeps loading 0 s ahead" would not hold; the options page warns about the 0.
+      const client = movie({bufferToDisk: false, ramBudget: 0}, 900 * GB);
+      expect(client.hasDownloadSpace).toBe(false);
+      expect(said(client)).toEqual([]);
+    });
+
     it('says it once per video', () => {
       const client = movie({maxVideoSize: 5 * GB}, 900 * GB);
       client.updateHasDownloadSpace();
