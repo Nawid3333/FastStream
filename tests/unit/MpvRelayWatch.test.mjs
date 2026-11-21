@@ -3,7 +3,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, MaxNoticeSeconds as HostMaxNoticeSeconds,
   ReadableProperties, checkRelayMessage, ipcCommandRefusal, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
 import {DecoderProperties, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
-import {EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, noticeSeconds, relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
+import {EofSlackSeconds, EofSlackShare, EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, brokeOff, noticeSeconds,
+  relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
 
 // MPV autoplay over the thin helper: the helper only relays mpv's lines
 // and writes the allowlisted commands sent to it; what counts as a file's end is the
@@ -78,6 +79,24 @@ const pathEvent = (data) => ({event: 'property-change', id: 1, name: 'path', ...
 const eofEvent = (data) => ({event: 'property-change', id: 2, name: 'eof-reached', ...(data === undefined ? {} : {data})});
 const pauseEvent = (data) => ({event: 'property-change', id: 3, name: 'pause', data});
 const ended = (events) => events.filter((e) => e.type === 'ended');
+
+const answeredEnds = new WeakSet();
+/**
+ * mpv's answers to what the watch asks on an end mpv told: the time left and the length. By default a real end (0.04 s
+ * left, as measured on the pinned mpv).
+ * @param {Object} port
+ * @param {*} [remaining]
+ * @param {*} [duration]
+ */
+function answerEnd(port, remaining = 0.04, duration = 1440) {
+  for (const m of commands(port)) {
+    if (m.command[0] !== 'get_property' || answeredEnds.has(m)) continue;
+    const data = {'time-remaining': remaining, 'duration': duration}[m.command[1]];
+    if (data === undefined) continue;
+    answeredEnds.add(m);
+    port.emit({type: 'mpv-reply', id: m.id, error: 'success', data});
+  }
+}
 
 describe('the relay watch', () => {
   it('observes only properties the helper lets an observer read (the decoder\'s too)', () => {
@@ -168,7 +187,7 @@ describe('the relay watch', () => {
   });
 
   it('tells a file\'s end once, and not one that had ended before the watch began', () => {
-    const {events, mpv} = relaying();
+    const {port, events, mpv} = relaying();
     // The watch began on a file that had ended already: its eof-reached is true at once.
     mpv(pathEvent('https://cdn.test/ep1.m3u8#fs-id=1'));
     mpv(eofEvent(true));
@@ -181,9 +200,11 @@ describe('the relay watch', () => {
     mpv(pathEvent('https://cdn.test/ep2.m3u8#fs-id=2'));
     mpv(eofEvent(false));
     mpv(eofEvent(true));
+    answerEnd(port);
     // Paused at the end and played again from there: the same file ends once.
     mpv(eofEvent(false));
     mpv(eofEvent(true));
+    answerEnd(port);
     expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/ep2.m3u8#fs-id=2'}]);
     // The same file loaded again (the episode played anew) ends again.
     mpv(eofEvent());
@@ -191,6 +212,7 @@ describe('the relay watch', () => {
     mpv(pathEvent('https://cdn.test/ep2.m3u8#fs-id=2'));
     mpv(eofEvent(false));
     mpv(eofEvent(true));
+    answerEnd(port);
     expect(ended(events)).toHaveLength(2);
     expect(events.filter((e) => e.type === 'path').map((e) => e.path))
         .toEqual(['https://cdn.test/ep1.m3u8#fs-id=1', 'https://cdn.test/ep2.m3u8#fs-id=2', 'https://cdn.test/ep2.m3u8#fs-id=2']);
@@ -202,6 +224,84 @@ describe('the relay watch', () => {
     mpv(eofEvent(false));
     mpv({event: 'end-file', reason: 'eof'});
     expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/ep3.mp4'}]);
+  });
+
+  // Measured with the pinned mpv on a local 180 s HLS stream whose server reset every request after 6 segments: mpv
+  // skipped the segments it could not load and set eof-reached at 60 s, time-remaining 120. Autoplay went on from there.
+  describe('an end where the stream broke off', () => {
+    it('is no end: autoplay waits, and the real end later is one', () => {
+      const {port, events, mpv} = relaying();
+      mpv(pathEvent('https://cdn.test/ep8.m3u8'));
+      mpv(eofEvent(false));
+      mpv(eofEvent(true));
+      answerEnd(port, 120, 180);
+      expect(ended(events)).toEqual([]);
+      // The network back, the user seeks back and plays it to its end.
+      mpv(eofEvent(false));
+      mpv(eofEvent(true));
+      answerEnd(port, 0.04, 180);
+      expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/ep8.m3u8'}]);
+    });
+
+    it('asks only what the helper lets through', () => {
+      const {port, mpv} = relaying();
+      mpv(pathEvent('https://cdn.test/ep8.m3u8'));
+      mpv(eofEvent(false));
+      mpv(eofEvent(true));
+      const asked = commands(port).filter((m) => m.command[0] === 'get_property').map((m) => m.command);
+      expect(asked).toEqual([['get_property', 'time-remaining'], ['get_property', 'duration']]);
+      for (const command of asked) expect(ipcCommandRefusal(command), JSON.stringify(command)).toBeNull();
+    });
+
+    it('is an end near the length, which a playlist may give a little off', () => {
+      const {port, events, mpv} = relaying();
+      mpv(pathEvent('https://cdn.test/ep9.m3u8'));
+      mpv(eofEvent(false));
+      mpv(eofEvent(true));
+      // 24 min: 5 % is 72 s.
+      answerEnd(port, 70, 1440);
+      expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/ep9.m3u8'}]);
+    });
+
+    it('is an end when mpv cannot say where it stopped (no length, a helper that refuses)', () => {
+      const {port, events, mpv} = relaying();
+      mpv(pathEvent('https://cdn.test/live.m3u8'));
+      mpv(eofEvent(false));
+      mpv(eofEvent(true));
+      const [remaining, duration] = commands(port).filter((m) => m.command[0] === 'get_property');
+      port.emit({type: 'mpv-reply', id: remaining.id, error: 'success', data: 120});
+      port.emit({type: 'mpv-refused', id: duration.id, reason: 'get_property: property not allowed'});
+      expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/live.m3u8'}]);
+    });
+
+    it('takes no late answer for a file that went', () => {
+      const {port, events, mpv} = relaying();
+      mpv(pathEvent('https://cdn.test/ep10.m3u8'));
+      mpv(eofEvent(false));
+      mpv(eofEvent(true));
+      mpv({event: 'end-file', reason: 'stop'});
+      mpv(eofEvent());
+      mpv(pathEvent());
+      mpv(pathEvent('https://cdn.test/ep11.m3u8'));
+      answerEnd(port);
+      expect(ended(events)).toEqual([]);
+    });
+
+    it('measures against the larger of the seconds and the share of the length', () => {
+      expect(EofSlackSeconds).toBe(30);
+      expect(EofSlackShare).toBe(0.05);
+      // 180 s: 30 s. 24 min: 72 s. 2 h: 6 min.
+      expect(brokeOff(30, 180)).toBe(false);
+      expect(brokeOff(31, 180)).toBe(true);
+      expect(brokeOff(72, 1440)).toBe(false);
+      expect(brokeOff(73, 1440)).toBe(true);
+      expect(brokeOff(360, 7200)).toBe(false);
+      expect(brokeOff(361, 7200)).toBe(true);
+      for (const [remaining, duration] of [[undefined, 180], [120, undefined], [null, 180], ['120', 180], [NaN, 180],
+        [120, Infinity], [Infinity, 180]]) {
+        expect(brokeOff(remaining, duration), JSON.stringify([remaining, duration])).toBe(false);
+      }
+    });
   });
 
   // While autoplay is on mpv keeps the file open at its end (keep-open), so --idle=once does not
@@ -597,6 +697,7 @@ describe('the backend\'s watch', () => {
     ports[0].emit({type: 'mpv', data: pathEvent('https://cdn.test/a.m3u8')});
     ports[0].emit({type: 'mpv', data: eofEvent(false)});
     ports[0].emit({type: 'mpv', data: eofEvent(true)});
+    answerEnd(ports[0]);
     ports[0].emit({type: 'mpv', data: {event: 'client-message', args: ['faststream-next']}});
     expect(events).toEqual([{type: 'watching'}, {type: 'path', path: 'https://cdn.test/a.m3u8'},
       {type: 'ended', path: 'https://cdn.test/a.m3u8'}, {type: 'request', action: 'next'}]);

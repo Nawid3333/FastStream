@@ -2,7 +2,10 @@
 
 import {cutToLength} from './MpvTarget.mjs';
 
-/** MPV autoplay's watch of mpv over the thin helper's `relay` port: watchMpv's logic, line for line. */
+/**
+ * MPV autoplay's watch of mpv over the thin helper's `relay` port: watchMpv's logic, line for line, except that an end
+ * mpv tells well before the length is no end (brokeOff). watchMpv serves only extensions from before the relay.
+ */
 
 // The helper allows only user-data/faststream/...; mpv's episode buttons show while `connected` holds and the heartbeat moves.
 export const ConnectedProperty = 'user-data/faststream/connected';
@@ -14,6 +17,25 @@ export const HeartbeatMs = 30000;
 
 // An HLS stream with discontinuities can stop mpv paused at its end, eof-reached never set.
 export const EndSlackSeconds = 0.5;
+
+// A stream that breaks off ends early: mpv's HLS reader skips every segment it cannot load, straight to the end. An end
+// mpv tells is one within the larger of these of the length (a length from a playlist may be off a little).
+export const EofSlackSeconds = 30;
+export const EofSlackShare = 0.05;
+
+/**
+ * Whether an end mpv told came where the stream broke off, not at its end: known to be well before it.
+ * @param {*} remaining - mpv's time-remaining, seconds.
+ * @param {*} duration - mpv's duration, seconds.
+ * @return {boolean}
+ */
+export function brokeOff(remaining, duration) {
+  if (typeof remaining !== 'number' || !Number.isFinite(remaining) || typeof duration !== 'number' ||
+      !Number.isFinite(duration)) {
+    return false;
+  }
+  return remaining > Math.max(EofSlackSeconds, duration * EofSlackShare);
+}
 
 // At keep-open "no" mpv quits at a file's end, and autoplay's countdown with it; mpv restores the user's value when the file goes.
 const KeepOpenProperty = 'keep-open';
@@ -87,7 +109,8 @@ function noticeText(text) {
  */
 
 /**
- * Follows mpv's file, its end and its episode keys. An end: eof-reached false -> true, an end-file "eof", or a pause or seek in the last EndSlackSeconds.
+ * Follows mpv's file, its end and its episode keys. An end: eof-reached false -> true unless mpv stopped well before
+ * the end (brokeOff), an end-file "eof", or a pause or seek in the last EndSlackSeconds.
  * @param {*} port
  * @param {(event: import('./MpvBackend.mjs').RelayEvent) => void} onEvent
  * @param {{onLegacy?: () => void, decoderProperties?: Array<string>, window?: string}} [options] - window: the
@@ -108,6 +131,9 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
   let pauseSeen = false;
   let requests = 0;
   const endChecks = new Set();
+  // eofCheck's two questions by id, each with the answers of its pair.
+  /** @type {Map<number, {key: string, check: {path: string, left: number, remaining?: *, duration?: *}}>} */
+  const eofChecks = new Map();
   /** @type {Object<string, *>} */
   const decoderValues = {};
   /** @type {?string} */
@@ -171,6 +197,16 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
     endChecks.add(id);
     send(['get_property', 'time-remaining'], id);
   };
+  // An end mpv told: an end unless mpv's answers place it well before the end (brokeOff).
+  const eofCheck = () => {
+    if (path === null || endedPath === path) return;
+    const check = {path, left: 2};
+    for (const [key, name] of [['remaining', 'time-remaining'], ['duration', 'duration']]) {
+      const id = 1000 + ++requests;
+      eofChecks.set(id, {key, check});
+      send(['get_property', name], id);
+    }
+  };
   // Keep-open "yes" while autoplay is on and the user's is "no"; a helper before 24 refuses both.
   const followKeepOpen = () => {
     if (!keepOpen) return;
@@ -207,6 +243,11 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
     } else if (endChecks.has(id)) {
       endChecks.delete(id);
       if (error === 'success' && typeof data === 'number' && data <= EndSlackSeconds) fileEnded();
+    } else if (eofChecks.has(id)) {
+      const {key, check} = /** @type {{key: string, check: {path: string, left: number, remaining?: *, duration?: *}}} */ (eofChecks.get(id));
+      eofChecks.delete(id);
+      if (error === 'success') check[/** @type {'remaining'|'duration'} */ (key)] = data;
+      if (--check.left === 0 && check.path === path && !brokeOff(check.remaining, check.duration)) fileEnded();
     } else if (keepOpenChecks.has(id)) {
       const file = keepOpenChecks.get(id);
       keepOpenChecks.delete(id);
@@ -234,9 +275,10 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
         endedPath = null;
       }
     } else if (event.event === 'property-change' && event.name === 'eof-reached') {
-      if (eof === false && event.data === true) fileEnded();
+      if (eof === false && event.data === true) eofCheck();
       eof = typeof event.data === 'boolean' ? event.data : undefined;
     } else if (event.event === 'end-file' && event.reason === 'eof') {
+      // The file is gone (keep-open "no"): nothing left to ask where it stopped.
       fileEnded();
     } else if (event.event === 'property-change' && event.name === 'pause') {
       if (pauseSeen && event.data === true) endCheck();
