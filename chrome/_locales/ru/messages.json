@@ -698,6 +698,12 @@
     "player_error_turn_off": {
         "message": "Выключите FastStream кнопкой на панели инструментов, чтобы посмотреть его в плеере сайта."
     },
+    "player_error_turn_off_android": {
+        "message": "Выключите FastStream в меню Firefox, в разделе «Расширения», чтобы посмотреть его в плеере сайта."
+    },
+    "player_error_drm_android": {
+        "message": "Это видео защищено от копирования (DRM), и FastStream не может его воспроизвести. Выключите FastStream в меню Firefox, в разделе «Расширения», чтобы посмотреть его в плеере сайта."
+    },
     "source_copied": {
         "message": "Скопировано!"
     },
@@ -730,9 +736,6 @@
     },
     "player_source_mode": {
         "message": "Режим"
-    },
-    "player_source_mode_auto_error": {
-        "message": "Выберите режим проигрывателя!"
     },
     "player_source_url_placeholder": {
         "message": "Адрес источника"

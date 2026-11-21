@@ -16,6 +16,7 @@ vi.mock('../../chrome/player/utils/EnvUtils.mjs', () => ({
     isWebAudioSupported: () => false,
     isExtension: () => true,
     isIncognito: () => false,
+    isAndroid: () => false,
     getAvailableStorage: async () => 1e12,
   },
 }));
@@ -2602,6 +2603,19 @@ describe('FastStreamClient, the last source\'s player failing while the next sou
     expect(client.interfaceController.failedToLoad).toHaveBeenCalledExactlyOnceWith('player_error_drm');
   });
 
+  it('names where the FastStream button is on Android, which has no toolbar', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const {EnvUtils} = await import('../../chrome/player/utils/EnvUtils.mjs');
+    const client = makeClient();
+    const current = await setSource(client, makeSource('https://cdn.example/a.m3u8'));
+    vi.spyOn(EnvUtils, 'isAndroid').mockReturnValueOnce(true);
+
+    current.emit(DefaultPlayerEvents.NEED_KEY);
+    await settle();
+
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledExactlyOnceWith('player_error_drm_android');
+  });
+
   it('does not ask for the last source\'s link anew, nor rebuild it with one that comes late', async () => {
     const OLD = 'https://cdn.example/hls/master.m3u8?sig=old';
     const client = makeClient();
@@ -2712,7 +2726,8 @@ describe('FastStreamClient, a video its player cannot read', () => {
         expect.stringMatching(/^player_error_load \(Invalid data found while parsing box\)/));
   });
 
-  it('tells how to watch the video in the site\'s own player, in a page only', () => {
+  it('tells how to watch the video in the site\'s own player, in a page only', async () => {
+    const {EnvUtils} = await import('../../chrome/player/utils/EnvUtils.mjs');
     const client = makeClient();
     const own = {};
     own.top = own;
@@ -2723,6 +2738,10 @@ describe('FastStreamClient, a video its player cannot read', () => {
       globalThis.window = own;
       expect(client.loadErrorMessage('404')).toBe('player_error_load (404)');
       expect(client.loadErrorMessage()).toBe('player_error_load');
+      // Android has no toolbar: the button is in Firefox's menu.
+      vi.spyOn(EnvUtils, 'isAndroid').mockReturnValueOnce(true);
+      globalThis.window = {top: {}};
+      expect(client.loadErrorMessage('404')).toBe('player_error_load (404) player_error_turn_off_android');
     } finally {
       delete globalThis.window;
       if (before) Object.defineProperty(globalThis, 'window', before);

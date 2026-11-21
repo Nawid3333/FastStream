@@ -698,6 +698,12 @@
     "player_error_turn_off": {
         "message": "Desactiva FastStream con el botón de la barra de herramientas para verlo en el reproductor del sitio."
     },
+    "player_error_turn_off_android": {
+        "message": "Desactiva FastStream desde el menú de Firefox, en «Extensiones», para verlo en el reproductor del sitio."
+    },
+    "player_error_drm_android": {
+        "message": "Este video está protegido contra copia (DRM) y FastStream no puede reproducirlo. Desactiva FastStream desde el menú de Firefox, en «Extensiones», para verlo en el reproductor del sitio."
+    },
     "source_copied": {
         "message": "¡URL copiada al portapapeles!"
     },
@@ -730,9 +736,6 @@
     },
     "player_source_mode": {
         "message": "Modo"
-    },
-    "player_source_mode_auto_error": {
-        "message": "¡Por favor, selecciona un modo de reproductor!"
     },
     "player_source_url_placeholder": {
         "message": "URL de origen"
