@@ -395,6 +395,45 @@ describe('SaveManager.openInMpv', () => {
   });
 });
 
+describe('SaveManager.saveScreenshot', () => {
+  // Firefox can ask where to save; the user cancelling it was taken as a refused download:
+  // "screenshot failed".
+  /**
+   * Takes a screenshot whose download is answered with the given value.
+   * @param {*} answer - What Utils.downloadURL resolves with.
+   * @return {Promise<Array<Array<*>>>} The status messages set.
+   */
+  async function screenshotAnswered(answer) {
+    const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
+    Utils.downloadURL.mockResolvedValueOnce(answer);
+    vi.stubGlobal('document', {createElement: () => ({
+      getContext: () => ({drawImage() {}}),
+      toDataURL: () => 'data:image/png;base64,',
+    })});
+    const messages = [];
+    const client = makeClient({getVideo: () => ({videoWidth: 640, videoHeight: 360, readyState: 4})});
+    client.interfaceController.setStatusMessage = (...args) => messages.push(args);
+    try {
+      await new SaveManager(client).saveScreenshot();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    return messages;
+  }
+
+  it('takes back its "saving" when the user cancels Firefox\'s Save As, and says nothing failed', async () => {
+    expect(await screenshotAnswered(false)).toEqual([
+      ['save-screenshot', 'player_screenshot_saving', 'info', undefined],
+      ['save-screenshot', null, 'info', undefined],
+    ]);
+  });
+
+  it('says it failed when Firefox refuses the download, and saved when it starts', async () => {
+    expect((await screenshotAnswered(null)).at(-1)).toEqual(['save-screenshot', 'player_screenshot_fail', 'error', 2000]);
+    expect((await screenshotAnswered(7)).at(-1)).toEqual(['save-screenshot', 'player_screenshot_saved', 'info', 1000]);
+  });
+});
+
 describe('SaveManager.hasPicture', () => {
   // A size from the metadata alone: drawImage draws nothing before a frame is decoded, and the
   // screenshot was an empty file that said "saved".

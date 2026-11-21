@@ -1584,6 +1584,10 @@ readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own p
   a private one), and the save was answered null when the user had switched windows. Its player
   may never load or answer, so a timeout answers the caller; the download info is taken at
   once, as that timeout can end it while the player saves.
+- **`background.mjs` DOWNLOAD, a cancelled Save As** - With Firefox set to ask where to save,
+  the user cancelling its dialog rejected the download like a refusal: null, and the player said
+  the screenshot or the save failed. It is answered false ("Download canceled by the user"); the
+  screenshot takes back its "saving" note, the save says nothing.
 - **`background.mjs` `saveOption`** - An option the background changes itself (mpv's autoplay
   switch) is announced with UPDATE_OPTIONS, which an open options page hears; LOAD_OPTIONS
   reached only the background, and the page went on showing the old value and wrote it back at

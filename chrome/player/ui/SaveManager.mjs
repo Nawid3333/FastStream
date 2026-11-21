@@ -203,7 +203,7 @@ export class SaveManager {
 
   /**
    * @param {string} key
-   * @param {string} message
+   * @param {string|null} message - null clears it.
    * @param {string} type
    * @param {number=} expiry
    */
@@ -304,8 +304,14 @@ export class SaveManager {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       const url = canvas.toDataURL('image/png'); // For some reason this is faster than async toBlob
+      const download = await Utils.downloadURL(url, name + '.png');
+      // The user cancelled Firefox's Save As: nothing failed, and nothing was saved.
+      if (download === false) {
+        this.setStatusMessage('save-screenshot', null, 'info');
+        return;
+      }
       // null: Firefox refused the download; it said "saved".
-      if (await Utils.downloadURL(url, name + '.png') === null) {
+      if (download === null) {
         throw new Error('The download was refused');
       }
       this.setStatusMessage('save-screenshot', Localize.getMessage('player_screenshot_saved'), 'info', 1000);
@@ -505,7 +511,7 @@ export class SaveManager {
       this.downloadURLDownload = await Utils.downloadURL(/** @type {string} */ (url), name + '.' + saveExtension);
       this.downloadURLDownloads.push(this.downloadURLDownload);
       // null: Firefox refused the download (no room, a folder it cannot write to), and after
-      // "Save complete" nothing said so.
+      // "Save complete" nothing said so. false, the user cancelling its Save As, is no failure.
       if (this.downloadURLDownload === null) {
         this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_fail'), 'error', 4000);
       }

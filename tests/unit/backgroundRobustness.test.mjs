@@ -37,6 +37,27 @@ describe('the options', () => {
   });
 });
 
+describe('a download Firefox does not make', () => {
+  // Firefox can ask where to save ("Always ask where to save files"); the user cancelling that
+  // was answered as a refused download, and the player said saving failed.
+  it.each([
+    ['the user cancelled the Save As', 'Download canceled by the user', false],
+    ['Firefox refused it', 'Download failed', null],
+  ])('is answered %s', async (what, message, expected) => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    bg.chrome.downloads.download = async () => {
+      throw new Error(message);
+    };
+    const answers = [];
+    for (const listener of bg.chrome.runtime.onMessage.listeners) {
+      listener({type: 'DOWNLOAD', url: 'blob:moz-extension://bg-test/1', filename: 'a.mp4'},
+          {tab: {id: 1, url: PAGE}, frameId: 3, url: 'moz-extension://bg-test/player/index.html'}, (value) => answers.push(value));
+    }
+    await bg.wait(0);
+    expect(answers).toEqual([expected]);
+  });
+});
+
 describe('a download from a container tab', () => {
   // A container tab's download goes through a hidden player tab in the same container,
   // which the background gives 30 s.

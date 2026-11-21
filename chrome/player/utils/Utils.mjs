@@ -383,7 +383,9 @@ export class Utils {
    * @param {string} url
    * @param {string} filename
    * @param {boolean} [forceDirect=false] - A link click, not the background's downloads API.
-   * @return {Promise<boolean|void>} Resolves when the download starts.
+   * @return {Promise<number|boolean|null|void>} Resolves when the download starts: its id, or
+   *   true (a link click); false when the user cancelled Firefox's Save As, null when Firefox
+   *   refused the download.
    */
   static async downloadURL(url, filename, forceDirect = false) {
     // Firefox does not download a blob: URL clicked in a sandboxed iframe (blob URL partitioning).
