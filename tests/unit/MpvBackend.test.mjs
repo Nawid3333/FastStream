@@ -224,12 +224,12 @@ describe('openStream retry bookkeeping', () => {
       runtime: {
         lastError: undefined,
         sendNativeMessage(name, message, callback) {
-          if (!thin && message.type === 'play') {
-            callback({...Unknown});
+          if (message.type === 'ping') {
+            callback({ok: true, ...Current});
             return;
           }
           streams.push(message);
-          answer = (response) => callback(thin ? {...Thin, ...response} : response);
+          answer = callback;
         },
       },
     };
@@ -241,7 +241,7 @@ describe('openStream retry bookkeeping', () => {
         () => stillWanted);
     await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
     stillWanted = false;
-    answer({ok: true, hostVersion: RequiredHostVersion});
+    answer({ok: true, ...Current});
     expect(await first).toEqual({ok: true});
     expect(await second).toEqual({ok: false, dropped: true});
     expect(streams).toHaveLength(1);
