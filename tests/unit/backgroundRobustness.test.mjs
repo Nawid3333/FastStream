@@ -399,7 +399,7 @@ describe('messages only FastStream\'s own pages send', () => {
       await bg.message(message, {tabId: 1, frameId: 0, url: PAGE});
     }
     await bg.wait(3000);
-    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+    expect(bg.played()).toEqual([]);
     expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length)).toEqual([]);
     expect(downloads).not.toHaveBeenCalled();
   });
@@ -411,7 +411,7 @@ describe('messages only FastStream\'s own pages send', () => {
       await bg.message(message, {tabId: 1, frameId: 0, url: PLAYER_PAGE});
     }
     await bg.wait(3000);
-    expect(bg.native.filter((m) => m.type === 'open').length).toBe(1);
+    expect(bg.played().length).toBe(1);
     expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length).length).toBe(1);
     expect(downloads).toHaveBeenCalledTimes(1);
   });

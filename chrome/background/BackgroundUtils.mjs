@@ -113,7 +113,7 @@ export class BackgroundUtils {
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
     if (tab.isOn && tab.isMpv) {
-      // MPV: no state badge, or say the last hand-off failed; an outdated host shows in the tooltip only.
+      // MPV: no state badge, or say the last hand-off failed (refused for an outdated helper: what to run).
       setAction('setBadgeText', {
         text: tab.mpvError ? '!' : '',
         tabId: tab.tabId,
@@ -121,16 +121,16 @@ export class BackgroundUtils {
       // getMessage returns '' for a key a locale lacks.
       /** @type {string} */
       let title;
-      if (tab.mpvError) {
-        title = chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
-          'FastStream - MPV - the stream did not open: ' + tab.mpvError;
-      } else if (tab.mpvHostOutdated) {
+      if (tab.mpvError && tab.mpvHostOutdated) {
         title = EnvUtils.isWindows() ?
           chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
             'FastStream - MPV - the mpv helper on this computer is out of date: ' +
             'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)' :
           chrome.i18n.getMessage('extension_toggle_label_mpv_outdated_unix') ||
             'FastStream - MPV - the mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)';
+      } else if (tab.mpvError) {
+        title = chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
+          'FastStream - MPV - the stream did not open: ' + tab.mpvError;
       } else if (tab.mpvDecoder && tab.mpvDecoder.hardware) {
         const what = MpvBackend.describeDecoder(tab.mpvDecoder);
         title = chrome.i18n.getMessage('extension_toggle_label_mpv_hw', [what]) ||

@@ -2,13 +2,13 @@
 
 /**
  * The mpv windows FastStream follows, each by the helper's id for it: '' for the one on the helper's own pipe, else
- * the 16 hex digits a play answered (helper 30, docs/notes/mpv.md "Host 30").
+ * the 16 hex digits a play answered (docs/notes/mpv.md "Host 30").
  */
 
 const WindowId = /^[0-9a-f]{16}$/;
 
 /**
- * The window a helper's answer names; '' for none (a helper before 30, or its own pipe's).
+ * The window a helper's answer names; '' for none (its own pipe's).
  * @param {*} window - The answer's field.
  * @return {?string} null for a value no helper sends.
  */

@@ -557,7 +557,6 @@ BackgroundUtils.onTabUpdated(async (tabid, changeInfo, tabobj) => {
       tab.mpvError = null;
       tab.mpvHostOutdated = false;
       tab.mpvDecoder = null;
-      tab.mpvDecoderQuery = null;
       tab.mpvPlayPendingUntil = 0;
       tab.mpvPlayedVideo = null;
       tab.mpvPlayChecking = null;

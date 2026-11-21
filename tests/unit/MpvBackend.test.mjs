@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {HlsHostMaxMessageBytes, HostMaxMessageBytes, MaxPlayTargetChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
+import {HostMaxMessageBytes, MaxPlayTargetChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {MaxMessageBytes, checkPlayMessage} from '../../native-host/faststream-mpv-host.mjs';
 
 // The header filter decides which request headers are relayed to mpv.
@@ -114,24 +114,17 @@ describe('pickRelayHeaders', () => {
 // and retries the very same video, and a stale entry would make the retry
 // report success while nothing plays.
 
-// What the thin helper adds to every answer.
-const Thin = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']};
-// What a helper before it answers the thin helper's messages.
-const Unknown = {ok: false, error: 'unknown message', hostVersion: 14};
-const ThinMessages = ['play', 'ipc', 'relay'];
+// What the helper adds to every answer.
+const Current = {hostVersion: RequiredHostVersion};
 
 /**
  * Installs a fake chrome.runtime whose sendNativeMessage replies with a fixed
- * response, and reports how many times it was called.
+ * response, the current helper's version added, and counts the streams it was sent.
  * @param {Object|null} response - Reply handed to the callback.
  * @param {Object} [lastError] - chrome.runtime.lastError to simulate.
- * @param {{thin?: boolean}} [kind] - thin: the thin helper, whose answers name its
- *   capabilities; else a helper before it, which answers "unknown message" to the thin
- *   helper's messages (not counted: it does nothing with them).
- * @return {{calls: () => number, sent: () => Array<Object>}} Call counter, and every message.
+ * @return {{calls: () => number, sent: () => Array<Object>}} The play messages it got, and every message.
  */
-function stubNativeHost(response, lastError, {thin = false} = {}) {
-  let calls = 0;
+function stubNativeHost(response, lastError) {
   const sent = [];
   globalThis.chrome = {
     runtime: {
@@ -139,35 +132,30 @@ function stubNativeHost(response, lastError, {thin = false} = {}) {
       sendNativeMessage(name, message, callback) {
         sent.push(message);
         globalThis.chrome.runtime.lastError = lastError;
-        if (!lastError && !thin && ThinMessages.includes(message.type)) {
-          callback({...Unknown});
-        } else {
-          calls++;
-          callback(thin && response ? {...Thin, ...response} : response);
-        }
+        callback(response && typeof response === 'object' && !('hostVersion' in response) ? {...response, ...Current} : response);
         globalThis.chrome.runtime.lastError = undefined;
       },
     },
   };
-  return {calls: () => calls, sent: () => sent};
+  return {calls: () => sent.filter((m) => m.type === 'play').length, sent: () => sent};
 }
 
-describe.each([['an older helper', false], ['the thin helper', true]])('openStream retry bookkeeping, %s', (what, thin) => {
+describe('openStream retry bookkeeping', () => {
   afterEach(() => {
     delete globalThis.chrome;
     vi.restoreAllMocks();
   });
 
-  const stubNativeHostOfKind = (response, lastError) => stubNativeHost(response, lastError, {thin});
-
-  it('sends the stream as the helper knows it', async () => {
-    const host = stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion});
-    await new MpvBackend().openStream('https://cdn/a.m3u8');
-    expect(host.sent().at(-1).type).toBe(thin ? 'play' : 'open');
+  it('sends the stream as a play message, once a ping found the helper current', async () => {
+    const host = stubNativeHost({ok: true});
+    const backend = new MpvBackend();
+    await backend.openStream('https://cdn/a.m3u8');
+    await backend.openStream('https://cdn/b.m3u8');
+    expect(host.sent().map((m) => m.type)).toEqual(['ping', 'play', 'play']);
   });
 
   it('does not resend a URL the host already accepted', async () => {
-    const host = stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion});
+    const host = stubNativeHost({ok: true});
     const backend = new MpvBackend();
     const tab = {mpvSentUrls: new Set()};
 
@@ -177,7 +165,7 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
   });
 
   it('lets the same URL be retried after the host reports a launch failure', async () => {
-    const host = stubNativeHostOfKind({ok: false, error: 'mpv executable not found'});
+    const host = stubNativeHost({ok: false, error: 'mpv executable not found'});
     const backend = new MpvBackend();
     const tab = {mpvSentUrls: new Set()};
 
@@ -199,12 +187,12 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
       runtime: {
         lastError: undefined,
         sendNativeMessage(name, message, callback) {
-          if (!thin && message.type === 'play') {
-            callback({...Unknown});
+          if (message.type === 'ping') {
+            callback({ok: true, ...Current});
             return;
           }
           streams.push(message);
-          answer = (response) => callback(thin ? {...Thin, ...response} : response);
+          answer = callback;
         },
       },
     };
@@ -214,7 +202,7 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
     const second = backend.openStream('https://cdn/a.m3u8', tab);
     // The message is built first (the page's hash for mpv's resume key is async).
     await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
-    answer({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    answer({ok: false, error: 'mpv executable not found', ...Current});
     expect(await first).toEqual({ok: false, error: 'mpv executable not found'});
     expect(await second).toEqual({ok: false, error: 'mpv executable not found'});
     expect(streams).toHaveLength(1);
@@ -222,7 +210,7 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
     answer = null;
     const third = backend.openStream('https://cdn/a.m3u8', tab);
     await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
-    answer({ok: true, hostVersion: RequiredHostVersion});
+    answer({ok: true, ...Current});
     expect(await third).toEqual({ok: true});
     expect(streams).toHaveLength(2);
   });
@@ -262,238 +250,52 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
   });
 
   it('lets the same URL be retried when the host is not installed', async () => {
-    const host = stubNativeHostOfKind(undefined, {message: 'no such native application'});
+    const host = stubNativeHost(undefined, {message: 'no such native application'});
     const backend = new MpvBackend();
     const tab = {mpvSentUrls: new Set()};
 
     await backend.openStream('https://cdn/a.m3u8', tab);
     await backend.openStream('https://cdn/a.m3u8', tab);
-    expect(host.calls()).toBe(2);
+    // A ping each time: nothing was learned of the helper.
+    expect(host.sent().map((m) => m.type)).toEqual(['ping', 'ping']);
+    expect(tab.mpvSentUrls.size).toBe(0);
   });
 
   // The player and the toolbar show the host's own reason, and "is the host
   // installed?" only when the host itself could not be reached.
   it('says when the host itself could not be reached', async () => {
-    stubNativeHostOfKind(undefined, {message: 'no such native application'});
-    expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
+    stubNativeHost(undefined, {message: 'no such native application'});
+    const backend = new MpvBackend();
+    expect(await backend.openStream('https://cdn/a.m3u8'))
         .toEqual({ok: false, error: 'no such native application', noHost: true});
+    // Nothing learned: still unknown.
+    expect(backend.hostVersion).toBe(null);
   });
 
   it('passes the host\'s own reason on, without noHost', async () => {
-    stubNativeHostOfKind({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    stubNativeHost({ok: false, error: 'mpv executable not found'});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
         .toEqual({ok: false, error: 'mpv executable not found'});
   });
 
-  // The host says how raising mpv's window went (host version 3): the result passes it
-  // on, so the background can log an mpv that opened behind the browser.
+  // The host says how raising mpv's window went: the result passes it on, so the background can
+  // log an mpv that opened behind the browser.
   it('passes on how raising mpv\'s window went, as the host sent it', async () => {
-    stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion, focus: 'True', foreground: 'False', reused: true});
+    stubNativeHost({ok: true, focus: 'True', foreground: 'False', reused: true});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
         .toStrictEqual({ok: true, focus: 'True', foreground: 'False', reused: true});
-    stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion, focus: 'nowindow'});
+    stubNativeHost({ok: true, focus: 'nowindow'});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toStrictEqual({ok: true, focus: 'nowindow'});
   });
 
   it('passes on only fields of the expected type', async () => {
-    stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion, focus: 5, foreground: {x: 1}, reused: 'yes'});
+    stubNativeHost({ok: true, focus: 5, foreground: {x: 1}, reused: 'yes'});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toStrictEqual({ok: true});
   });
 });
 
-// contentType is the MPV allowlist tag or the player's manual anime/movie
-// override, threaded through to the native host message so it can append
-// the #fs-content= marker gpu-toggles.lua reads on the mpv side.
-// These are the open message a helper before host 15 gets; the thin helper's play message
-// is built from the same (MpvTarget.test.mjs, and 'the thin helper' below).
-
-describe('openStream contentType', () => {
-  afterEach(() => {
-    delete globalThis.chrome;
-    vi.restoreAllMocks();
-  });
-
-  /**
-   * Installs a fake native host from before host 15 that captures the open message it was
-   * sent (it answers the thin helper's play message "unknown message").
-   * @return {{message: () => Object}} The most recent message sent.
-   */
-  function captureNativeHost() {
-    let lastMessage;
-    globalThis.chrome = {
-      runtime: {
-        lastError: undefined,
-        sendNativeMessage(name, message, callback) {
-          if (message.type === 'play') {
-            callback({...Unknown});
-            return;
-          }
-          lastMessage = message;
-          callback({ok: true});
-        },
-      },
-    };
-    return {message: () => lastMessage};
-  }
-
-  it('includes a valid contentType in the message', async () => {
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime');
-    expect(host.message().contentType).toBe('anime');
-
-    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'movie');
-    expect(host.message().contentType).toBe('movie');
-
-    await backend.openStream('https://cdn/c.m3u8', undefined, undefined, 'native');
-    expect(host.message().contentType).toBe('native');
-  });
-
-  it('omits contentType when unset or invalid', async () => {
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, undefined);
-    expect(host.message()).not.toHaveProperty('contentType');
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, null);
-    expect(host.message()).not.toHaveProperty('contentType');
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'documentary');
-    expect(host.message()).not.toHaveProperty('contentType');
-  });
-
-  it('relays an http(s) page URL for the resume key, and nothing else', async () => {
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3');
-    expect(host.message().pageUrl).toBe('https://site/ep-3');
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', undefined);
-    expect(host.message()).not.toHaveProperty('pageUrl');
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'about:blank');
-    expect(host.message()).not.toHaveProperty('pageUrl');
-  });
-
-  it('relays the tab\'s title for mpv to show, trimmed and bounded', async () => {
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', '  Show - Episode 3 ');
-    expect(host.message().title).toBe('Show - Episode 3');
-
-    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', 'x'.repeat(400));
-    expect(host.message().title).toHaveLength(300);
-
-    for (const none of [undefined, '', '   ', 42]) {
-      await backend.openStream('https://cdn/c.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', none);
-      expect(host.message()).not.toHaveProperty('title');
-    }
-  });
-
-  it('cuts a title and a subtitle label between whole characters (#470)', async () => {
-    // Cut in the middle of an emoji, a lone half of it reached mpv, which drew it as a broken
-    // character at the end of the title or the track's name.
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-    const clapper = '\u{1F3AC}';
-    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3',
-        'x'.repeat(299) + clapper + 'tail', {subtitles: [{label: 'y'.repeat(99) + clapper + 'tail', srt}]});
-    expect(host.message().title).toBe('x'.repeat(299) + clapper);
-    expect(host.message().subtitles[0].label).toBe('y'.repeat(99) + clapper);
-  });
-
-  it('cuts a title and a subtitle label between whole characters as read', async () => {
-    // a flag is two code points: never cut between them
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-    const flag = '\u{1F1E9}\u{1F1EA}';
-    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3',
-        'x'.repeat(299) + flag + 'tail', {subtitles: [{label: 'y'.repeat(99) + flag + 'tail', srt}]});
-    expect(host.message().title).toBe('x'.repeat(299) + flag);
-    expect(host.message().subtitles[0].label).toBe('y'.repeat(99) + flag);
-  });
-
-  it('relays where the player was and its subtitles (the player\'s button)', async () => {
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
-
-    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', undefined, undefined,
-        {startTime: 754.5, subtitles: [{label: 'English', srt}, {label: 'empty', srt: '  '}, {srt: 5}]});
-    expect(host.message().start).toBe(754.5);
-    expect(host.message().subtitles).toEqual([{label: 'English', srt}]);
-
-    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', undefined, undefined,
-        {startTime: 0.4, subtitles: []});
-    expect(host.message()).not.toHaveProperty('start');
-    expect(host.message()).not.toHaveProperty('subtitles');
-
-    await backend.openStream('https://cdn/c.m3u8');
-    expect(host.message()).not.toHaveProperty('start');
-    expect(host.message()).not.toHaveProperty('subtitles');
-  });
-
-  // The host reads no message over MaxMessageBytes: it quit without a word, and the
-  // hand-off failed with "is the host installed?". Firefox sends the JSON as UTF-8.
-  it('keeps the message under the host\'s limit, leaving out subtitles that do not fit', async () => {
-    // 1 MB for every helper; a helper 27 (Capabilities.HLS) reads its own limit, for a stream's playlists.
-    expect(HostMaxMessageBytes).toBe(1024 * 1024);
-    expect(HlsHostMaxMessageBytes).toBe(MaxMessageBytes);
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    // About 55 bytes per cue once in JSON, one of them past ASCII.
-    const srtOf = (cues) => Array.from({length: cues}, (_, i) =>
-      `${i + 1}\n00:00:01,000 --> 00:00:02,000\nLine ${i} ${String.fromCodePoint(0xFC)}\n\n`).join('');
-    const bytes = (message) => new TextEncoder().encode(JSON.stringify(message)).length;
-
-    // Each of the first three fits alone, the third no longer does after two; the small
-    // fourth still does.
-    const big = srtOf(7000);
-    await backend.openStream('https://cdn/a.m3u8', undefined, [{name: 'Referer', value: 'https://site.test/'}],
-        'anime', 'https://site.test/ep-1', 'Title', {subtitles: [
-          {label: 'one', srt: big}, {label: 'two', srt: big}, {label: 'three', srt: big}, {label: 'four', srt: srtOf(10)},
-        ]});
-    expect(host.message().subtitles.map((s) => s.label)).toEqual(['one', 'two', 'four']);
-    expect(bytes(host.message())).toBeLessThanOrEqual(HostMaxMessageBytes);
-    expect(host.message().headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
-
-    // One that never fits: the stream goes without it.
-    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', undefined, undefined,
-        {subtitles: [{label: 'huge', srt: srtOf(25000)}]});
-    expect(host.message().url).toBe('https://cdn/b.m3u8');
-    expect(host.message()).not.toHaveProperty('subtitles');
-  });
-
-  it('sends nothing, and says why, when the stream\'s address alone is over the host\'s limit', async () => {
-    // A message too big for the host is cut, not said to be "not installed"; Firefox takes URLs up
-    // to 1 MB.
-    const host = captureNativeHost();
-    const backend = new MpvBackend();
-    // Known as a helper before host 15 (its answer names no capabilities): the open message.
-    await backend.testConnection();
-    expect(backend.capabilities).toEqual([]);
-    const ping = host.message();
-    const tab = {mpvSentUrls: new Set()};
-    const url = 'https://cdn/a.m3u8?pad=' + 'x'.repeat(HostMaxMessageBytes);
-    const result = await backend.openStream(url, tab);
-    expect(host.message()).toBe(ping);
-    // (This fake answers as a host from before versions: hostOutdated too.)
-    expect(result).toMatchObject({ok: false, error: 'the stream\'s address is too long to send to mpv'});
-    // Not recorded as sent: nothing went.
-    expect(tab.mpvSentUrls.has(url)).toBe(false);
-  });
-});
-
-// The thin helper: the extension builds what mpv gets (MpvTarget.mjs)
-// and sends it as a play message; a helper before it answers "unknown message", and gets the
-// open message from then on. What the helper can do is remembered from every answer.
-describe('the thin helper', () => {
+// The extension builds what mpv gets (MpvTarget.mjs) and sends it as a play message.
+describe('the play message', () => {
   afterEach(() => {
     delete globalThis.chrome;
     vi.restoreAllMocks();
@@ -504,21 +306,25 @@ describe('the thin helper', () => {
   const fsId = (page) => crypto.createHash('sha256').update(page).digest('hex').slice(0, 16);
 
   /**
-   * A fake helper: its answer to each message (by default the thin helper's ok), and what it
-   * was sent.
+   * A fake helper: its answer to each message (by default the current helper's ok), and what it
+   * was sent besides pings.
    * @param {function(Object): *} [answer]
    * @return {Array<Object>} The messages.
    */
-  function helper(answer = () => ({ok: true, ...Thin})) {
+  function helper(answer = () => ({ok: true, ...Current})) {
     const sent = [];
     globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {
+      if (message.type === 'ping') {
+        callback({ok: true, mpv: true, ...Current});
+        return;
+      }
       sent.push(message);
       callback(answer(message));
     }}};
     return sent;
   }
 
-  it('sends a play message with mpv\'s target, title, start, headers and subtitles built here', async () => {
+  it('carries mpv\'s target, title, start, headers and subtitles built here', async () => {
     const sent = helper();
     const backend = new MpvBackend();
     backend.mpvPath = 'D:/tools/mpv.exe';
@@ -530,8 +336,8 @@ describe('the thin helper', () => {
     expect(result).toEqual({ok: true});
     const qualities = encodeURIComponent(JSON.stringify([{label: '1080p', height: 1080, url: 'https://cdn.test/1080.mp4'},
       {label: '720p', height: 720, url: 'https://cdn.test/720.mp4'}]));
-    // Exactly the protocol's fields: the options page's mpv path as in the open message, no
-    // single-instance flag (one window is the default; newWindow asks for another).
+    // Exactly the protocol's fields: the options page's mpv path, no single-instance flag (one window is the default;
+    // newWindow asks for another).
     expect(sent).toStrictEqual([{
       type: 'play',
       target: `https://cdn.test/a.m3u8#fs-content=anime&fs-id=${fsId(PAGE)}&fs-page=${encodeURIComponent(PAGE)}&fs-quality=${qualities}`,
@@ -541,6 +347,64 @@ describe('the thin helper', () => {
       mpvPath: 'D:/tools/mpv.exe',
       subtitles: [{label: 'English', srt: SRT}],
     }]);
+  });
+
+  it('tags the content type only for one mpv\'s scripts know, and an http(s) page only', async () => {
+    const sent = helper();
+    const backend = new MpvBackend();
+    await backend.openStream('https://cdn.test/a.m3u8', undefined, undefined, 'movie');
+    await backend.openStream('https://cdn.test/b.m3u8', undefined, undefined, 'native');
+    await backend.openStream('https://cdn.test/c.m3u8', undefined, undefined, 'documentary');
+    await backend.openStream('https://cdn.test/d.m3u8', undefined, undefined, null, 'about:blank');
+    await backend.openStream('https://cdn.test/e.m3u8', undefined, undefined, undefined, 'https://site.test/ep-3');
+    expect(sent.map((m) => m.target)).toEqual([
+      'https://cdn.test/a.m3u8#fs-content=movie',
+      'https://cdn.test/b.m3u8#fs-content=native',
+      'https://cdn.test/c.m3u8',
+      'https://cdn.test/d.m3u8',
+      `https://cdn.test/e.m3u8#fs-id=${fsId('https://site.test/ep-3')}&fs-page=${encodeURIComponent('https://site.test/ep-3')}`,
+    ]);
+  });
+
+  it('names the tab\'s title, trimmed and bounded, else the stream\'s host', async () => {
+    const sent = helper();
+    const backend = new MpvBackend();
+    await backend.openStream('https://cdn.test/a.m3u8', undefined, undefined, undefined, PAGE, '  Show - Episode 3 ');
+    await backend.openStream('https://cdn.test/b.m3u8', undefined, undefined, undefined, PAGE, 'x'.repeat(400));
+    for (const none of [undefined, '', '   ', 42]) {
+      await backend.openStream('https://cdn.test/c.m3u8?' + String(none), undefined, undefined, undefined, PAGE, none);
+    }
+    expect(sent.map((m) => m.title)).toEqual(['Show - Episode 3', 'x'.repeat(200), 'cdn.test', 'cdn.test', 'cdn.test', 'cdn.test']);
+  });
+
+  it('cuts a title and a subtitle label between whole characters (#470)', async () => {
+    // Cut in the middle of an emoji, a lone half of it reached mpv, which drew it as a broken
+    // character at the end of the title or the track's name. A flag is two code points: never
+    // cut between them either.
+    for (const whole of ['\u{1F3AC}', '\u{1F1E9}\u{1F1EA}']) {
+      const sent = helper();
+      await new MpvBackend().openStream('https://cdn.test/a.m3u8', undefined, undefined, 'anime', PAGE,
+          'x'.repeat(199) + whole + 'tail', {subtitles: [{label: 'y'.repeat(99) + whole + 'tail', srt: SRT}]});
+      expect(sent[0].title).toBe('x'.repeat(199) + whole);
+      expect(sent[0].subtitles[0].label).toBe('y'.repeat(99) + whole);
+    }
+  });
+
+  it('carries where the player was and its subtitles (the player\'s button)', async () => {
+    const sent = helper();
+    const backend = new MpvBackend();
+    await backend.openStream('https://cdn.test/a.m3u8', undefined, undefined, 'anime', undefined, undefined,
+        {startTime: 754.5, subtitles: [{label: 'English', srt: SRT}, {label: 'empty', srt: '  '}, {srt: 5}]});
+    expect(sent[0].start).toBe('754.5');
+    expect(sent[0].subtitles).toEqual([{label: 'English', srt: SRT}]);
+
+    await backend.openStream('https://cdn.test/b.m3u8', undefined, undefined, 'anime', undefined, undefined,
+        {startTime: 0.4, subtitles: []});
+    await backend.openStream('https://cdn.test/c.m3u8');
+    for (const message of sent.slice(1)) {
+      expect(message).not.toHaveProperty('start');
+      expect(message).not.toHaveProperty('subtitles');
+    }
   });
 
   it('names the stream\'s host without a title, asks for fullscreen and a window of its own as set', async () => {
@@ -553,49 +417,38 @@ describe('the thin helper', () => {
     expect(sent).toStrictEqual([{type: 'play', target: 'https://cdn.test/a.mp4', title: 'cdn.test', fullscreen: true, newWindow: true}]);
   });
 
-  it('plays in the mpv window named only with a helper that has windows (30), and passes on the one it played in', async () => {
+  it('plays in the mpv window named, and passes on the one it played in', async () => {
     const Window = '0123456789abcdef';
-    const Windows = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay', 'windows']};
-    let sent = helper(() => ({ok: true, ...Windows, window: Window}));
+    let sent = helper(() => ({ok: true, ...Current, window: Window}));
     const backend = new MpvBackend();
-    backend.capabilities = Windows.capabilities;
     expect(await backend.openStream('https://cdn.test/a.mp4', undefined, undefined, undefined, undefined, undefined,
         {window: Window})).toEqual({ok: true, window: Window});
     expect(sent[0].window).toBe(Window);
     expect(checkPlayMessage(sent[0])).toMatchObject({ok: true, play: {window: Window}});
     // The one on its own pipe needs no name.
-    sent = helper(() => ({ok: true, ...Windows, window: ''}));
+    sent = helper(() => ({ok: true, ...Current, window: ''}));
     expect(await backend.openStream('https://cdn.test/b.mp4', undefined, undefined, undefined, undefined, undefined,
         {window: ''})).toEqual({ok: true, window: ''});
     expect(sent[0]).not.toHaveProperty('window');
     // Gone: the helper started nothing.
-    helper(() => ({ok: false, closed: true, error: 'that mpv window was closed', ...Windows}));
+    helper(() => ({ok: false, closed: true, error: 'that mpv window was closed', ...Current}));
     expect(await backend.openStream('https://cdn.test/c.mp4', undefined, undefined, undefined, undefined, undefined,
         {window: Window})).toEqual({ok: false, closed: true, error: 'that mpv window was closed'});
-    // An older helper is never sent one, and its answer names none.
-    sent = helper();
-    const older = new MpvBackend();
-    older.capabilities = Thin.capabilities;
-    expect(await older.openStream('https://cdn.test/d.mp4', undefined, undefined, undefined, undefined, undefined,
-        {window: Window})).toEqual({ok: true});
-    expect(sent[0]).not.toHaveProperty('window');
     // A window per stream (the option) asks for a new one, never a named one.
-    sent = helper(() => ({ok: true, ...Windows, window: 'fedcba9876543210'}));
+    sent = helper(() => ({ok: true, ...Current, window: 'fedcba9876543210'}));
     backend.singleInstance = false;
     expect(await backend.openStream('https://cdn.test/e.mp4', undefined, undefined, undefined, undefined, undefined,
         {window: Window})).toEqual({ok: true, window: 'fedcba9876543210'});
     expect(sent[0]).toMatchObject({newWindow: true});
     expect(sent[0]).not.toHaveProperty('window');
     // An answer no helper gives names none.
-    helper(() => ({ok: true, ...Windows, window: '../other-pipe'}));
+    helper(() => ({ok: true, ...Current, window: '../other-pipe'}));
     expect(await backend.openStream('https://cdn.test/f.mp4')).toEqual({ok: true});
   });
 
-  it('starts a new window that waits paused, not fullscreen, only for a helper that has windows (30)', async () => {
-    const Windows = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay', 'windows']};
-    let sent = helper(() => ({ok: true, ...Windows, window: 'fedcba9876543210'}));
+  it('starts a new window that waits paused, not fullscreen', async () => {
+    let sent = helper(() => ({ok: true, ...Current, window: 'fedcba9876543210'}));
     const backend = new MpvBackend();
-    backend.capabilities = Windows.capabilities;
     backend.fullscreen = true;
     expect(await backend.openStream('https://cdn.test/a.mp4', undefined, undefined, undefined, undefined, undefined,
         {newWindow: true, paused: true})).toEqual({ok: true, window: 'fedcba9876543210'});
@@ -603,34 +456,20 @@ describe('the thin helper', () => {
     expect(sent[0]).not.toHaveProperty('fullscreen');
     expect(checkPlayMessage(sent[0])).toMatchObject({ok: true, play: {newWindow: true, paused: true, fullscreen: false}});
     // Not paused: as the option asks.
-    sent = helper(() => ({ok: true, ...Windows, window: 'fedcba9876543210'}));
+    sent = helper(() => ({ok: true, ...Current, window: 'fedcba9876543210'}));
     await backend.openStream('https://cdn.test/b.mp4', undefined, undefined, undefined, undefined, undefined,
         {newWindow: true});
     expect(sent[0]).toMatchObject({newWindow: true, fullscreen: true});
     expect(sent[0]).not.toHaveProperty('paused');
     expect(checkPlayMessage(sent[0]).ok).toBe(true);
-    // An older helper: the one window it has.
-    sent = helper();
-    const older = new MpvBackend();
-    older.capabilities = Thin.capabilities;
-    await older.openStream('https://cdn.test/c.mp4', undefined, undefined, undefined, undefined, undefined,
-        {newWindow: true, paused: true});
-    expect(sent[0]).not.toHaveProperty('newWindow');
-    expect(sent[0]).not.toHaveProperty('paused');
   });
 
-  it('raises a window only with a helper that has windows (30)', async () => {
-    const Windows = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay', 'windows']};
-    let sent = helper(() => ({ok: true, ...Windows}));
+  it('raises a window', async () => {
+    const sent = helper(() => ({ok: true, ...Current}));
     const backend = new MpvBackend();
-    backend.capabilities = Windows.capabilities;
     await backend.raise('0123456789abcdef');
     await backend.raise('');
     expect(sent).toEqual([{type: 'raise', window: '0123456789abcdef'}, {type: 'raise'}]);
-    sent = helper();
-    backend.capabilities = Thin.capabilities;
-    await backend.raise('');
-    expect(sent).toEqual([]);
   });
 
   it('leaves out what the helper would refuse the whole message for', async () => {
@@ -661,22 +500,25 @@ describe('the thin helper', () => {
     expect(tab.mpvSentUrls.has(tooLong)).toBe(false);
   });
 
+  // The host reads no message over its MaxMessageBytes (it answers with an error, and nothing
+  // plays). Firefox sends the JSON as UTF-8.
   it('keeps a play message under the host\'s limit, leaving out subtitles that do not fit', async () => {
+    expect(HostMaxMessageBytes).toBe(MaxMessageBytes);
     const sent = helper();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const srtOf = (cues) => Array.from({length: cues}, (_, i) =>
-      `${i + 1}\n00:00:01,000 --> 00:00:02,000\nLine ${i} ${String.fromCodePoint(0xFC)}\n\n`).join('');
-    const big = srtOf(7000);
+    // Three bytes a character in UTF-8: five of these fit, a sixth no longer does; a small one still does.
+    const srtOf = (chars) => '1\n00:00:01,000 --> 00:00:02,000\n' + '\u4E2D'.repeat(chars);
+    const big = srtOf(1000000);
     await new MpvBackend().openStream('https://cdn.test/a.m3u8', undefined, undefined, undefined, PAGE, 'Title', {subtitles: [
-      {label: 'one', srt: big}, {label: 'two', srt: big}, {label: 'three', srt: big}, {label: 'four', srt: srtOf(10)},
+      ...['one', 'two', 'three', 'four', 'five', 'six'].map((label) => ({label, srt: big})), {label: 'small', srt: srtOf(10)},
     ]});
-    expect(sent[0].subtitles.map((s) => s.label)).toEqual(['one', 'two', 'four']);
+    expect(sent[0].subtitles.map((s) => s.label)).toEqual(['one', 'two', 'three', 'four', 'five', 'small']);
     expect(new TextEncoder().encode(JSON.stringify(sent[0])).length).toBeLessThanOrEqual(HostMaxMessageBytes);
+    expect(console.warn).toHaveBeenCalledWith('A subtitle track (six) is too large to send to mpv, left out');
   });
 
-  // A message with a stream's playlists may be 16 MB, a track still 1,048,576 units: the helper refused the
-  // whole play for a longer one, where the 1 MB of any other message never had room for it.
-  it('leaves out a subtitle track longer than the helper takes, where the message has room for it', async () => {
+  // A track may be 1,048,576 units (the helper's MaxSubtitleChars): the helper refuses the whole play for a longer one.
+  it('leaves out a subtitle track longer than the helper takes', async () => {
     const sent = helper();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const hls = {files: [{name: '0.m3u8', text: '#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nhttps://cdn.test/s0.ts\n#EXT-X-ENDLIST\n'}]};
@@ -691,80 +533,10 @@ describe('the thin helper', () => {
     expect(checkPlayMessage(sent[0])).toMatchObject({ok: true});
   });
 
-  it('sends an older helper\'s answer of "unknown message" the open message, and that from then on', async () => {
-    const sent = helper((message) => message.type === 'play' ? {...Unknown} : {ok: true, hostVersion: 14, focus: 'True'});
-    const backend = new MpvBackend();
-    backend.mpvPath = 'D:/tools/mpv.exe';
-    const tab = {mpvSentUrls: new Set()};
-    // (Outdated or not, by RequiredHostVersion: the open's answer says, as before.)
-    expect(await backend.openStream('https://cdn.test/a.m3u8', tab, [{name: 'Referer', value: 'https://site.test/'}],
-        'movie', PAGE, 'Title', {startTime: 12})).toMatchObject({ok: true, focus: 'True'});
-    expect(sent.map((m) => m.type)).toEqual(['play', 'open']);
-    expect(sent[1]).toStrictEqual({type: 'open', url: 'https://cdn.test/a.m3u8', contentType: 'movie', pageUrl: PAGE,
-      title: 'Title', start: 12, mpvPath: 'D:/tools/mpv.exe', singleInstance: true,
-      headers: [{name: 'Referer', value: 'https://site.test/'}]});
-    expect(backend.capabilities).toEqual([]);
-    await backend.openStream('https://cdn.test/b.m3u8', tab);
-    expect(sent.map((m) => m.type)).toEqual(['play', 'open', 'open']);
-  });
-
-  it('remembers what the helper can do from any answer, and notices one installed again', async () => {
-    // A ping of the thin helper: the stream goes as a play message at once.
-    let thin = true;
-    const sent = helper(() => thin ? {ok: true, mpv: true, ...Thin} : {ok: true, mpv: true, hostVersion: 14});
-    const backend = new MpvBackend();
-    await backend.testConnection();
-    expect(backend.capabilities).toEqual(['play', 'ipc', 'relay']);
-    await backend.openStream('https://cdn.test/a.m3u8');
-    expect(sent.map((m) => m.type)).toEqual(['ping', 'play']);
-    // An older helper's ping (no capabilities): the open message at once.
-    thin = false;
-    await backend.testConnection();
-    expect(backend.capabilities).toEqual([]);
-    await backend.openStream('https://cdn.test/b.m3u8');
-    expect(sent.map((m) => m.type)).toEqual(['ping', 'play', 'ping', 'open']);
-    // The thin helper installed meanwhile: its answer to that open names its capabilities.
-    thin = true;
-    await backend.openStream('https://cdn.test/c.m3u8');
-    await backend.openStream('https://cdn.test/d.m3u8');
-    expect(sent.map((m) => m.type)).toEqual(['ping', 'play', 'ping', 'open', 'open', 'play']);
-  });
-
-  it('passes on the helper\'s own refusal of a play message, without trying the open message', async () => {
-    const sent = helper(() => ({ok: false, error: 'unknown message', ...Thin}));
-    expect(await new MpvBackend().openStream('https://cdn.test/a.m3u8')).toEqual({ok: false, error: 'unknown message'});
-    expect(sent.map((m) => m.type)).toEqual(['play']);
-    const refused = helper(() => ({ok: false, error: 'headers refused', ...Thin}));
+  it('passes on the helper\'s own refusal of a play message, with no second try', async () => {
+    const sent = helper(() => ({ok: false, error: 'headers refused', ...Current}));
     expect(await new MpvBackend().openStream('https://cdn.test/a.m3u8')).toEqual({ok: false, error: 'headers refused'});
-    expect(refused.map((m) => m.type)).toEqual(['play']);
-  });
-
-  it('says a helper that is not installed is not, with no second try', async () => {
-    const sent = [];
-    globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {
-      sent.push(message);
-      globalThis.chrome.runtime.lastError = {message: 'no such native application'};
-      callback(undefined);
-      globalThis.chrome.runtime.lastError = undefined;
-    }}};
-    const backend = new MpvBackend();
-    expect(await backend.openStream('https://cdn.test/a.m3u8'))
-        .toEqual({ok: false, error: 'no such native application', noHost: true});
     expect(sent.map((m) => m.type)).toEqual(['play']);
-    // Nothing learned: still unknown.
-    expect(backend.capabilities).toBe(null);
-    expect(await backend.knows('hls')).toBe(null);
-  });
-
-  it('asks again whether the helper has a capability until it has: an update meanwhile is noticed', async () => {
-    let capabilities = ['play', 'ipc', 'relay'];
-    const sent = helper(() => ({ok: true, hostVersion: RequiredHostVersion, capabilities}));
-    const backend = new MpvBackend();
-    expect(await backend.knows('hls')).toBe(false);
-    capabilities = [...capabilities, 'hls'];
-    expect(await backend.knows('hls')).toBe(true);
-    expect(await backend.knows('hls')).toBe(true);
-    expect(sent.map((m) => m.type)).toEqual(['ping', 'ping']);
   });
 
   it('answers a send whose message could not be built, and lets it be sent again', async () => {
@@ -836,6 +608,9 @@ describe('testConnection', () => {
     };
     expect(await new MpvBackend().testConnection())
         .toEqual({ok: false, error: 'Error: nativeMessaging permission missing'});
+    // A send too, with no stream: the ping before it threw.
+    expect(await new MpvBackend().openStream('https://cdn.test/a.m3u8'))
+        .toEqual({ok: false, error: 'Error: nativeMessaging permission missing'});
   });
 });
 
@@ -881,8 +656,12 @@ describe('streams sent at once', () => {
     const sent = [];
     const answers = [];
     globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {
+      if (message.type === 'ping') {
+        callback({ok: true, ...Current});
+        return;
+      }
       sent.push(message);
-      answers.push(() => callback({ok: true, ...Thin}));
+      answers.push(() => callback({ok: true, ...Current}));
     }}};
     const backend = new MpvBackend();
     const a = backend.openStream('https://cdn.test/a.m3u8');
@@ -895,15 +674,5 @@ describe('streams sent at once', () => {
     answers[1]();
     expect(await a).toMatchObject({ok: true});
     expect(await b).toMatchObject({ok: true});
-  });
-
-  it('sends no private window\'s stream to a helper from before host 15', async () => {
-    // Its open message has no fs-private, and mpv kept where the stream was left, on disk.
-    const host = stubNativeHost({ok: true, hostVersion: 14});
-    const result = await new MpvBackend().openStream('https://cdn.test/a.m3u8', undefined, [], '',
-        'https://site.test/watch', 'Episode', {private: true});
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/private window/);
-    expect(host.sent().map((message) => message.type)).toEqual(['play']);
   });
 });

@@ -42,13 +42,13 @@ describe('the toolbar button in MPV mode', () => {
     expect(calls.icon).toEqual({path: '/icon3_128.png', tabId: 7});
   });
 
-  // The stream went to mpv, but through a host older than this extension was released
-  // with (MpvBackend's RequiredHostVersion): the copy on the PC wants installing again. No
-  // "!" since the thin helper: an older one still plays it, and lacks only newer
-  // features; only an error shows "!".
-  it('says what to run after a hand-off through an outdated host, with no "!"', () => {
-    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
-    expect(calls.badge).toEqual({text: '', tabId: 7});
+  // A host older than MpvBackend's RequiredHostVersion gets no stream: the send failed with what to run, and the
+  // copy on the PC wants installing again.
+  const outdated = 'The mpv helper on this computer is out of date: run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1).';
+
+  it('shows "!" and what to run after a send refused for an outdated host', () => {
+    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: outdated, mpvHostOutdated: true});
+    expect(calls.badge).toEqual({text: '!', tabId: 7});
     expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
       'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)',
     tabId: 7});
@@ -57,7 +57,7 @@ describe('the toolbar button in MPV mode', () => {
   // On Linux and macOS there is no Start menu entry: the manifest names the host file.
   it('names the Linux and macOS steps there', () => {
     vi.stubGlobal('navigator', {platform: 'Linux x86_64'});
-    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
+    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: outdated, mpvHostOutdated: true});
     expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
       'update the faststream-mpv-host.mjs that your native messaging manifest points to ' +
       '(git pull in your FastStream checkout; see native-host/README.md)',
@@ -70,18 +70,22 @@ describe('the toolbar button in MPV mode', () => {
     const {EnvUtils} = await import('../../chrome/player/utils/EnvUtils.mjs');
     EnvUtils.knownOs = 'linux';
     try {
-      BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
+      BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: outdated, mpvHostOutdated: true});
       expect(calls.title.title).toContain('update the faststream-mpv-host.mjs');
     } finally {
       EnvUtils.knownOs = null;
     }
   });
 
-  it('names a failure before an outdated host', () => {
+  it('says nothing of an outdated host once a send failed for another reason, or none failed', () => {
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: 'mpv executable not found',
-      mpvHostOutdated: true});
+      mpvHostOutdated: false});
     expect(calls.badge).toEqual({text: '!', tabId: 7});
     expect(calls.title).toEqual({title: 'FastStream - MPV - the stream did not open: mpv executable not found', tabId: 7});
+    // A tab state kept from before (an outdated helper used to play the stream).
+    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
+    expect(calls.badge).toEqual({text: '', tabId: 7});
+    expect(calls.title).toEqual({title: 'FastStream - Playing in MPV', tabId: 7});
   });
 
   it('is the plain purple icon otherwise', () => {

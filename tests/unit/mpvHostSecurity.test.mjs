@@ -4,13 +4,12 @@ import {
   CommandLineEnv,
   MaxMessageBytes,
   TooLarge,
-  mpvTargetUrl,
+  checkPlayMessage,
   readMessage,
-  relayHeaderFields,
   runPowerShell,
-  withoutFsTags,
   wmiLaunchLines,
 } from '../../native-host/faststream-mpv-host.mjs';
+import {mpvTargetUrl, relayHeaderFields, withoutFsTags} from '../../chrome/background/MpvTarget.mjs';
 
 // A page could make "Send to mpv" run PowerShell code. It framed the player page (it is
 // web-accessible) with a source whose faststream-headers held a Referer like
@@ -18,7 +17,8 @@ import {
 // that starts mpv, as a single-quoted string with only the ASCII ' escaped. PowerShell
 // also ends such a string at the typographic quotes U+2018-U+201B, so the value closed
 // the string and the rest ran. The command line now reaches the script through an
-// environment variable, and header values are checked on both sides.
+// environment variable, and header values are checked on both sides: the extension picks
+// them (MpvTarget.relayHeaderFields), the helper refuses a play message with any other.
 
 // The four characters PowerShell takes for a single quote besides the ASCII one.
 const TYPOGRAPHIC_QUOTES = [0x2018, 0x2019, 0x201A, 0x201B].map((c) => String.fromCodePoint(c));
@@ -72,7 +72,7 @@ describe('the WMI launch script', () => {
   }, 120000);
 });
 
-describe('relayHeaderFields', () => {
+describe('the header fields mpv is given', () => {
   it('keeps Referer, Origin and User-Agent with printable ASCII values', () => {
     expect(relayHeaderFields([
       {name: 'Referer', value: 'https://site.test/watch?v=1&t=2'},
@@ -86,8 +86,10 @@ describe('relayHeaderFields', () => {
   });
 
   it.each(TYPOGRAPHIC_QUOTES.map((q) => [q.codePointAt(0).toString(16), q]))(
-      'drops a value with the typographic quote U+%s', (hex, quote) => {
+      'drops a value with the typographic quote U+%s, which the helper refuses too', (hex, quote) => {
         expect(relayHeaderFields([{name: 'Referer', value: `x${quote};k=1;z=${quote}`}])).toEqual([]);
+        expect(checkPlayMessage({target: 'https://cdn.test/v.m3u8', headers: [`Referer: x${quote};k=1;z=${quote}`]}))
+            .toEqual({ok: false, error: 'a header is not Referer, Origin or User-Agent with a printable ASCII value'});
       });
 
   it.each([
@@ -96,8 +98,9 @@ describe('relayHeaderFields', () => {
     ['non-ASCII', 'https://site.test/vidéo'],
     ['nothing', ''],
     ['over 4096 characters', 'https://site.test/' + 'a'.repeat(4096)],
-  ])('drops a value with %s', (what, value) => {
+  ])('drops a value with %s, which the helper refuses too', (what, value) => {
     expect(relayHeaderFields([{name: 'Referer', value}])).toEqual([]);
+    expect(checkPlayMessage({target: 'https://cdn.test/v.m3u8', headers: [`Referer: ${value}`]}).ok).toBe(false);
   });
 
   it('drops headers mpv is never given, and anything that is not a header', () => {
@@ -114,8 +117,8 @@ describe('relayHeaderFields', () => {
 });
 
 describe('fs-* tags a page put in the stream URL', () => {
-  it('are dropped, so only the host\'s own reach mpv', () => {
-    const url = mpvTargetUrl({
+  it('are dropped, so only the extension\'s own reach mpv', async () => {
+    const url = await mpvTargetUrl({
       url: 'https://cdn.test/v.m3u8#fs-id=0000000000000000&fs-page=https%3A%2F%2Fevil.test%2F&fs-content=anime',
       pageUrl: 'https://site.test/watch/1',
       contentType: 'movie',

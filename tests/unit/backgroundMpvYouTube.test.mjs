@@ -28,9 +28,9 @@ async function play(page, time = 0) {
     video: {src: '', duration: 212, playing: 'blob:https://www.youtube.com/1', time}, page}, {tabId: 1, frameId: 0});
 }
 
-/** @return {Array<Object>} The open messages the mpv host got. */
+/** @return {Array<Object>} The streams the mpv host got (play messages, read back). */
 function opened() {
-  return bg.native.filter((m) => m.type === 'open');
+  return bg.played();
 }
 
 describe('a YouTube video in a tab in MPV', () => {
@@ -146,7 +146,7 @@ describe('Open link in MPV on a YouTube link', () => {
   });
 
   it('keeps a private window\'s video private (no resume position in mpv)', async () => {
-    bg = await loadBackground({options: {mpvMode: true}, thinHost: true,
+    bg = await loadBackground({options: {mpvMode: true},
       tabs: [{id: 1, url: 'https://site.test/page', incognito: true}]});
     await bg.menuClick(MenuIds.LINK_MPV, 1, {linkUrl: VIDEO});
     expect(JSON.stringify(bg.native.filter((m) => m.type === 'play'))).toContain('fs-private=1');

@@ -5,15 +5,13 @@ import {MenuIds} from '../../chrome/background/ContextMenu.mjs';
 import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
-// MPV mode with the thin helper, through the background's real
-// listeners: the stream goes as a play message the extension built, mpv's decoder is asked
-// over ipc, and MPV autoplay follows mpv over the relay, with background.mjs as it was for the
-// helper that did all of it itself (backgroundMpv.test.mjs runs the same against a helper
-// before host 15).
+// MPV mode through the background's real listeners: the stream goes as a play message the
+// extension built, and MPV autoplay follows mpv over the relay, mpv's decoder too
+// (backgroundMpv.test.mjs speaks to the relay in watch events, backgroundHarness's mpvEvents).
 
 const EP1 = 'https://site.test/watch/1';
 const S1 = 'https://cdn.test/one/master.m3u8';
-const Thin = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']};
+const Thin = {hostVersion: RequiredHostVersion};
 const fsId = (page) => crypto.createHash('sha256').update(page).digest('hex').slice(0, 16);
 
 let bg;
@@ -25,7 +23,7 @@ afterEach(() => {
 });
 
 /**
- * The thin helper: a play works, and mpv decodes on the graphics card.
+ * The helper: a play works, and mpv decodes on the graphics card.
  * @param {Object} message
  * @return {Object}
  */
@@ -37,7 +35,7 @@ function thinHelper(message) {
   return {ok: true, ...Thin};
 }
 
-describe('MPV mode with the thin helper', () => {
+describe('MPV mode with the helper', () => {
   let navigations;
 
   /**
@@ -53,8 +51,9 @@ describe('MPV mode with the thin helper', () => {
         autoplayCountdown: 5, ...options},
       tabs: [{id: 1, url: EP1, title: 'Show - Episode 1', ...tab}],
       fetch: (url) => new Promise((resolve) => setTimeout(() => resolve(url === S1 ? response(hlsPlaylist(1400)) : response('', 404)), 300)),
-      thinHost: true,
       onNative: thinHelper,
+      // The helper connects to mpv when the test says so.
+      onPortMessage: () => undefined,
       onTabMessage: ({frameId, message}) => {
         if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
         if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
@@ -130,10 +129,9 @@ describe('MPV mode with the thin helper', () => {
     const plays = bg.native.filter((m) => m.type === 'play');
     expect(plays).toHaveLength(1);
     // The allowlist's content type (Movie unless the site is tagged @anime), the resume key and
-    // the page, as the helper tagged them until host 14.
+    // the page.
     expect(plays[0].target).toBe(`${S1}#fs-content=movie&fs-id=${fsId(EP1)}&fs-page=${encodeURIComponent(EP1)}`);
     expect(plays[0]).toMatchObject({type: 'play', headers: ['Referer: https://site.test/']});
-    expect(bg.native.filter((m) => m.type === 'open' || m.type === 'status')).toEqual([]);
     // The relay the watch holds open observes the decoder: no ipc question, each of which
     // was a new helper process.
     port.emit({type: 'relaying', ...Thin});
@@ -157,7 +155,7 @@ describe('MPV mode with the thin helper', () => {
   it('follows mpv over the relay: the end of the episode counts down to the next one', async () => {
     const port = await onEpisode1();
     expect(port.sent[0]).toMatchObject({type: 'relay', heartbeat: {property: 'user-data/faststream/heartbeat', everyMs: 30000}});
-    // A helper before 30 is told no window.
+    // The window on the helper's own pipe needs no name.
     expect(port.sent[0]).not.toHaveProperty('window');
     expect(plays()[0]).not.toHaveProperty('window');
     port.emit({type: 'relaying', ...Thin});
@@ -219,10 +217,10 @@ describe('MPV mode with the thin helper', () => {
   const plays = () => bg.native.filter((m) => m.type === 'play');
 });
 
-describe('several mpv windows (helper 30)', () => {
+describe('several mpv windows', () => {
   const WindowB = '0123456789abcdef';
   const WindowC = 'fedcba9876543210';
-  const Helper30 = {hostVersion: 30, capabilities: ['play', 'ipc', 'relay', 'windows']};
+  const Helper = {hostVersion: RequiredHostVersion};
   const EP2 = 'https://site.test/watch/2';
   const S2 = 'https://cdn.test/two/master.m3u8';
   const OTHER1 = 'https://site.test/other/1';
@@ -245,22 +243,22 @@ describe('several mpv windows (helper 30)', () => {
   let onPlay;
 
   /**
-   * Helper 30: a play without a window plays in the one on its own pipe, unless the test put its stream in window B
+   * The helper: a play without a window plays in the one on its own pipe, unless the test put its stream in window B
    * (as a "here" into B would); newWindow's is window C; a play into a window it no longer has answers closed.
    * @param {Object} message
    * @return {Object}
    */
-  function helper30(message) {
-    if (message.type !== 'play') return {ok: true, ...Helper30};
+  function helper(message) {
+    if (message.type !== 'play') return {ok: true, ...Helper};
     // A test's own answer, or none.
     const answered = onPlay?.(message);
     if (answered) return answered;
     if (message.window && gone.has(message.window)) {
-      return {ok: false, closed: true, error: 'the window was closed', ...Helper30};
+      return {ok: false, closed: true, error: 'the window was closed', ...Helper};
     }
-    if (message.newWindow) return {ok: true, ...Helper30, window: WindowC};
+    if (message.newWindow) return {ok: true, ...Helper, window: WindowC};
     const stream = message.target.split('#')[0];
-    return {ok: true, ...Helper30, window: message.window ?? (inWindowB.has(stream) ? WindowB : '')};
+    return {ok: true, ...Helper, window: message.window ?? (inWindowB.has(stream) ? WindowB : '')};
   }
 
   /**
@@ -271,7 +269,7 @@ describe('several mpv windows (helper 30)', () => {
    * @return {Object|undefined}
    */
   function mpvAnswers(message, port) {
-    if (message.type === 'relay') return {type: 'relaying', ...Helper30};
+    if (message.type === 'relay') return {type: 'relaying', ...Helper};
     if (message.type !== 'mpv') return undefined;
     const [name, ...args] = message.command;
     if (name === 'get_property' && message.id !== undefined) {
@@ -313,8 +311,7 @@ describe('several mpv windows (helper 30)', () => {
         {id: 3, url: THIRD, title: 'Third - Episode 1'}, {id: 4, url: PLAIN, title: 'Plain - Episode 1'}],
       fetch: (url) => new Promise((resolve) => setTimeout(() =>
         resolve(url.startsWith('https://cdn.test/') ? response(hlsPlaylist(1400)) : response('', 404)), 300)),
-      thinHost: true,
-      onNative: helper30,
+      onNative: helper,
       onPortMessage: mpvAnswers,
       onTabMessage: ({tabId, frameId, message}) => {
         if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
@@ -793,7 +790,7 @@ describe('several mpv windows (helper 30)', () => {
       port.mpv = {'idle-active': true};
       // Tab 2's play into B takes a while, and B's mpv quits meanwhile: it goes to a fresh window (C).
       onPlay = (message) => message.window === WindowB ? new Promise((resolve) => setTimeout(() =>
-        resolve({ok: false, closed: true, error: 'the window was closed', ...Helper30}), 2000)) : undefined;
+        resolve({ok: false, closed: true, error: 'the window was closed', ...Helper}), 2000)) : undefined;
       for (const [tabId, url] of [[2, OTHER1], [3, THIRD]]) {
         await bg.navigated(tabId, url);
         await bg.frameAdded(tabId, 0, url, `page-${url}`);
@@ -907,25 +904,6 @@ describe('several mpv windows (helper 30)', () => {
       await bg.wait(1000);
       expect(offerCommands(port)).toHaveLength(2);
       expect(plays()).toHaveLength(1);
-    });
-
-    it('asks nothing with a helper before 30', async () => {
-      navigations = [];
-      bg = await loadBackground({
-        options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true},
-        tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER1, title: 'Other - Episode 1'}],
-        fetch: (url) => new Promise((resolve) => setTimeout(() =>
-          resolve(url.startsWith('https://cdn.test/') ? response(hlsPlaylist(1400)) : response('', 404)), 300)),
-        thinHost: true,
-        onNative: thinHelper,
-        onPortMessage: (message) => message.type === 'relay' ? {type: 'relaying', ...Thin} : undefined,
-      });
-      await pageLoads(1, EP1, S1);
-      await pageLoads(2, OTHER1, SX1);
-      expect(plays().map((m) => m.target.split('#')[0])).toEqual([S1, SX1]);
-      expect(plays().filter((m) => 'window' in m || 'newWindow' in m)).toEqual([]);
-      expect(commands(bg.ports[0]).filter((c) => c[0] === 'get_property' || c[0] === 'script-message')).toEqual([]);
-      expect(bg.native.filter((m) => m.type === 'raise')).toEqual([]);
     });
   });
 });

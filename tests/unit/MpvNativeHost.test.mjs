@@ -2,10 +2,12 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import {afterAll, afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {MaxLogBytes, PrivateSubtitleDirPrefix, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, takeLaunchLock, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, removeOldSubtitleDirs, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import {MaxLogBytes, PrivateSubtitleDirPrefix, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect,
+  loadInto, loggedMessage, mpvIpcRequest, mpvNotFoundError, perFileOptions, removeOldSubtitleDirs, subtitlesOf,
+  writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
-// loadIntoExisting decides from mpvIpcRequest's replies whether reusing our window worked; injected
+// loadInto decides from mpvIpcRequest's replies whether loading into a running mpv worked; injected
 // (no pipes on Linux CI).
 //
 // mpvIpcRequest resolves ok on its timeout once any reply came: a missing loadfile reply is not
@@ -17,7 +19,7 @@ const title = 'example.com';
 
 const loadfileOf = (commands) => commands.find((c) => !Array.isArray(c.command) && c.command.name === 'loadfile').command;
 
-describe('loadIntoExisting', () => {
+describe('loadInto a running mpv', () => {
   it('succeeds when every reply, including loadfile, comes back', async () => {
     const ipcRequest = async (commands) => ({
       ok: true,
@@ -26,7 +28,7 @@ describe('loadIntoExisting', () => {
         {request_id: commands.length, data: 4242},
       ],
     });
-    const result = await loadIntoExisting(message, headerFields, title, ipcRequest);
+    const result = await loadInto(message.url, perFileOptions(headerFields, title), false, ipcRequest);
     expect(result).toEqual({ok: true, pid: 4242});
   });
 
@@ -39,26 +41,26 @@ describe('loadIntoExisting', () => {
         {request_id: commands.length, data: 4242},
       ],
     });
-    const result = await loadIntoExisting(message, headerFields, title, ipcRequest);
+    const result = await loadInto(message.url, perFileOptions(headerFields, title), false, ipcRequest);
     expect(result).toEqual({ok: false, refused: true, error: 'invalid parameter'});
   });
 
   it('is busy, not phantom-successful, when only the fullscreen reply came back', async () => {
     // Ours answered but not to loadfile: not success, and not "no mpv" either.
     const ipcRequest = async () => ({ok: true, replies: [{request_id: 1}]});
-    const result = await loadIntoExisting({...message, fullscreen: true}, headerFields, title, ipcRequest);
+    const result = await loadInto(message.url, perFileOptions(headerFields, title), true, ipcRequest);
     expect(result).toEqual({ok: false, busy: true});
   });
 
   it('fails when no instance of ours answers at all', async () => {
     const ipcRequest = async () => ({ok: false, error: 'no mpv ipc'});
-    const result = await loadIntoExisting(message, headerFields, title, ipcRequest);
+    const result = await loadInto(message.url, perFileOptions(headerFields, title), false, ipcRequest);
     expect(result).toEqual({ok: false});
   });
 
   it('passes busy on when ours is connected but silent', async () => {
     const ipcRequest = async () => ({ok: false, busy: true, error: 'mpv did not answer'});
-    const result = await loadIntoExisting(message, headerFields, title, ipcRequest);
+    const result = await loadInto(message.url, perFileOptions(headerFields, title), false, ipcRequest);
     expect(result).toEqual({ok: false, busy: true});
   });
 
@@ -76,19 +78,8 @@ describe('loadIntoExisting', () => {
         ],
       };
     };
-    const result = await loadIntoExisting(
-        {...message, fullscreen: true}, headerFields, title, ipcRequest);
+    const result = await loadInto(message.url, perFileOptions(headerFields, title), true, ipcRequest);
     expect(result).toEqual({ok: true, pid: 777});
-  });
-
-  it('appends the fs-content fragment to the loadfile command', async () => {
-    let loadfileUrl;
-    const ipcRequest = async (commands) => {
-      loadfileUrl = loadfileOf(commands).url;
-      return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
-    };
-    await loadIntoExisting({...message, contentType: 'anime'}, headerFields, title, ipcRequest);
-    expect(loadfileUrl).toBe('https://example.com/video.m3u8#fs-content=anime');
   });
 
   it('sends the headers and title with the file, in that one command', async () => {
@@ -99,7 +90,8 @@ describe('loadIntoExisting', () => {
       sent = commands;
       return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
     };
-    await loadIntoExisting(message, ['Referer: https://a.test/x?a=1,b=2', 'User-Agent: UA (x, y)'], 'A title', ipcRequest);
+    await loadInto(message.url, perFileOptions(['Referer: https://a.test/x?a=1,b=2', 'User-Agent: UA (x, y)'], 'A title'), false,
+        ipcRequest);
     expect(sent.some((c) => Array.isArray(c.command) && c.command[0] === 'set_property' &&
       ['http-header-fields', 'force-media-title'].includes(c.command[1]))).toBe(false);
     expect(loadfileOf(sent)).toEqual({
@@ -132,35 +124,6 @@ describe('perFileOptions', () => {
 
   it('clears the headers when there are none', () => {
     expect(perFileOptions([], 't')['http-header-fields']).toBe('');
-  });
-});
-
-describe('streamTitle', () => {
-  it('is the tab\'s title when the extension sent one', () => {
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'Show - Episode 3'})).toBe('Show - Episode 3');
-  });
-
-  it('is one line, trimmed and bounded', () => {
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: '  Show\n\tEpisode\u00073  '})).toBe('Show Episode 3');
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(500)})).toHaveLength(200);
-  });
-
-  it('is cut between whole characters (#470)', () => {
-    // A cut in the middle of an emoji left half of it, which mpv drew as a broken character.
-    const clapper = '\u{1F3AC}';
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + clapper + 'tail'}))
-        .toBe('x'.repeat(199) + clapper);
-    // a flag is two code points: never cut between them
-    const flag = '\u{1F1E9}\u{1F1EA}';
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + flag + 'tail'}))
-        .toBe('x'.repeat(199) + flag);
-  });
-
-  it('is the stream\'s host name without a usable title', () => {
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8'})).toBe('cdn.test');
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: ' \n '})).toBe('cdn.test');
-    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 42})).toBe('cdn.test');
-    expect(streamTitle({url: 'not a url'})).toBe('FastStream');
   });
 });
 
@@ -286,142 +249,6 @@ describe('mpvNotFoundError', () => {
   });
 });
 
-describe('withContentTypeFragment', () => {
-  it('appends a fragment marker when there is none yet', () => {
-    expect(withContentTypeFragment('https://example.com/a.m3u8', 'anime'))
-        .toBe('https://example.com/a.m3u8#fs-content=anime');
-    expect(withContentTypeFragment('https://example.com/a.m3u8', 'movie'))
-        .toBe('https://example.com/a.m3u8#fs-content=movie');
-    expect(withContentTypeFragment('https://example.com/a.m3u8', 'native'))
-        .toBe('https://example.com/a.m3u8#fs-content=native');
-  });
-
-  it('extends an existing fragment instead of adding a second #', () => {
-    expect(withContentTypeFragment('https://example.com/a.m3u8#t=30', 'anime'))
-        .toBe('https://example.com/a.m3u8#t=30&fs-content=anime');
-  });
-
-  it('fills an empty existing fragment without a leading &', () => {
-    expect(withContentTypeFragment('https://example.com/a.m3u8#', 'movie'))
-        .toBe('https://example.com/a.m3u8#fs-content=movie');
-  });
-
-  it('leaves the URL untouched for an unset or invalid contentType', () => {
-    expect(withContentTypeFragment('https://example.com/a.m3u8', undefined))
-        .toBe('https://example.com/a.m3u8');
-    expect(withContentTypeFragment('https://example.com/a.m3u8', null))
-        .toBe('https://example.com/a.m3u8');
-    expect(withContentTypeFragment('https://example.com/a.m3u8', 'documentary'))
-        .toBe('https://example.com/a.m3u8');
-  });
-});
-
-// fs-id= is a hash of the page URL: the stream URL changes with each visit's token, the episode
-// page does not.
-
-describe('resumeIdFor', () => {
-  it('is 16 hex digits and stable for the same page', () => {
-    const id = resumeIdFor('https://example.com/anime/show/episode-3');
-    expect(id).toMatch(/^[0-9a-f]{16}$/);
-    expect(resumeIdFor('https://example.com/anime/show/episode-3')).toBe(id);
-  });
-
-  it('differs between pages', () => {
-    expect(resumeIdFor('https://example.com/anime/show/episode-3'))
-        .not.toBe(resumeIdFor('https://example.com/anime/show/episode-4'));
-  });
-
-  it('is undefined for a missing or non-http(s) page URL', () => {
-    expect(resumeIdFor(undefined)).toBeUndefined();
-    expect(resumeIdFor('')).toBeUndefined();
-    expect(resumeIdFor('about:blank')).toBeUndefined();
-    expect(resumeIdFor('moz-extension://abc/player.html')).toBeUndefined();
-  });
-});
-
-describe('mpvTargetUrl', () => {
-  const pageUrl = 'https://example.com/anime/show/episode-3';
-
-  it('appends fs-content, fs-id and fs-page in one fragment', () => {
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8?token=1', contentType: 'anime', pageUrl}))
-        .toBe(
-            `https://cdn/a.m3u8?token=1#fs-content=anime&fs-id=${resumeIdFor(pageUrl)}&fs-page=${
-              encodeURIComponent(pageUrl)}`);
-  });
-
-  it('gives the same key for a new stream token on the same page', () => {
-    const first = mpvTargetUrl({url: 'https://cdn/a.m3u8?token=1', pageUrl});
-    const second = mpvTargetUrl({url: 'https://cdn/a.m3u8?token=2', pageUrl});
-    expect(first.split('#')[1]).toBe(second.split('#')[1]);
-  });
-
-  it('adds fs-id and fs-page when there is no contentType', () => {
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl}))
-        .toBe(
-            `https://cdn/a.m3u8#fs-id=${resumeIdFor(pageUrl)}&fs-page=${encodeURIComponent(pageUrl)}`);
-  });
-
-  it('is withContentTypeFragment alone without a page URL', () => {
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', contentType: 'movie'}))
-        .toBe('https://cdn/a.m3u8#fs-content=movie');
-  });
-
-  it('hands mpv the URL as the parser writes it, not the raw string (#154)', () => {
-    // isStreamUrl parses the URL, which drops a tab or newline the raw string still has.
-    const target = mpvTargetUrl({url: 'https://cdn.test/v.m3u8\n--foo bar\t?t=1 2'});
-    expect(target).toBe('https://cdn.test/v.m3u8--foo%20bar?t=1%202');
-    expect(target).toMatch(/^[!-~]+$/);
-    // An already clean URL, as the extension sends one, stays as it is.
-    const signed = 'https://cdn.test/hls/a%2Fb/index.m3u8?sig=AbC%3D%3D&exp=1&x=a,b;c';
-    expect(mpvTargetUrl({url: signed})).toBe(signed);
-  });
-
-  it('never puts the page address itself into the URL unencoded', () => {
-    // The whole point of fs-page= being one percent-encoded tag: the raw
-    // address, with its ?, & and # intact, must never leak into the URL.
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl}))
-        .not.toContain(`fs-page=${pageUrl}`);
-  });
-});
-
-describe('fs-page fragment (source-info.lua reads it)', () => {
-  const pageUrl = 'https://example.com/anime/show/episode-3';
-  const encoded = encodeURIComponent(pageUrl);
-
-  it('appends fs-page right after fs-id', () => {
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8?token=1', contentType: 'anime', pageUrl}))
-        .toBe(
-            `https://cdn/a.m3u8?token=1#fs-content=anime&fs-id=${resumeIdFor(pageUrl)}&fs-page=${
-              encoded}`);
-  });
-
-  it('still appends fs-page without a contentType tag', () => {
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl}))
-        .toBe(`https://cdn/a.m3u8#fs-id=${resumeIdFor(pageUrl)}&fs-page=${encoded}`);
-  });
-
-  it('skips fs-page for a missing or non-http(s) page URL', () => {
-    expect(pageFragmentFor(undefined)).toBeUndefined();
-    expect(pageFragmentFor('')).toBeUndefined();
-    expect(pageFragmentFor('about:blank')).toBeUndefined();
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl: 'about:blank'}))
-        .toBe('https://cdn/a.m3u8');
-  });
-
-  it('encodes characters that would break the fragment (&, ?, #)', () => {
-    const messy = 'https://example.com/watch?v=1&q=a&x#top';
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl: messy}))
-        .toBe(`https://cdn/a.m3u8#fs-id=${resumeIdFor(messy)}&fs-page=${encodeURIComponent(messy)}`);
-  });
-
-  it('round-trips through decode (what mpv\'s source-info.lua does)', () => {
-    const url = mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl});
-    // value between fs-page= and the next & / end: the whole rest here
-    const value = url.slice(url.indexOf('fs-page=') + 'fs-page='.length);
-    expect(decodeURIComponent(value)).toBe(pageUrl);
-  });
-});
-
 // The player's mpv button hands over where it was and the subtitles it shows (as SubRip
 // text); the host writes those into a fresh folder and gives mpv the files.
 describe('start and subtitles from the player', () => {
@@ -434,13 +261,6 @@ describe('start and subtitles from the player', () => {
     dirs.push(dir);
     return dir;
   };
-
-  it('takes a start position of a second or more, to the millisecond', () => {
-    expect(startOf({start: 754.123456})).toBe(754.123);
-    for (const start of [undefined, 0, 0.5, -3, NaN, Infinity, '754', 1e8]) {
-      expect(startOf({start})).toBeUndefined();
-    }
-  });
 
   it('takes at most 8 non-empty SubRip texts', () => {
     const many = Array.from({length: 10}, (_, i) => ({srt: `1\n00:00:01,000 --> 00:00:02,000\nline ${i}`, label: 'L' + i}));
@@ -540,169 +360,8 @@ describe('start and subtitles from the player', () => {
       return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
     };
     // A path with neither ';' nor ':' (the delimiter on Windows and on Linux CI).
-    await loadIntoExisting(message, [], 't', ipcRequest, {start: 12, subFiles: ['/subs/1 English.srt']});
+    await loadInto(message.url, perFileOptions([], 't', {start: 12, subFiles: ['/subs/1 English.srt']}), false, ipcRequest);
     expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': '/subs/1 English.srt'});
-  });
-});
-
-// launchMpv with stand-ins for the pipe, the window focus and the launch of a new mpv:
-// what it does with each answer of the running one.
-describe('launchMpv', () => {
-  const token = '0123456789abcdef0123456789abcdef';
-  const open = {type: 'open', url: 'https://cdn.test/v.m3u8', singleInstance: true};
-  /**
-   * Stand-ins that record what launchMpv did.
-   * @param {Object} reply - What the pipe answers (mpvIpcRequest's result) for the loadfile.
-   * @return {Object} io for launchMpv, and the record.
-   */
-  // a launch lock of each stand's own, not the user's temp folder's
-  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
-  let locks = 0;
-  afterAll(() => fs.rmSync(lockDir, {recursive: true, force: true}));
-  const stand = (reply) => {
-    const record = {pipes: [], focused: [], started: []};
-    return {
-      record,
-      lockFile: path.join(lockDir, `lock-${++locks}`),
-      // The pids the stand-in launches answer are made up, and one can be a process that runs
-      // here (77 on a Linux runner): a lock handed to it holds for no stand.
-      lock: {alive: () => false},
-      ipcRequest: async (commands, timeoutMs, replyTimeoutMs, pipe) => {
-        record.pipes.push(pipe);
-        return typeof reply === 'function' ? reply(commands) : reply;
-      },
-      focus: async (pid) => {
-        record.focused.push(pid);
-        return 'FOCUS=True';
-      },
-      start: async (mpvPath, args) => {
-        record.started.push(args);
-        return {ok: true};
-      },
-    };
-  };
-  const answered = (error) => (commands) => ({ok: true, replies: [
-    {request_id: commands.length - 1, error},
-    {request_id: commands.length, data: 4242},
-  ]});
-
-  beforeEach(() => {
-    vi.stubEnv('FASTSTREAM_MPV_DEBUG', '');
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('starts no second mpv when the running one refuses the stream (#152)', async () => {
-    const io = stand(answered('invalid parameter'));
-    const result = await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'});
-    expect(io.record.started).toEqual([]);
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('refused the stream (invalid parameter)');
-  });
-
-  it('starts one with the pipe when none of ours runs', async () => {
-    const io = stand({ok: false, error: 'no mpv ipc'});
-    expect(await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'})).toEqual({ok: true});
-    expect(io.record.started).toHaveLength(1);
-    expect(io.record.started[0]).toContain(`--input-ipc-server=\\\\.\\pipe\\faststream-mpv-${token}`);
-  });
-
-  it('asks the pipe named by the config\'s token (#156)', async () => {
-    const io = stand(answered('success'));
-    await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'});
-    expect(io.record.pipes).toEqual([`\\\\.\\pipe\\faststream-mpv-${token}`]);
-    expect(io.record.focused).toEqual([4242]);
-  });
-
-  it('waits for another helper starting an mpv, then gives the stream to that one', async () => {
-    // Two sends within one start (a second tab): each found no mpv on the pipe and started
-    // one, and the second ran without the pipe for good, out of reach of every later send.
-    let up = false;
-    const io = stand((commands) => up ? answered('success')(commands) : {ok: false, error: 'no mpv ipc'});
-    const other = takeLaunchLock(io.lockFile);
-    other.hand(process.pid);
-    io.lock = {alive: (pid) => pid === process.pid};
-    let slept = 0;
-    io.sleep = async (ms) => {
-      slept += ms;
-      if (slept >= 1000) up = true;
-    };
-    io.now = () => slept;
-    const result = await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'});
-    expect(result).toEqual({ok: true, reused: true, focus: 'True'});
-    expect(io.record.started).toEqual([]);
-    other.release();
-  });
-
-  it('hands the launch lock to the mpv it started, and lets it go when the start failed', async () => {
-    const io = stand({ok: false, error: 'no mpv ipc'});
-    io.start = async () => ({ok: true, pid: 4321});
-    await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'});
-    expect(JSON.parse(fs.readFileSync(io.lockFile, 'utf8'))).toEqual({pid: 4321});
-    const failing = stand({ok: false, error: 'no mpv ipc'});
-    failing.start = async () => ({ok: false, error: 'no'});
-    await launchMpv('mpv.exe', open, {ipcToken: token}, {...failing, platform: 'win32'});
-    expect(fs.existsSync(failing.lockFile)).toBe(false);
-  });
-
-  it('raises the window on Windows only: elsewhere there is no PowerShell (#153)', async () => {
-    const io = stand(answered('success'));
-    expect(await launchMpv('/usr/bin/mpv', open, {}, {...io, platform: 'linux'})).toStrictEqual({ok: true, reused: true});
-    expect(io.record.focused).toEqual([]);
-    expect(io.record.pipes[0]).toMatch(/\/faststream-mpv-\d+\.sock$/);
-  });
-
-  // The reply said {ok: true} and nothing else, so an mpv that opened behind the browser
-  // looked like one in front: the extension could neither show nor log it.
-  it('says how raising the reused window went', async () => {
-    const io = {...stand(answered('success')), focus: async () => 'FOCUS=True FGOK=False'};
-    expect(await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'}))
-        .toStrictEqual({ok: true, reused: true, focus: 'True', foreground: 'False'});
-  });
-
-  it('says how raising a new window went, and nothing else of the launch', async () => {
-    const io = stand({ok: false, error: 'no mpv ipc'});
-    io.start = async () => ({ok: true, pid: 77, focus: 'True', foreground: 'True', tries: 2});
-    expect(await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'}))
-        .toStrictEqual({ok: true, focus: 'True', foreground: 'True'});
-    io.start = async () => ({ok: true, pid: 77, focus: 'nowindow'});
-    expect(await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'}))
-        .toStrictEqual({ok: true, focus: 'nowindow'});
-  });
-
-  it('reports a new mpv that did not start as the failure it is', async () => {
-    const io = stand({ok: false, error: 'no mpv ipc'});
-    io.start = async () => ({ok: false, error: 'mpv quit right after it started: check the mpv path'});
-    const result = await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'});
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe('Could not start mpv: mpv quit right after it started: check the mpv path');
-  });
-
-  // Windows caps a command line at 32767 characters: mpv starts without the quality list when it
-  // does not fit.
-  const qualities = Array.from({length: 12}, (unused, i) => ({
-    url: `https://cdn.test/${i}/` + 'a%2Fb%3Dc&'.repeat(202),
-    label: `${(i + 1) * 100}p`,
-    height: (i + 1) * 100,
-  }));
-  const commandLineOf = (args) => ['mpv.exe', ...args].map((a) => a.includes(' ') ? `"${a}"` : a).join(' ');
-
-  it('starts a new mpv without the page\'s qualities when they make its command line too long (#470)', async () => {
-    const io = stand({ok: false, error: 'no mpv ipc'});
-    expect(mpvTargetUrl({...open, qualities}).length).toBeGreaterThan(32767);
-    expect(await launchMpv('mpv.exe', {...open, qualities}, {}, {...io, platform: 'win32'})).toEqual({ok: true});
-    const [args] = io.record.started;
-    expect(args).toContain(mpvTargetUrl({...open, qualities: undefined}));
-    expect(args.some((arg) => arg.includes('fs-quality='))).toBe(false);
-    expect(commandLineOf(args).length).toBeLessThan(32767);
-  });
-
-  it('keeps the page\'s qualities when they fit', async () => {
-    const io = stand({ok: false, error: 'no mpv ipc'});
-    const few = qualities.slice(0, 2);
-    await launchMpv('mpv.exe', {...open, qualities: few}, {}, {...io, platform: 'win32'});
-    expect(io.record.started[0]).toContain(mpvTargetUrl({...open, qualities: few}));
   });
 });
 
@@ -824,77 +483,5 @@ describe('the debug log', () => {
     for (const value of [undefined, '', '0', 'false', 'off', 'no', '2', 'debug']) {
       expect(debugFromEnvironment(value)).toBe(false);
     }
-  });
-});
-
-
-describe('fs-quality fragment (faststream-quality.lua reads it)', () => {
-  // The qualities the page's player offers the video in (page-qualities.js): mpv's quality
-  // menu switches between them, each loaded with the same fragment tags.
-  const qualities = [
-    {url: 'https://h.test/get_file/1_360p.mp4/', label: '360p', height: 360},
-    {url: 'https://h.test/get_file/1.mp4/', label: '1080p', height: 1080},
-  ];
-
-  /**
-   * The list the tag carries, as the mpv script reads it: the last fs-quality= item, decoded.
-   * @param {string} target - mpvTargetUrl's.
-   * @return {*}
-   */
-  function tagged(target) {
-    const items = target.slice(target.indexOf('#') + 1).split('&').filter((item) => item.startsWith('fs-quality='));
-    return items.length ? JSON.parse(decodeURIComponent(items.at(-1).slice('fs-quality='.length))) : undefined;
-  }
-
-  it('goes last, after fs-id and fs-page, and decodes to the list', () => {
-    const pageUrl = 'https://site.test/watch?v=1&x=2';
-    const target = mpvTargetUrl({url: qualities[1].url, pageUrl, qualities});
-    expect(target.startsWith(qualities[1].url + '#fs-id=')).toBe(true);
-    expect(target.indexOf('&fs-page=')).toBeLessThan(target.indexOf('&fs-quality='));
-    expect(tagged(target)).toEqual(qualities);
-    // The stream is one of them, as the script finds it: its URL without the fragment.
-    expect(tagged(target).some((entry) => entry.url === target.slice(0, target.indexOf('#')))).toBe(true);
-  });
-
-  it('keeps only http(s) files, short plain labels, whole heights, at most 12', () => {
-    const list = JSON.parse(decodeURIComponent(qualityFragmentFor([
-      {url: 'file:///C:/Windows/win.ini', label: 'x', height: 1},
-      {url: String.raw`\\server\share\a.mp4`, label: 'unc', height: 2},
-      {url: 'https://h.test/a b.mp4', label: 'two\nlines and a very long label that goes on and on', height: 720.5},
-      ...Array.from({length: 13}, (_, i) => ({url: `https://h.test/${i}.mp4`, label: `${i}`, height: 100 + i})),
-    ])));
-    expect(list[0]).toEqual({url: 'https://h.test/a%20b.mp4', label: 'two lines and a very long label that goe', height: 0});
-    expect(list.every((entry) => /^https:/.test(entry.url))).toBe(true);
-    // The first 12 of what was sent are looked at.
-    expect(list).toHaveLength(10);
-  });
-
-  it('adds nothing for fewer than two usable files, or none', () => {
-    expect(qualityFragmentFor(undefined)).toBeUndefined();
-    expect(qualityFragmentFor('[]')).toBeUndefined();
-    expect(qualityFragmentFor([qualities[0], {url: 'javascript:alert(1)', label: 'x', height: 1}])).toBeUndefined();
-    expect(mpvTargetUrl({url: qualities[0].url})).not.toContain('fs-quality=');
-  });
-
-  it('writes each file without a fragment of its own, which mpv\'s path match cuts off', () => {
-    // The script finds the playing entry by mpv's path up to its first '#'.
-    const target = mpvTargetUrl({url: 'https://h.test/1.mp4#t=30', qualities: [
-      {url: 'https://h.test/1.mp4#t=30', label: '1080p', height: 1080}, qualities[0]]});
-    expect(tagged(target)[0].url).toBe('https://h.test/1.mp4');
-    expect(tagged(target)[0].url).toBe(target.slice(0, target.indexOf('#')));
-    // An empty fragment: the parser keeps its '#' in the stream, the entry has none.
-    const bare = mpvTargetUrl({url: 'https://h.test/1.mp4#', qualities: [
-      {url: 'https://h.test/1.mp4#', label: '1080p', height: 1080}, qualities[0]]});
-    expect(tagged(bare)[0].url).toBe('https://h.test/1.mp4');
-    expect(tagged(bare)[0].url).toBe(bare.slice(0, bare.indexOf('#')));
-  });
-
-  it('takes no file longer than 2048 characters, and cuts labels between characters', () => {
-    const long = {url: 'https://h.test/' + 'a'.repeat(2100), label: 'long', height: 720};
-    expect(qualityFragmentFor([long, qualities[0]])).toBeUndefined();
-    // The 40th character an emoji: whole, not half of it.
-    const label = 'x'.repeat(39) + '\u{1F3AC}' + 'tail';
-    const list = JSON.parse(decodeURIComponent(qualityFragmentFor([{...qualities[1], label}, qualities[0]])));
-    expect(list[0].label).toBe('x'.repeat(39) + '\u{1F3AC}');
   });
 });

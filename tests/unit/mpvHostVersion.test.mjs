@@ -6,10 +6,11 @@ import * as url from 'node:url';
 import {spawn} from 'node:child_process';
 import {afterEach, describe, expect, it} from 'vitest';
 import {MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
+import {EnvUtils} from '../../chrome/player/utils/EnvUtils.mjs';
 import {Capabilities, HostVersion, withHostVersion} from '../../native-host/faststream-mpv-host.mjs';
 
 // The host is not part of the extension (install.ps1's copy stays through updates): it reports its
-// version, and the extension says when it is older.
+// version, and the extension sends an older one nothing but a ping, and says what to run.
 //
 // That only works while the version moves with the host, so this file is the ratchet: a
 // change to the host or its installer fails it until HostVersion and RECORDED agree.
@@ -28,8 +29,8 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // chrome/background/MpvBackend.mjs with it when the extension needs the new host; then put
 // the new values here (a failure prints the hashes).
 const RECORDED = {
-  version: 31,
-  host: 'ef4d7dd1447cba882ba70d1c762ebf611cf17b1298abe5930ff70c3b16114dc0',
+  version: 32,
+  host: '75e41ed8ac4c905f71f094f84bf15f1e68e5726f5de6c976c85ad0842a1bd808',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
@@ -61,7 +62,7 @@ describe('the mpv host\'s version', () => {
   });
 
   it('goes out with every answer', () => {
-    // With the thin helper's messages it understands (play, ipc, relay).
+    // With the messages it understands, which an extension from before host 32 looks for.
     expect(withHostVersion({ok: true, mpv: false}))
         .toEqual({ok: true, mpv: false, hostVersion: HostVersion, capabilities: ['play', 'ipc', 'relay', 'hls', 'windows']});
     expect(withHostVersion({ok: false, error: 'unknown message'}))
@@ -142,25 +143,33 @@ describe('the mpv host\'s version', () => {
 describe('an outdated mpv host', () => {
   afterEach(() => {
     delete globalThis.chrome;
+    EnvUtils.knownOs = null;
   });
 
   /**
-   * A stand-in for the browser whose native host gives one answer.
-   * @param {function(): *} answer - The host's answer to the next message.
+   * A stand-in for the browser whose native host answers each message.
+   * @param {function(Object): *} answer - The host's answer to a message.
    * @param {function(): (Object|undefined)} [lastError] - chrome.runtime.lastError for it.
+   * @return {Array<Object>} Every message sent.
    */
   function stubHost(answer, lastError = () => undefined) {
+    const sent = [];
     globalThis.chrome = {
       runtime: {
         lastError: undefined,
         sendNativeMessage(name, message, callback) {
+          sent.push(message);
           globalThis.chrome.runtime.lastError = lastError();
-          callback(answer());
+          callback(answer(message));
           globalThis.chrome.runtime.lastError = undefined;
         },
       },
     };
+    return sent;
   }
+
+  const Outdated = 'The mpv helper on this computer is out of date: run "Update mpv" from the Start menu ' +
+    '(in a FastStream checkout: update-local.cmd or native-host\\install.ps1).';
 
   it('is one that answers with a lower version, or with none', () => {
     expect(MpvBackend.isHostOutdated({ok: true, hostVersion: RequiredHostVersion})).toBe(false);
@@ -176,50 +185,82 @@ describe('an outdated mpv host', () => {
     expect(MpvBackend.isHostOutdated('ok')).toBe(true);
   });
 
-  it('still gets the stream, and the result says the host is outdated', async () => {
-    stubHost(() => ({ok: true}));
-    expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toEqual({ok: true, hostOutdated: true});
+  it('gets no stream, only a ping, and the send says what to run', async () => {
+    EnvUtils.knownOs = 'win';
+    const sent = stubHost(() => ({ok: true, mpv: true, path: 'C:/mpv/mpv.exe', hostVersion: RequiredHostVersion - 1}));
+    const tab = {mpvSentUrls: new Set()};
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8', tab, [], 'anime', 'https://site.test/ep-1', 'Episode'))
+        .toEqual({ok: false, hostOutdated: true, error: Outdated});
+    expect(sent).toEqual([{type: 'ping'}]);
+    // Not recorded as sent: once the helper is updated, the same stream goes.
+    expect(tab.mpvSentUrls.size).toBe(0);
   });
 
-  it('is named beside its own reason for a failure', async () => {
-    stubHost(() => ({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion - 1}));
-    expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
-        .toEqual({ok: false, error: 'mpv executable not found', hostOutdated: true});
+  it('gets no stream when it answers "unknown message", nor the open message an older extension sent', async () => {
+    EnvUtils.knownOs = 'win';
+    for (const unknown of [{ok: false, error: 'unknown message'}, {ok: false, error: 'unknown message', hostVersion: 14}]) {
+      const sent = stubHost(() => unknown);
+      const backend = new MpvBackend();
+      expect(await backend.openStream('https://cdn/a.m3u8')).toEqual({ok: false, hostOutdated: true, error: Outdated});
+      expect(await backend.openStream('https://cdn/b.m3u8', undefined, [], '', 'https://site.test/watch', 'Episode',
+          {private: true})).toEqual({ok: false, hostOutdated: true, error: Outdated});
+      expect(sent.map((message) => message.type)).toEqual(['ping', 'ping']);
+    }
   });
 
-  it('is not what a current host is called', async () => {
-    stubHost(() => ({ok: true, hostVersion: RequiredHostVersion}));
-    expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toEqual({ok: true});
+  it('says what to run in the options page\'s words, in the user\'s language and for the system', async () => {
+    const asked = [];
+    stubHost(() => ({ok: true, hostVersion: RequiredHostVersion - 1}));
+    globalThis.chrome.i18n = {getMessage: (key) => {
+      asked.push(key);
+      return key === 'options_mpv_test_outdated_unix' ? 'veraltet' : '';
+    }};
+    EnvUtils.knownOs = 'linux';
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toEqual({ok: false, hostOutdated: true, error: 'veraltet'});
+    // A locale without the key: the English words.
+    EnvUtils.knownOs = 'win';
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toEqual({ok: false, hostOutdated: true, error: Outdated});
+    expect(asked).toEqual(['options_mpv_test_outdated_unix', 'options_mpv_test_outdated']);
+  });
+
+  it('is asked again at the next send, and an update meanwhile is noticed', async () => {
+    let version = RequiredHostVersion - 1;
+    const sent = stubHost(() => ({ok: true, hostVersion: version}));
+    const backend = new MpvBackend();
+    expect((await backend.openStream('https://cdn/a.m3u8')).hostOutdated).toBe(true);
+    version = RequiredHostVersion;
+    expect(await backend.openStream('https://cdn/a.m3u8')).toEqual({ok: true});
+    expect(sent.map((message) => message.type)).toEqual(['ping', 'ping', 'play']);
+  });
+
+  it('is not what a current host is called, which is pinged once and then sent streams straight', async () => {
+    const sent = stubHost(() => ({ok: true, hostVersion: RequiredHostVersion}));
+    const backend = new MpvBackend();
+    expect(await backend.openStream('https://cdn/a.m3u8')).toEqual({ok: true});
+    expect(await backend.openStream('https://cdn/b.m3u8')).toEqual({ok: true});
+    expect(sent.map((message) => message.type)).toEqual(['ping', 'play', 'play']);
     stubHost(() => ({ok: true, mpv: true, path: 'C:/mpv/mpv.exe', hostVersion: RequiredHostVersion}));
     expect(await new MpvBackend().testConnection()).toEqual({ok: true, mpv: true, path: 'C:/mpv/mpv.exe'});
   });
 
-  it('shows in "Test mpv connection"', async () => {
-    stubHost(() => ({ok: true, mpv: true, path: 'C:/mpv/mpv.exe'}));
-    expect(await new MpvBackend().testConnection())
+  it('put back after a current one answered gets the update message for its answer', async () => {
+    EnvUtils.knownOs = 'win';
+    let answer = {ok: true, hostVersion: RequiredHostVersion};
+    const sent = stubHost(() => answer);
+    const backend = new MpvBackend();
+    expect(await backend.openStream('https://cdn/a.m3u8')).toEqual({ok: true});
+    answer = {ok: false, error: 'unknown message'};
+    expect(await backend.openStream('https://cdn/b.m3u8')).toEqual({ok: false, hostOutdated: true, error: Outdated});
+    expect(sent.map((message) => message.type)).toEqual(['ping', 'play', 'play']);
+  });
+
+  it('shows in "Test mpv connection", which asks it nothing about mpv\'s decoder', async () => {
+    const sent = stubHost(() => ({ok: true, mpv: true, path: 'C:/mpv/mpv.exe'}));
+    const backend = new MpvBackend();
+    expect(await backend.testConnection())
         .toEqual({ok: true, mpv: true, path: 'C:/mpv/mpv.exe', hostOutdated: true});
-  });
-
-  it('is remembered for a stream already sent, which asks the host nothing', async () => {
-    let answers = 0;
-    stubHost(() => {
-      answers++;
-      return {ok: true};
-    });
-    const backend = new MpvBackend();
-    const tab = {mpvSentUrls: new Set()};
-    await backend.openStream('https://cdn/a.m3u8', tab);
-    expect(await backend.openStream('https://cdn/a.m3u8', tab)).toEqual({ok: true, hostOutdated: true});
-    expect(answers).toBe(1);
-  });
-
-  it('is forgotten once the host answers as a current one', async () => {
-    let answer = {ok: true};
-    stubHost(() => answer);
-    const backend = new MpvBackend();
-    expect((await backend.openStream('https://cdn/a.m3u8')).hostOutdated).toBe(true);
-    answer = {ok: true, hostVersion: RequiredHostVersion};
-    expect(await backend.openStream('https://cdn/b.m3u8')).toEqual({ok: true});
+    expect(await backend.decoderStatus(0)).toMatchObject({ok: false, hostOutdated: true});
+    expect(sent.map((message) => message.type)).toEqual(['ping']);
   });
 
   it('is not what a host that could not be reached is called', async () => {

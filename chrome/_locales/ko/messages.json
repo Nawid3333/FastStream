@@ -1310,9 +1310,6 @@
     "player_mpv_page_only": {
         "message": "이 동영상은 해당 페이지를 통해서만 로드되므로 mpv에서 열 수 없습니다. FastStream이 여기에서 재생합니다."
     },
-    "player_mpv_needs_hls_helper": {
-        "message": "이 스트림은 최신 mpv 도우미로만 mpv에서 재생할 수 있습니다. FastStream의 mpv 폴더에서 update-local.cmd를 실행한 다음 다시 보내세요."
-    },
     "mpv_episode_loading": {
         "message": "mpv에서 로드 중"
     },

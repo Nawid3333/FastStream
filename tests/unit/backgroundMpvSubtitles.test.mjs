@@ -48,8 +48,8 @@ async function allowlistedPage(setup = {}) {
   await bg.frameAdded(1, 0, PAGE, 'page');
 }
 
-/** @return {Array<Object>} The open messages the host got. */
-const opens = () => bg.native.filter((m) => m.type === 'open');
+/** @return {Array<Object>} The streams the host got (play messages, read back). */
+const opens = () => bg.played();
 
 describe('MPV mode and the page\'s subtitles', () => {
   it('sends a subtitle file the page asked for with the stream the allowlist hands to mpv', async () => {

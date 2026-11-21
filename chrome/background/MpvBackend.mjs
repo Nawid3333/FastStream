@@ -1,39 +1,41 @@
 // @ts-check
 
+import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {relayWatch} from './MpvRelayWatch.mjs';
-import {cutText, cutToLength, isMpvContentType, isStreamUrl, mpvTargetUrl, relayHeaderFields, startOf, streamTitle} from './MpvTarget.mjs';
+import {cutText, cutToLength, isStreamUrl, mpvTargetUrl, relayHeaderFields, startOf, streamTitle} from './MpvTarget.mjs';
 import {windowOf} from './MpvWindows.mjs';
 
 /** Native messaging client for the mpv helper; its messages: the top of native-host/faststream-mpv-host.mjs. */
 
 const NativeHostName = 'com.faststream.mpv';
 
-// HostVersion in native-host/faststream-mpv-host.mjs (mpvHostVersion.test.mjs keeps them equal); a lower one still plays.
-export const RequiredHostVersion = 19;
+// The helper this extension speaks to, at least: an older one gets no stream, only the update message (checkHost).
+// HostVersion in native-host/faststream-mpv-host.mjs; mpvHostVersion.test.mjs keeps it no higher.
+export const RequiredHostVersion = 32;
 
-// The host's MaxMessageBytes, of the UTF-8 JSON: a bigger message made it quit without a word.
-export const HostMaxMessageBytes = 1024 * 1024;
-// A helper with Capabilities.HLS (27) reads larger messages: a stream's playlists go with it.
-export const HlsHostMaxMessageBytes = 16 * 1024 * 1024;
+// The host's MaxMessageBytes, of the UTF-8 JSON: a bigger message is answered with an error.
+export const HostMaxMessageBytes = 16 * 1024 * 1024;
 
-// Past these (UTF-16 units) the thin helper refuses the whole play message.
+// Past these (UTF-16 units) the helper refuses the whole play message.
 export const MaxPlayTargetChars = 512 * 1024;
 export const MaxPlayTitleChars = 1000;
 const MaxSubtitleChars = 1024 * 1024;
 // The start a play message may name: seconds, to the millisecond.
 const PlayStart = /^\d{1,7}(\.\d{1,3})?$/;
 
-export const Capabilities = Object.freeze({PLAY: 'play', IPC: 'ipc', RELAY: 'relay', HLS: 'hls', WINDOWS: 'windows'});
-
-// The host's MaxStatusWaitMs, and how often a decoder question asks meanwhile.
+// How long a decoder question may wait (until a slow stream opens, mpv names no decoder), and how often it asks.
 export const MaxStatusWaitMs = 30000;
 const StatusPollMs = 1000;
 
-// The host's status message asked the same, in this order (decoderFromReplies).
+// What mpv is asked about its video decoder, in this order (decoderFromReplies).
 export const DecoderProperties = ['hwdec-current', 'hwdec', 'video-format', 'width', 'height'];
 
 const TooLongError = 'the stream\'s address is too long to send to mpv';
-const PrivateNeedsNewerHostError = 'a private window\'s stream needs mpv helper 15 or newer: update the helper';
+// The options page's words for an outdated helper (options_mpv_test_outdated*), for a locale without them.
+const OutdatedError = 'The mpv helper on this computer is out of date: run "Update mpv" from the Start menu ' +
+  '(in a FastStream checkout: update-local.cmd or native-host\\install.ps1).';
+const OutdatedUnixError = 'The mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that ' +
+  'your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md).';
 
 /**
  * @typedef {Object} MpvDecoder
@@ -74,14 +76,6 @@ function messageBytes(message) {
 }
 
 /**
- * @typedef {{type: 'open', url: string, contentType?: string, pageUrl?: string, title?: string,
- *   start?: number, mpvPath?: string, fullscreen?: boolean, singleInstance?: boolean,
- *   headers?: Array<{name: string, value: string}>,
- *   qualities?: Array<{url: string, label: string, height: number}>,
- *   subtitles?: Array<{label: string, srt: string}>}} OpenMessage
- */
-
-/**
  * @typedef {{type: 'play', target: string, title: string, start?: string, headers?: Array<string>,
  *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean, paused?: boolean, window?: string,
  *   subtitles?: Array<{label: string, srt: string}>, hls?: {files: Array<{name: string, text: string}>}}} PlayMessage
@@ -89,7 +83,7 @@ function messageBytes(message) {
 
 /**
  * One that does not fit is left out, and the stream still goes; added last, so the rest counts.
- * @param {OpenMessage|PlayMessage} message
+ * @param {PlayMessage} message
  * @param {*} subtitles
  */
 function addSubtitles(message, subtitles) {
@@ -111,7 +105,7 @@ function addSubtitles(message, subtitles) {
   message.subtitles = fitting;
   for (const subtitle of candidates) {
     fitting.push(subtitle);
-    if (messageBytes(message) > ('hls' in message && message.hls ? HlsHostMaxMessageBytes : HostMaxMessageBytes)) {
+    if (messageBytes(message) > HostMaxMessageBytes) {
       fitting.pop();
       leftOut(subtitle.label);
     }
@@ -119,76 +113,6 @@ function addSubtitles(message, subtitles) {
   if (fitting.length === 0) {
     delete message.subtitles;
   }
-}
-
-/**
- * @param {*} port
- * @param {(message: MpvWatchEvent) => void} onEvent
- * @return {import('./MpvRelayWatch.mjs').MpvWatcher}
- */
-function legacyWatch(port, onEvent) {
-  let stopped = false;
-  /**
-   * A null reason (stop()) sends no 'closed' event.
-   * @param {string|null} reason
-   * @return {boolean}
-   */
-  const end = (reason) => {
-    if (stopped) return false;
-    stopped = true;
-    if (reason) onEvent({type: 'closed', reason});
-    return true;
-  };
-  /**
-   * @param {{type: 'notify', title: string, detail: string, seconds?: number}|{type: 'hide'}|
-   *   {type: 'state', autoplay: boolean}} message
-   */
-  const post = (message) => {
-    if (stopped) return;
-    try {
-      port.postMessage(message);
-    } catch (e) {
-      // The host went meanwhile: onDisconnect says so.
-    }
-  };
-  // The host's message as it came: checked here before use.
-  port.onMessage.addListener((/** @type {*} */ message) => {
-    if (stopped || !message || typeof message !== 'object') return;
-    if (message.ok === false) {
-      // A host before 7: "unknown message", and it exits.
-      end(message.error || 'the mpv host cannot watch mpv');
-      return;
-    }
-    if (message.type === 'closed') {
-      end(message.reason || 'closed');
-      return;
-    }
-    onEvent(message);
-  });
-  port.onDisconnect.addListener(() => {
-    end(chrome.runtime.lastError?.message || 'the mpv host went');
-  });
-  port.postMessage({type: 'watch'});
-  return {
-    // Seconds, how long mpv shows it (notify.lua's own 2 s without).
-    notify: (title, detail = '', seconds) => post(typeof seconds === 'number' ?
-      {type: 'notify', title, detail, seconds} : {type: 'notify', title, detail}),
-    // Takes the notice down before its time.
-    hide: () => post({type: 'hide'}),
-    // What mpv's autoplay button shows ({autoplay: boolean}).
-    state: (state) => post({type: 'state', ...state}),
-    // A host before 15 passes no mpv commands.
-    ask: async (commands) => commands.map(() => ({error: 'the mpv host passes no commands'})),
-    command: () => {},
-    stop: () => {
-      if (!end(null)) return;
-      try {
-        port.disconnect();
-      } catch (e) {
-        // Gone already.
-      }
-    },
-  };
 }
 
 /**
@@ -201,9 +125,9 @@ function legacyWatch(port, onEvent) {
  */
 
 /**
- * window: the helper's id of the mpv it played in ('' for its own pipe's; none from a helper before 30); closed: the
- * window named was gone, and nothing was started.
- * dropped: not sent, no longer wanted when its turn came.
+ * window: the helper's id of the mpv it played in ('' for its own pipe's; none for a stream the tab sent already);
+ * closed: the window named was gone, and nothing was started. hostOutdated: the helper is older than
+ * RequiredHostVersion, and no stream was sent. dropped: not sent, no longer wanted when its turn came.
  * @typedef {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean, focus?: string,
  *   foreground?: string, reused?: boolean, local?: string, window?: string, closed?: boolean, dropped?: boolean}} StreamResult
  */
@@ -220,12 +144,10 @@ export class MpvBackend {
     this.fullscreen = false;
     /** @type {boolean} */
     this.singleInstance = true;
-    // One host serves the whole browser, so it is kept here and goes with every result.
-    /** @type {boolean} */
-    this.hostOutdated = false;
-    // null until an answer came; [] for a helper before host 15. Unknown, the thin helper's message goes first.
-    /** @type {?Array<string>} */
-    this.capabilities = null;
+    // The last answer's hostVersion, 0 for an answer without one; null until one came. One host serves the whole
+    // browser, so it is kept here.
+    /** @type {?number} */
+    this.hostVersion = null;
     /** @type {Promise<*>} */
     this.lastSend = Promise.resolve();
     // One per mpv window, by the helper's id ('' for the one on its own pipe).
@@ -234,44 +156,11 @@ export class MpvBackend {
   }
 
   /**
-   * A helper installed again meanwhile is noticed at its next answer.
-   * @param {*} response
-   */
-  learn(response) {
-    if (!response || typeof response !== 'object') {
-      return;
-    }
-    this.capabilities = Array.isArray(response.capabilities) ?
-      response.capabilities.filter((/** @type {*} */ capability) => typeof capability === 'string') : [];
-  }
-
-  /**
-   * Unknown yet counts as yes: an older helper answers "unknown message".
-   * @param {string} capability
+   * Whether the last answer came from a helper older than RequiredHostVersion (none yet: no).
    * @return {boolean}
    */
-  mayUse(capability) {
-    return this.capabilities === null || this.capabilities.includes(capability);
-  }
-
-  /**
-   * Whether the helper has the capability, for one an older helper would ignore without a word; asked again
-   * while it has not said so (updated meanwhile). null when no helper answered.
-   * @param {string} capability
-   * @return {Promise<?boolean>}
-   */
-  async knows(capability) {
-    if (this.capabilities?.includes(capability)) return true;
-    const answer = await this.ask({type: 'ping'});
-    return answer.error ? null : !!this.capabilities?.includes(capability);
-  }
-
-  /**
-   * @param {*} response
-   * @return {boolean}
-   */
-  static isUnknownMessage(response) {
-    return !!response && typeof response === 'object' && response.ok === false && response.error === 'unknown message';
+  get hostOutdated() {
+    return this.hostVersion !== null && this.hostVersion < RequiredHostVersion;
   }
 
   /**
@@ -288,8 +177,7 @@ export class MpvBackend {
             resolve({error: lastError.message, noHost: true});
             return;
           }
-          this.learn(response);
-          this.hostOutdated = MpvBackend.isHostOutdated(response);
+          this.hostVersion = MpvBackend.versionOf(response);
           resolve({response});
         });
       } catch (e) {
@@ -299,12 +187,43 @@ export class MpvBackend {
   }
 
   /**
+   * A helper installed again meanwhile is noticed at its next answer.
+   * @param {*} response
+   * @return {number} 0 for an answer without a version (a helper from before versions).
+   */
+  static versionOf(response) {
+    const version = response && typeof response === 'object' ? response.hostVersion : undefined;
+    return Number.isInteger(version) && version > 0 ? version : 0;
+  }
+
+  /**
    * @param {*} response
    * @return {boolean}
    */
   static isHostOutdated(response) {
-    const version = response && typeof response === 'object' ? response.hostVersion : undefined;
-    return !(Number.isInteger(version) && version >= RequiredHostVersion);
+    return MpvBackend.versionOf(response) < RequiredHostVersion;
+  }
+
+  /**
+   * What a send answers while the helper is outdated: the options page's words, with what to run.
+   * @return {{ok: false, hostOutdated: true, error: string}}
+   */
+  static outdatedResult() {
+    const windows = EnvUtils.isWindows();
+    const error = globalThis.chrome?.i18n?.getMessage(windows ? 'options_mpv_test_outdated' : 'options_mpv_test_outdated_unix');
+    return {ok: false, hostOutdated: true, error: error || (windows ? OutdatedError : OutdatedUnixError)};
+  }
+
+  /**
+   * null when the helper is one this extension speaks to; else what a send answers. A ping until a helper answered as
+   * current, and again while it answers as outdated: it may have been updated meanwhile.
+   * @return {Promise<?StreamResult>}
+   */
+  async checkHost() {
+    if (this.hostVersion !== null && !this.hostOutdated) return null;
+    const answer = await this.ask({type: 'ping'});
+    if (!('response' in answer)) return this.streamResult(answer);
+    return this.hostOutdated ? MpvBackend.outdatedResult() : null;
   }
 
   /**
@@ -408,7 +327,7 @@ export class MpvBackend {
   }
 
   /**
-   * Half a surrogate pair cannot be percent-encoded: a helper before host 15 threw on it and answered nothing.
+   * Half a surrogate pair cannot be percent-encoded (pageFragmentFor throws on it): no page then.
    * @param {*} pageUrl
    * @return {string|undefined}
    */
@@ -425,14 +344,14 @@ export class MpvBackend {
   }
 
   /**
-   * A play message for the thin helper, an open message for an older one.
+   * Sends a stream to mpv, as a play message.
    * @param {string} url
    * @param {import('./TabTracker.mjs').TabHolder|null} [tab]
    * @param {Array<{name: string, value: string}>} [headers]
    * @param {string} [contentType]
    * @param {string} [pageUrl]
    * @param {string} [pageTitle]
-   * @param {MpvStream['extras']} [extras] - window: the helper's id of the open mpv to play in (helper 30).
+   * @param {MpvStream['extras']} [extras] - window: the helper's id of the open mpv to play in.
    * @param {?(() => boolean)} [wanted] - Asked again when its turn comes: false drops it (its page or MPV went).
    * @return {Promise<StreamResult>}
    */
@@ -448,7 +367,7 @@ export class MpvBackend {
         return sending;
       }
       if (tab.mpvSentUrls.has(url)) {
-        return Promise.resolve(this.withHostState({ok: true}));
+        return Promise.resolve({ok: true});
       }
       tab.mpvSentUrls.add(url);
     }
@@ -492,26 +411,15 @@ export class MpvBackend {
    * @return {Promise<StreamResult>}
    */
   async sendStreamNow(stream) {
-    if (this.mayUse(Capabilities.PLAY)) {
-      const play = await this.playMessage(stream);
-      if (!play.message) {
-        return this.withHostState({ok: false, error: play.error || TooLongError});
-      }
-      const answer = await this.ask(play.message);
-      if (!(MpvBackend.isUnknownMessage(answer.response) && !this.mayUse(Capabilities.PLAY))) {
-        return this.streamResult(answer);
-      }
-      // A helper from before host 15: the same stream once more, as it knows it.
+    const refused = await this.checkHost();
+    if (refused) {
+      return refused;
     }
-    // Not a private window's: the open message has no fs-private, and mpv would keep the position on disk.
-    if (stream.extras.private === true) {
-      return this.withHostState({ok: false, error: PrivateNeedsNewerHostError});
+    const play = await this.playMessage(stream);
+    if (!play.message) {
+      return {ok: false, error: play.error || TooLongError};
     }
-    const message = this.openMessage(stream);
-    if (!message) {
-      return this.withHostState({ok: false, error: TooLongError});
-    }
-    return this.streamResult(await this.ask(message));
+    return this.streamResult(await this.ask(play.message));
   }
 
   /**
@@ -530,78 +438,22 @@ export class MpvBackend {
     if (!('response' in answer)) {
       return {ok: false, error: answer.error};
     }
+    // An older helper put back meanwhile: whatever it made of the message, it is not one this extension speaks to.
+    if (this.hostOutdated) {
+      return MpvBackend.outdatedResult();
+    }
     const response = answer.response;
     if (response && response.ok === false) {
-      return this.withHostState({ok: false, error: response.error || 'mpv host error',
-        ...(response.closed === true ? {closed: true} : {})});
+      return {ok: false, error: response.error || 'mpv host error', ...(response.closed === true ? {closed: true} : {})};
     }
-    // The playlist file a stream's playlists were written to (helper 27): mpv's path for it.
+    // The playlist file a stream's playlists were written to: mpv's path for it.
     const local = response && typeof response.local === 'string' ? {local: response.local} : {};
-    // Only as a helper names it (30): an older one's is the window on its pipe.
     const window = response && typeof response === 'object' && 'window' in response ? windowOf(response.window) : null;
-    return this.withHostState({ok: true, ...MpvBackend.focusOf(response), ...local,
-      ...(window !== null ? {window} : {})});
+    return {ok: true, ...MpvBackend.focusOf(response), ...local, ...(window !== null ? {window} : {})};
   }
 
   /**
-   * null when over the host's limit even without subtitles: the host quit unread.
-   * @param {MpvStream} stream
-   * @return {?OpenMessage}
-   */
-  openMessage({url, headers, contentType, pageUrl, pageTitle, extras}) {
-    /** @type {OpenMessage} */
-    const message = {
-      type: 'open',
-      url: url,
-    };
-
-    if (isMpvContentType(contentType)) {
-      message.contentType = contentType;
-    }
-
-    const sentPageUrl = MpvBackend.sentPageUrl(pageUrl);
-    if (sentPageUrl) {
-      message.pageUrl = sentPageUrl;
-    }
-
-    const title = MpvBackend.sentTitle(pageTitle);
-    if (title) {
-      message.title = title;
-    }
-
-    if (typeof extras.startTime === 'number' && Number.isFinite(extras.startTime) && extras.startTime >= 1) {
-      message.start = extras.startTime;
-    }
-
-    if (this.mpvPath) {
-      message.mpvPath = this.mpvPath;
-    }
-
-    if (this.fullscreen) {
-      message.fullscreen = true;
-    }
-
-    if (this.singleInstance) {
-      message.singleInstance = true;
-    }
-
-    const relayHeaders = MpvBackend.pickRelayHeaders(headers);
-    if (relayHeaders) {
-      message.headers = relayHeaders;
-    }
-
-    const qualities = MpvBackend.relayQualities(extras.qualities);
-    if (qualities) {
-      message.qualities = qualities;
-    }
-
-    addSubtitles(message, extras.subtitles);
-
-    return messageBytes(message) > HostMaxMessageBytes ? null : message;
-  }
-
-  /**
-   * Built as the helper built them (MpvTarget.mjs), within the helper's limits, which refuse the whole message.
+   * mpv's target and title built here (MpvTarget.mjs), within the helper's limits, which refuse the whole message.
    * @param {MpvStream} stream
    * @return {Promise<{message?: PlayMessage, error?: string}>}
    */
@@ -648,52 +500,47 @@ export class MpvBackend {
       message.fullscreen = true;
     }
 
-    const windows = this.capabilities?.includes(Capabilities.WINDOWS);
     if (!this.singleInstance) {
       message.newWindow = true;
-    } else if (extras.newWindow && windows) {
+    } else if (extras.newWindow) {
       message.newWindow = true;
       if (extras.paused) {
         // It waits minimized: the helper refuses a paused fullscreen one.
         message.paused = true;
         delete message.fullscreen;
       }
-    } else if (extras.window && windows) {
+    } else if (extras.window) {
       message.window = extras.window;
     }
 
-    // Only for a helper that said it reads them (openInMpv): an older one would play the address without a word.
     if (extras.hls) {
       message.hls = extras.hls;
     }
 
     addSubtitles(message, extras.subtitles);
 
-    return messageBytes(message) > (message.hls ? HlsHostMaxMessageBytes : HostMaxMessageBytes) ?
-      {error: TooLongError} : {message};
+    return messageBytes(message) > HostMaxMessageBytes ? {error: TooLongError} : {message};
   }
 
   /**
-   * Brings an open mpv window to the front; an older helper has no raise.
-   * @param {string} window - The helper's id of the window (helper 30), '' for the one on its own pipe.
+   * Brings an open mpv window to the front.
+   * @param {string} window - The helper's id of the window, '' for the one on its own pipe.
    * @return {Promise<void>}
    */
   async raise(window) {
-    if (!this.capabilities?.includes(Capabilities.WINDOWS)) return;
     await this.ask(window ? {type: 'raise', window} : {type: 'raise'});
   }
 
   /**
    * One per mpv window; while its port is open Firefox keeps the background running (docs/notes/mpv.md).
    * @param {(message: MpvWatchEvent) => void} onEvent
-   * @param {string} [window] - The helper's id of the window (helper 30), '' for the one on its own pipe.
+   * @param {string} [window] - The helper's id of the window, '' for the one on its own pipe.
    * @return {import('./MpvRelayWatch.mjs').MpvWatcher}
    */
   watch(onEvent, window = '') {
     this.watchers.get(window)?.stop();
     /** @type {?import('./MpvRelayWatch.mjs').MpvWatcher} */
     let current = null;
-    let stopped = false;
     const forget = () => {
       if (this.watchers.get(window) === handle) this.watchers.delete(window);
     };
@@ -706,7 +553,6 @@ export class MpvBackend {
         Promise.resolve(commands.map(() => ({error: 'no watch'}))),
       command: (command) => current?.command(command),
       stop: () => {
-        stopped = true;
         forget();
         current?.stop();
       },
@@ -716,47 +562,34 @@ export class MpvBackend {
       if (event.type === 'closed') forget();
       onEvent(event);
     };
-    /** @param {boolean} relay */
-    const start = (relay) => {
-      /** @type {*} */
-      let port;
-      try {
-        port = chrome.runtime.connectNative(NativeHostName);
-      } catch (e) {
-        current = null;
-        emit({type: 'closed', reason: String(e)});
-        return;
-      }
-      current = relay ? relayWatch(port, (/** @type {RelayEvent} */ event) => {
-        if (event.type === 'decoder-replies') {
-          emit({type: 'decoder', decoder: MpvBackend.readDecoder(MpvBackend.decoderFromReplies(event.replies))});
-        } else {
-          emit(event);
-        }
-      }, {
-        onLegacy: () => {
-          // It is older than host 15: followed the old way, and asked the old way from now on.
-          this.capabilities = [];
-          if (!stopped) start(false);
-        },
-        decoderProperties: DecoderProperties,
-        window,
-      }) : legacyWatch(port, emit);
-    };
     this.watchers.set(window, handle);
-    start(this.mayUse(Capabilities.RELAY));
+    /** @type {*} */
+    let port;
+    try {
+      port = chrome.runtime.connectNative(NativeHostName);
+    } catch (e) {
+      emit({type: 'closed', reason: String(e)});
+      return handle;
+    }
+    current = relayWatch(port, (/** @type {RelayEvent} */ event) => {
+      if (event.type === 'decoder-replies') {
+        emit({type: 'decoder', decoder: MpvBackend.readDecoder(MpvBackend.decoderFromReplies(event.replies))});
+      } else {
+        emit(event);
+      }
+    }, {decoderProperties: DecoderProperties, window});
     return handle;
   }
 
   /**
-   * Read-only: mpv.conf stays the only authority on hardware decoding.
+   * Read-only: mpv.conf stays the only authority on hardware decoding. Nothing is asked of an outdated helper.
    * @param {number} [waitMs]
    * @return {Promise<{ok: boolean, running?: boolean, decoder?: ?MpvDecoder, error?: string,
    *   hostOutdated?: boolean}>}
    */
   async decoderStatus(waitMs = 0) {
-    if (!this.mayUse(Capabilities.IPC)) {
-      return this.legacyDecoderStatus(waitMs);
+    if (this.hostOutdated) {
+      return MpvBackend.outdatedResult();
     }
     const wait = Math.min(Math.max(Number(waitMs) || 0, 0), MaxStatusWaitMs);
     const commands = DecoderProperties.map((name) => ['get_property', name]);
@@ -766,54 +599,32 @@ export class MpvBackend {
       if (!('response' in answer)) {
         return {ok: false, error: answer.error};
       }
-      const response = answer.response;
-      if (MpvBackend.isUnknownMessage(response) && !this.mayUse(Capabilities.IPC)) {
-        return this.legacyDecoderStatus(waitMs);
+      if (this.hostOutdated) {
+        return MpvBackend.outdatedResult();
       }
+      const response = answer.response;
       if (!response || typeof response !== 'object') {
-        return this.withHostState({ok: false, error: 'mpv host error'});
+        return {ok: false, error: 'mpv host error'};
       }
       /** @type {?Object} */
       let decoder = null;
       if (response.ok !== true) {
         // A command the helper's allowlist refused: no question to ask again.
         if (response.error === 'refused') {
-          return this.withHostState({ok: false, error: 'the mpv host refused the question'});
+          return {ok: false, error: 'the mpv host refused the question'};
         }
         // No pipe: no mpv of ours. A busy one runs, and may answer next time.
         if (response.busy !== true && response.error !== 'mpv did not answer') {
-          return this.withHostState({ok: true, running: false, decoder: null});
+          return {ok: true, running: false, decoder: null};
         }
       } else {
         decoder = MpvBackend.decoderFromReplies(response.replies);
       }
       if (decoder || Date.now() - started + StatusPollMs > wait) {
-        return this.withHostState({ok: true, running: true, decoder: MpvBackend.readDecoder(decoder)});
+        return {ok: true, running: true, decoder: MpvBackend.readDecoder(decoder)};
       }
       await new Promise((resolve) => setTimeout(resolve, StatusPollMs));
     }
-  }
-
-  /**
-   * @param {number} waitMs
-   * @return {Promise<{ok: boolean, running?: boolean, decoder?: ?MpvDecoder, error?: string,
-   *   hostOutdated?: boolean}>}
-   */
-  async legacyDecoderStatus(waitMs) {
-    const answer = await this.ask({type: 'status', waitMs});
-    if (!('response' in answer)) {
-      return {ok: false, error: answer.error};
-    }
-    const response = answer.response;
-    if (!response || response.ok !== true) {
-      // A host from before the status message answers "unknown message".
-      return this.withHostState({ok: false, error: (response && response.error) || 'mpv host error'});
-    }
-    return this.withHostState({
-      ok: true,
-      running: response.running === true,
-      decoder: MpvBackend.readDecoder(response.decoder),
-    });
   }
 
   /**

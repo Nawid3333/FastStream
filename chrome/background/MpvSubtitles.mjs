@@ -9,7 +9,7 @@ export const MAX_TRACKS = 8;
 const MAX_READS = 16;
 // mpv starts only once the tracks are read.
 export const FETCH_TIMEOUT_MS = 4000;
-// Twice the host's message cap (HostMaxMessageBytes, 1 MB): a larger file could not go anyway.
+// Twice what the helper takes of one track (MaxSubtitleChars, 1,048,576 characters): a larger file would not fit.
 export const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
 /**

@@ -250,16 +250,13 @@ export class TabHolder {
     this.mpvSending = new Map();
     /** @type {?string} */
     this.mpvError = null;
-    // An outdated host gets no "!": an older helper still plays the stream.
+    // The last send was refused for an outdated helper: the tooltip says what to run.
     /** @type {boolean} */
     this.mpvHostOutdated = false;
     /** @type {boolean} */
     this.protectedVideo = false;
     /** @type {?import('./MpvBackend.mjs').MpvDecoder} */
     this.mpvDecoder = null;
-    // The latest decoder question in flight: an older answer is dropped.
-    /** @type {?Object} */
-    this.mpvDecoderQuery = null;
     // The host answers seconds later: an answer for a page the tab has left applies nothing.
     /** @type {number} */
     this.mpvPage = 0;

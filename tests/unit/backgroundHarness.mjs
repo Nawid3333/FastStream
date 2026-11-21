@@ -1,10 +1,118 @@
 import nodeCrypto from 'node:crypto';
 import {vi} from 'vitest';
 import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
+import {withoutFsTags} from '../../chrome/background/MpvTarget.mjs';
 
-// The thin helper's primitives: a helper before it answers each of them so.
-const ThinMessages = new Set(['play', 'ipc', 'relay', 'raise']);
-const UnknownMessage = Object.freeze({ok: false, error: 'unknown message', hostVersion: 14});
+/**
+ * What a play message hands mpv, read back from its target (MpvTarget.mjs): url, the stream's address without the
+ * fs-* tags; contentType, pageUrl, qualities and private from those tags; start as a number; headers as
+ * {name, value}. The message's other fields as sent.
+ * @param {Object} message - The play message.
+ * @return {Object}
+ */
+export function playOf(message) {
+  const target = String(message.target);
+  const hash = target.indexOf('#');
+  /** @type {Object<string, string>} */
+  const tags = {};
+  for (const part of hash === -1 ? [] : target.slice(hash + 1).split('&')) {
+    const equals = part.indexOf('=');
+    if (part.startsWith('fs-') && equals !== -1) tags[part.slice(0, equals)] = part.slice(equals + 1);
+  }
+  const played = {...message, url: withoutFsTags(target)};
+  if (tags['fs-content']) played.contentType = tags['fs-content'];
+  if (tags['fs-page']) played.pageUrl = decodeURIComponent(tags['fs-page']);
+  if (tags['fs-quality']) played.qualities = JSON.parse(decodeURIComponent(tags['fs-quality']));
+  if (tags['fs-private'] === '1') played.private = true;
+  if (message.start !== undefined) played.start = Number(message.start);
+  if (Array.isArray(message.headers)) {
+    played.headers = message.headers.map((field) => {
+      const colon = field.indexOf(': ');
+      return {name: field.slice(0, colon), value: field.slice(colon + 2)};
+    });
+  }
+  return played;
+}
+
+/**
+ * The helper's answer as the real one sends it: with its version, unless the test names one (an older helper's), and
+ * a play's with the window it played in (the one on its own pipe, unless the test names one).
+ * @param {Object} message - What the background sent.
+ * @param {*} answer - The test's answer.
+ * @return {*}
+ */
+function asHelper(message, answer) {
+  if (!answer || typeof answer !== 'object' || Array.isArray(answer)) return answer;
+  const versioned = 'hostVersion' in answer ? answer : {...answer, hostVersion: RequiredHostVersion};
+  return message?.type === 'play' && !('window' in versioned) ? {...versioned, window: ''} : versioned;
+}
+
+/**
+ * The helper and mpv behind a relay port by default: connected at once, and mpv has none of the properties it is asked,
+ * so a window that plays takes a stream at once (askWindow), as one without mpv-config's faststream-offer.lua.
+ * @param {Object} message - What the background posted.
+ * @return {Object|undefined} The answer.
+ */
+export function plainMpv(message) {
+  if (message.type === 'relay') return {type: 'relaying'};
+  if (message.type === 'mpv' && message.id !== undefined && message.command?.[0] === 'get_property') {
+    return {type: 'mpv-reply', id: message.id, error: 'property unavailable'};
+  }
+  return undefined;
+}
+
+/**
+ * A relay port (backgroundHarness's) spoken to in watch events, for tests about what the background does with them:
+ * emit takes {type: 'watching'|'path'|'ended'|'request'|'closed'} and sends mpv's own lines for it (MpvRelayWatch.mjs
+ * reads them back as those events); sent reads what the background told mpv back as {type: 'notify', title, detail,
+ * seconds?}, {type: 'hide'} and {type: 'state', autoplay}, with every other message as posted. The helper is told
+ * connected to mpv at once, as it says when it is.
+ * @param {Object} port - A port from bg.ports.
+ * @return {{emit: function(Object): void, drop: function(): void, sent: Array<Object>, disconnected: boolean, port: Object}}
+ */
+export function mpvEvents(port) {
+  const line = (data) => port.emit({type: 'mpv', data});
+  const path = (data) => {
+    port.mpvPath = data;
+    line({event: 'property-change', id: 1, name: 'path', data});
+  };
+  if (!port.relaying) {
+    port.relaying = true;
+    port.emit({type: 'relaying'});
+  }
+  return {
+    port,
+    emit(event) {
+      if (event.type === 'watching') {
+        port.emit({type: 'relaying'});
+      } else if (event.type === 'path') {
+        path(event.path);
+      } else if (event.type === 'ended') {
+        if (port.mpvPath !== event.path) path(event.path);
+        line({event: 'end-file', reason: 'eof'});
+      } else if (event.type === 'request') {
+        line({event: 'client-message', args: ['faststream-' + event.action]});
+      } else {
+        port.emit(event);
+      }
+    },
+    drop: () => port.drop(),
+    get disconnected() {
+      return port.disconnected;
+    },
+    get sent() {
+      return port.sent.map((m) => {
+        const [name, ...args] = m.type === 'mpv' && Array.isArray(m.command) ? m.command : [];
+        if (name === 'script-message-to' && args[0] === 'notify' && args[1] === 'show') {
+          return {type: 'notify', title: args[3], detail: args[4], ...(args[5] !== undefined ? {seconds: Number(args[5])} : {})};
+        }
+        if (name === 'script-message-to' && args[0] === 'notify' && args[1] === 'hide') return {type: 'hide'};
+        if (name === 'set_property' && args[0] === 'user-data/faststream/autoplay') return {type: 'state', autoplay: args[1]};
+        return m;
+      });
+    },
+  };
+}
 
 // Runs background.mjs in Node against a stand-in for the WebExtension API: the order of events
 // between listeners.
@@ -86,11 +194,10 @@ let requestCounter = 0;
  *   the background's own reads; a 404 for everything by default.
  * @param {function({tabId: number, frameId: (number|undefined), message: Object}): *} [setup.onTabMessage] -
  *   A page's answer to a message the background sends it (tabs.sendMessage).
- * @param {function(Object): *} [setup.onNative] - The mpv host's answer; a current host's
- *   {ok: true} by default.
- * @param {boolean} [setup.thinHost] - The mpv host is the thin helper (else an older one, which answers "unknown message").
+ * @param {function(Object): *} [setup.onNative] - The mpv host's answer, {ok: true} by default; with the current
+ *   version unless it names one.
  * @param {function(Object, Object): (Object|Array<Object>|undefined)} [setup.onPortMessage] - What mpv answers over a
- *   port the background opened (relay), to a message it posted there: emitted back a moment later.
+ *   port the background opened (relay), to a message it posted there: emitted back a moment later. plainMpv by default.
  * @param {string} [setup.os] - What runtime.getPlatformInfo says ('win', 'linux', 'mac'):
  *   Windows, whatever the system the tests run on.
  * @param {function(): void} [setup.beforeImport] - Runs once the stand-in is in place,
@@ -106,9 +213,8 @@ export async function loadBackground({
   session = {},
   fetch = async () => response('', 404),
   onTabMessage = () => undefined,
-  onNative = () => ({ok: true, hostVersion: RequiredHostVersion}),
-  thinHost = false,
-  onPortMessage = () => undefined,
+  onNative = () => ({ok: true}),
+  onPortMessage = plainMpv,
   os = 'win',
   beforeImport = () => {},
   sessionReady = Promise.resolve(),
@@ -208,7 +314,7 @@ export async function loadBackground({
       },
       sendNativeMessage: (name, message, callback) => {
         bg.native.push(message);
-        answer(callback, !thinHost && ThinMessages.has(message?.type) ? {...UnknownMessage} : onNative(message));
+        answer(callback, Promise.resolve(onNative(message)).then((reply) => asHelper(message, reply)));
       },
       connectNative: () => {
         const port = {
@@ -586,10 +692,16 @@ export async function loadBackground({
   bg.sent = (type) => bg.sentToTabs.filter((m) => m.message.type === type);
 
   /**
+   * The play messages the background sent, read back (playOf).
+   * @return {Array<Object>}
+   */
+  bg.played = () => bg.native.filter((m) => m.type === 'play').map(playOf);
+
+  /**
    * The URLs the background handed to mpv.
    * @return {Array<string>}
    */
-  bg.toMpv = () => bg.native.filter((m) => m.type === 'open').map((m) => m.url);
+  bg.toMpv = () => bg.played().map((m) => m.url);
 
   /**
    * Puts the real timers and network back.
