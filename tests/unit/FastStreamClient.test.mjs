@@ -332,18 +332,20 @@ describe('FastStreamClient, a video built again after autoplay', () => {
    * The same video at 30 s built again, with start, after autoplay started the first build or was blocked.
    * @param {Object} start - setSource's third argument.
    * @param {boolean} blocked - Whether the browser blocked the first autoplay.
+   * @param {(first: FakePlayer) => void} [between] - What happens to the first build before the new one.
    * @return {Promise<number>} How often the new build was played.
    */
-  async function rebuild(start, blocked) {
+  async function rebuild(start, blocked, between = () => {}) {
     const client = makeClient({autoPlay: true});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     client.play = vi.fn(async () => {
       if (blocked) throw new Error('NotAllowedError: autoplay blocked');
     });
-    await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+    const first = await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
       made.duration = 7200;
     });
     expect(client.state.autoPlayTriggered).toBe(!blocked);
+    between(first);
     client.play = vi.fn(async () => {});
     const player = await setSourceStarting(client, makeSource('http://127.0.0.1/film-720.mp4?faststream-timestamp=30'),
         {...start, keepChoice: true});
@@ -363,6 +365,24 @@ describe('FastStreamClient, a video built again after autoplay', () => {
 
   it('still autoplays when the browser had blocked autoplay', async () => {
     expect(await rebuild({play: false}, true)).toBeGreaterThan(0);
+  });
+
+  it('stays paused when the user started it after a blocked autoplay, then paused', async () => {
+    // Firefox blocked autoplay; the user pressed play (the video's play event) and paused.
+    expect(await rebuild({play: false}, true, (first) => first.emit(DefaultPlayerEvents.PLAY))).toBe(0);
+  });
+
+  it('does not count a late autoplay of the video before as the next one\'s', async () => {
+    const client = makeClient({autoPlay: true});
+    /** @type {Array<() => void>} */
+    const started = [];
+    client.play = vi.fn(() => new Promise((resolve) => started.push(resolve)));
+    await setSource(client, makeSource('http://127.0.0.1/a.mp4'));
+    await setSource(client, makeSource('http://127.0.0.1/b.mp4'));
+    // The first video's play() settles after the next one was set.
+    started[0]();
+    await settle();
+    expect(client.state.autoPlayTriggered).toBe(false);
   });
 });
 

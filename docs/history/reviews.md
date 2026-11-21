@@ -1307,6 +1307,22 @@ Changed:
   before the first frame). Test: "does not seek to it over a seek the user made while the player got
   ready".
 
+## DeepSeek's review of #797 (2026-11-21)
+
+deepseek-v4.1-flash read the diff against main. Two of its three points were real and are fixed in
+the PR, with a test each that fails without the fix:
+
+- **A blocked autoplay, then the user's play and pause.** Only autoplay set `autoPlayTriggered`, so
+  a rebuild with `play: false` (a quality switch, a recovery) played the paused video again. The
+  video's `play` event now marks it too.
+- **A late autoplay of the video before.** Its `play()` settling after the next source was set marked
+  the new one as autoplayed. Each write now checks it is still its own source. Unlikely (the old
+  player's pending `play()` usually rejects when it is torn down), but a one-line guard.
+- Rejected: **an undone seek lets the remembered time land.** `undoSeek` empties `pastSeeks`, so a
+  remembered time arriving after a seek and its undo would apply. That needs the seek and the undo
+  within the first seconds of loading (the lookup waits at most `RememberedWaitMs`), and the
+  remembered time then replaces a position the user has just undone.
+
 ## Codex's pass over the cloud settings (#789, 2026-11-21)
 
 Rejected:

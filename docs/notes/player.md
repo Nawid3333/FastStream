@@ -1040,9 +1040,11 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
     the HLS one did not show it (hls.js loads nothing at 0), so there it only guards.
   - **A rebuild keeps a pause (2026-11-21).** `options.autoPlay` (an automatic continuation's) also
     played a rebuild of a video the user had paused (another page quality, a recovery): its
-    `play: false` lost to autoplay, at `setSource` and at `canplay`. Once autoplay has started a
-    video, a rebuild with `play: false` stays paused (`autoPlayTriggered` carried over); autoplay
-    that never started (blocked) still runs.
+    `play: false` lost to autoplay, at `setSource` and at `canplay`. Once a video has started, by
+    autoplay or by the user's play after a blocked autoplay (the video's `play` event), a rebuild
+    with `play: false` stays paused (`autoPlayTriggered` carried over); a video that never started
+    (autoplay blocked, nobody pressed play) still autoplays. An autoplay's `play()` that settles after
+    the next source was set marks nothing: it was the video before's.
   - **The remembered time never overrides a seek of the user's.** An MP4's duration, and with it
     the seek bar, comes before its first frame, while the start waits for the init hook: a seek
     then was undone by the remembered time once the player was ready. It goes only while

@@ -1025,8 +1025,8 @@ export class FastStreamClient extends EventEmitter {
       // A start time the source came with is armed here, before the awaits: nothing plays before it is applied,
       // or a canplay meanwhile autoplays from 0 and the time jumps later.
       const startTime = timeFromURL || 0;
-      // The same video built again (another quality, a recovery) after autoplay had started it: paused since, it
-      // stays paused. Autoplay that never started still runs.
+      // The same video built again (another quality, a recovery) after it had started, by autoplay or by the user:
+      // paused since, it stays paused. One that never started (autoplay blocked, nobody pressed play) still autoplays.
       const keptPause = start.play === false && this.state.autoPlayTriggered;
       const playOnStart = (autoPlay && !keptPause) || !!start.play;
       // The remembered time is a start time too, once looked up.
@@ -1109,7 +1109,7 @@ export class FastStreamClient extends EventEmitter {
 
       if (playOnStart && !this.startPending && !this.state.autoPlayTriggered) {
         this.play().then(() => {
-          this.state.autoPlayTriggered = true;
+          if (this.source === source) this.state.autoPlayTriggered = true;
         }).catch((e) => console.warn('Autoplay failed', e));
       }
 
@@ -1160,7 +1160,7 @@ export class FastStreamClient extends EventEmitter {
 
         if (playOnStart && !this.state.autoPlayTriggered) {
           this.play().then(() => {
-            this.state.autoPlayTriggered = true;
+            if (this.source === source) this.state.autoPlayTriggered = true;
           }).catch((e) => console.warn('Autoplay failed', e));
         }
       }).catch((e) => {
@@ -2373,8 +2373,9 @@ export class FastStreamClient extends EventEmitter {
       // Marked only once started: a blocked play() must not stop the later attempts. Not before startPending is applied.
       if (!this.state.autoPlayTriggered && this.options.autoPlay && this.state.playing === false &&
           !this.startPending) {
+        const own = this.source;
         this.play().then(() => {
-          this.state.autoPlayTriggered = true;
+          if (this.source === own) this.state.autoPlayTriggered = true;
         }).catch((e) => console.warn('Autoplay failed', e));
       }
     });
@@ -2470,6 +2471,8 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.PLAY, (/** @type {undefined} */ event) => {
+      // Started, by autoplay or by the user after a blocked autoplay: a rebuild that was paused stays paused.
+      this.state.autoPlayTriggered = true;
       this.interfaceController.play();
       this.reportPlaying(true);
       this.updatePeers();
