@@ -38,3 +38,25 @@ it('plays a new row on Play with the mode its address names, the field not left 
   const options = Array.from(mode.children[1].children);
   expect(options.some((option) => option.dataset.val === PlayerModes.AUTO)).toBe(false);
 });
+
+// A link copied with the Sources window's Copy button carries its headers and mode in the address. Pasted and played
+// with the field not left, the address went out with them unread: no headers, and their query in the request.
+it('reads a copied link\'s headers and mode at Play, the field not left yet', async () => {
+  const client = {setSource: vi.fn(async () => {}), play: vi.fn(async () => {})};
+  const browser = {linkui: {sourcesList: el()}, updateSources() {}, client};
+  const source = new VideoSource('', null, PlayerModes.AUTO);
+  SourcesBrowser.prototype.setupSourceListing.call(browser, source);
+  const {url, setBtn} = source.sourceBrowserElements;
+  const copied = new VideoSource('https://cdn.test/v/clip', {Referer: 'https://site.test/'}, PlayerModes.ACCELERATED_HLS);
+
+  url.value = copied.toCopyURL().toString();
+  url.fire('input');
+  setBtn.fire('click');
+  await vi.waitFor(() => expect(client.setSource).toHaveBeenCalledTimes(1));
+
+  const played = client.setSource.mock.calls[0][0];
+  expect(played.url).toBe('https://cdn.test/v/clip');
+  // Header names in lower case, as the player keeps them.
+  expect(played.headers).toEqual({referer: 'https://site.test/'});
+  expect(played.mode).toBe(PlayerModes.ACCELERATED_HLS);
+});

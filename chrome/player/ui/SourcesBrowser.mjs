@@ -106,14 +106,18 @@ export class SourcesBrowser {
       options.find((el) => el.dataset.val === PlayerModes.AUTO)?.remove();
     };
 
-    sourceURL.addEventListener('change', (e) => {
+    // The address as typed or pasted: its mode, and a copied link's headers and mode (VideoSource.toCopyURL), read
+    // when the field is left and again at Play. Twice is harmless: the second finds nothing left to read.
+    const applyAddress = () => {
       pickMode();
       source.parseHeadersParam();
       sourceHeadersBtn.textContent = Localize.getMessage('player_source_headerbtn', [Object.keys(source.headers).length]);
       headersInput.value = URLUtils.objToHeadersString(source.headers);
       /** @type {HTMLElement[]} */ (Array.from(sourceMode.children[1].children)).find((el) => el.dataset.val === source.mode)?.click();
       sourceURL.value = source.url;
-    });
+    };
+
+    sourceURL.addEventListener('change', applyAddress);
 
     sourceURL.addEventListener('keydown', (e) => {
       // Escape goes on to the player, which closes this window (escapeAll).
@@ -173,7 +177,7 @@ export class SourcesBrowser {
         return;
       }
 
-      pickMode();
+      applyAddress();
 
       // On the source, not the button: the list drawn again meanwhile (a character typed in
       // another row) took the button's mark away, and a second click set the source up twice.
