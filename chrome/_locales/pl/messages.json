@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Brak napisów"
     },
+    "player_resumed_key": {
+        "message": "Wznowiono od $1, gdzie skończyłeś ostatnio: naciśnij $2, aby zacząć od początku"
+    },
+    "player_resumed": {
+        "message": "Wznowiono od $1, gdzie skończyłeś ostatnio"
+    },
+    "player_subtitles_available_key": {
+        "message": "Dostępne napisy ($1): naciśnij $2, aby je włączyć, lub wybierz je w menu napisów"
+    },
+    "player_subtitles_available": {
+        "message": "Dostępne napisy ($1): wybierz je w menu napisów"
+    },
     "player_subtitles_new_cue": {
         "message": "Nowy napis"
     },

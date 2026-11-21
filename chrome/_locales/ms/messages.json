@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Tiada sarikata"
     },
+    "player_resumed_key": {
+        "message": "Disambung pada $1, tempat anda berhenti kali terakhir: tekan $2 untuk mula dari awal"
+    },
+    "player_resumed": {
+        "message": "Disambung pada $1, tempat anda berhenti kali terakhir"
+    },
+    "player_subtitles_available_key": {
+        "message": "Sari kata tersedia ($1): tekan $2 untuk menghidupkannya, atau pilih satu dalam menu sari kata"
+    },
+    "player_subtitles_available": {
+        "message": "Sari kata tersedia ($1): pilih satu dalam menu sari kata"
+    },
     "player_subtitles_new_cue": {
         "message": "Sarikata baharu"
     },

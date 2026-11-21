@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "자막 없음"
     },
+    "player_resumed_key": {
+        "message": "지난번에 멈춘 $1부터 이어서 재생합니다: 처음부터 보려면 $2 키를 누르세요"
+    },
+    "player_resumed": {
+        "message": "지난번에 멈춘 $1부터 이어서 재생합니다"
+    },
+    "player_subtitles_available_key": {
+        "message": "자막이 있습니다($1): $2 키를 눌러 켜거나 자막 메뉴에서 선택하세요"
+    },
+    "player_subtitles_available": {
+        "message": "자막이 있습니다($1): 자막 메뉴에서 선택하세요"
+    },
     "player_subtitles_new_cue": {
         "message": "새 자막"
     },

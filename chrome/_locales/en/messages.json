@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "No subtitles"
     },
+    "player_resumed_key": {
+        "message": "Resumed at $1, where you stopped last time: press $2 to start from the beginning"
+    },
+    "player_resumed": {
+        "message": "Resumed at $1, where you stopped last time"
+    },
+    "player_subtitles_available_key": {
+        "message": "Subtitles available ($1): press $2 to turn them on, or pick one in the subtitles menu"
+    },
+    "player_subtitles_available": {
+        "message": "Subtitles available ($1): pick one in the subtitles menu"
+    },
     "player_subtitles_new_cue": {
         "message": "New subtitle"
     },

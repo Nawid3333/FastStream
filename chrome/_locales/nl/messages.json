@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Geen ondertiteling"
     },
+    "player_resumed_key": {
+        "message": "Hervat bij $1, waar je de vorige keer stopte: druk op $2 om bij het begin te beginnen"
+    },
+    "player_resumed": {
+        "message": "Hervat bij $1, waar je de vorige keer stopte"
+    },
+    "player_subtitles_available_key": {
+        "message": "Ondertitels beschikbaar ($1): druk op $2 om ze aan te zetten, of kies er een in het ondertitelmenu"
+    },
+    "player_subtitles_available": {
+        "message": "Ondertitels beschikbaar ($1): kies er een in het ondertitelmenu"
+    },
     "player_subtitles_new_cue": {
         "message": "Nieuwe ondertitel"
     },

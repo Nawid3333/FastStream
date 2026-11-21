@@ -1967,6 +1967,11 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   downloads are paused (that message names the key). The speed limit is named only while the
   downloads reach 80% of it: the gate stops them only above it, so on a line slower than the limit
   the line is the cause. `WaitNotice.test.mjs`.
+- **Two things the player did without a word** (2026-11-21, `ui/PlaybackNotices.mjs`; the owner chose both).
+  A video that starts where it was left ("Play videos from last watched position", on by default) says so for 5 s
+  with the key that goes to the start (`player_resumed_key`): the silent jump read as a bug, and Undo seek cannot
+  take it back. The page's subtitle tracks, loaded with none turned on (auto-enable is off by default), are named for
+  8 s with the subtitles key (`player_subtitles_available_key`). `PlaybackNotices.test.mjs`, `playerStayed.test.mjs`.
 
 ## Utils, options, enums, dash2mp4: reasons behind the code
 

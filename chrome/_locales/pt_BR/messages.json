@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Sem legendas"
     },
+    "player_resumed_key": {
+        "message": "Retomado em $1, onde você parou da última vez: pressione $2 para começar do início"
+    },
+    "player_resumed": {
+        "message": "Retomado em $1, onde você parou da última vez"
+    },
+    "player_subtitles_available_key": {
+        "message": "Legendas disponíveis ($1): pressione $2 para ativá-las ou escolha uma no menu de legendas"
+    },
+    "player_subtitles_available": {
+        "message": "Legendas disponíveis ($1): escolha uma no menu de legendas"
+    },
     "player_subtitles_new_cue": {
         "message": "Nova legenda"
     },
