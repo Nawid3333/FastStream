@@ -840,6 +840,20 @@ the watch begins is its state then, not a pause, as with `eof-reached`. Measured
 real watch on the pinned mpv: on that stream the host 13 watch told no end, host 14's told it
 as the skip landed; skips through a file told one end, at the end.
 
+**An end where the stream broke off is no end (2026-11-21).** His report: MPV autoplay sometimes
+went on to the next episode before the episode had ended. Measured with the pinned mpv on a local
+180 s HLS stream whose server reset every request after 6 segments: mpv skipped each segment it
+could not load and set `eof-reached` at 60 s, `time-remaining` 120, and the relay watch told an
+end, so autoplay counted down. The watch now asks `time-remaining` and `duration` when mpv sets
+`eof-reached`: an end with more than 30 s and more than 5 % of the length left (`brokeOff`) is
+no end; once the user goes back and plays on, the real end is one. An answer that is no number
+(no length, a helper that refuses) counts as an end, as before; so does an end-file "eof", after
+which there is nothing left to ask. Checked with the real `relayWatch` over a stand-in helper port
+against the real mpv: main's told an end at 60 s of the broken stream, the new one none, and one
+at 180 s of the stream that did not break off. The helper's `watchMpv` keeps the old rule: only
+extensions from before the relay use it, and a change there would move the host's version for no
+one.
+
 **The next page's stream: the longest, not the first (2026-10-14).** His report (2026-10-13):
 MPV autoplay from an anime site's season 1 to season 2 showed episode 1's title in mpv on a black
 picture. Checked then: every episode there has the same four hosters, VOE first; VOE's file is
@@ -1273,7 +1287,8 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
   goes false -> true; a loadfile replace sends end-file "stop", eof-reached and path
   unavailable, the new path, then eof-reached false; `script-message faststream-next` arrives
   as a client-message. One end per file: the same path again counts as a new file once mpv said
-  it had none in between.
+  it had none in between. An `eof-reached` well before the length is no end (`brokeOff`: a
+  stream that broke off, above).
 - **`MpvBackend.sendStream`** - Streams go to the helper one at a time: each send is a helper
   process of its own, and two at once with no mpv running each found no pipe and started an
   mpv, the second on the same pipe name and with no IPC for good. The next send starts once the

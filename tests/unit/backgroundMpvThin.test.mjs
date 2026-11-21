@@ -129,6 +129,11 @@ describe('MPV mode with the thin helper', () => {
     port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path', data: sent}});
     port.emit({type: 'mpv', data: {event: 'property-change', id: 2, name: 'eof-reached', data: false}});
     port.emit({type: 'mpv', data: {event: 'property-change', id: 2, name: 'eof-reached', data: true}});
+    // Where mpv stopped: at the end.
+    for (const m of port.sent.filter((m) => m.type === 'mpv' && m.command[0] === 'get_property')) {
+      const data = {'time-remaining': 0.04, 'duration': 1440}[m.command[1]];
+      if (data !== undefined) port.emit({type: 'mpv-reply', id: m.id, error: 'success', data});
+    }
     await bg.wait(1500);
     const notice = commands(port).find((m) => m.command[0] === 'script-message-to' && m.command[2] === 'show');
     expect(notice.command).toEqual(['script-message-to', 'notify', 'show', 'faststream', 'Autoplay',
