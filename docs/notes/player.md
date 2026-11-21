@@ -1587,7 +1587,8 @@ readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own p
 - **`background.mjs` DOWNLOAD, a cancelled Save As** - With Firefox set to ask where to save,
   the user cancelling its dialog rejected the download like a refusal: null, and the player said
   the screenshot or the save failed. It is answered false ("Download canceled by the user"); the
-  screenshot takes back its "saving" note, the save says nothing.
+  screenshot takes back its "saving" note, the save says "Save cancelled" (its "Save complete"
+  is shown before the file is handed to Firefox).
 - **`background.mjs` `saveOption`** - An option the background changes itself (mpv's autoplay
   switch) is announced with UPDATE_OPTIONS, which an open options page hears; LOAD_OPTIONS
   reached only the background, and the page went on showing the old value and wrote it back at

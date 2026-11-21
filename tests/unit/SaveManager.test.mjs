@@ -395,6 +395,37 @@ describe('SaveManager.openInMpv', () => {
   });
 });
 
+describe('SaveManager.saveVideo: the answer to its download', () => {
+  // "Save complete" is shown before the file is handed to Firefox; cancelling Firefox's
+  // Save As left it standing, as if the video had been saved.
+  /**
+   * Saves a complete video whose download is answered with the given value.
+   * @param {*} answer - What Utils.downloadURL resolves with.
+   * @return {Promise<Array<*>>} The last status message set.
+   */
+  async function saveAnswered(answer) {
+    const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
+    Utils.downloadURL.mockResolvedValueOnce(answer);
+    const messages = [];
+    const client = makeClient({
+      canSave: () => ({canSave: true, isComplete: true, canStream: false}),
+      saveVideo: async () => ({blob: new Blob(['video'])}),
+    });
+    client.interfaceController.setStatusMessage = (...args) => messages.push(args);
+    await new SaveManager(client).saveVideo({});
+    return messages.at(-1);
+  }
+
+  it('says the save was cancelled when the user cancels Firefox\'s Save As', async () => {
+    expect(await saveAnswered(false)).toEqual(['save-video', 'player_savevideo_cancelled', 'info', 2000]);
+  });
+
+  it('says it failed when Firefox refuses the download, and leaves "complete" when it starts', async () => {
+    expect(await saveAnswered(null)).toEqual(['save-video', 'player_savevideo_fail', 'error', 4000]);
+    expect(await saveAnswered(7)).toEqual(['save-video', 'player_savevideo_complete', 'info', 2000]);
+  });
+});
+
 describe('SaveManager.saveScreenshot', () => {
   // Firefox can ask where to save; the user cancelling it was taken as a refused download:
   // "screenshot failed".

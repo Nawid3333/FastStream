@@ -511,9 +511,11 @@ export class SaveManager {
       this.downloadURLDownload = await Utils.downloadURL(/** @type {string} */ (url), name + '.' + saveExtension);
       this.downloadURLDownloads.push(this.downloadURLDownload);
       // null: Firefox refused the download (no room, a folder it cannot write to), and after
-      // "Save complete" nothing said so. false, the user cancelling its Save As, is no failure.
+      // "Save complete" nothing said so. false: the user cancelled its Save As, and nothing was saved.
       if (this.downloadURLDownload === null) {
         this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_fail'), 'error', 4000);
+      } else if (this.downloadURLDownload === false) {
+        this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_cancelled'), 'info', 2000);
       }
     }
   }
