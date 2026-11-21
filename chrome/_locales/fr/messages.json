@@ -1398,7 +1398,7 @@
         "message": "Accéder à l'API webRequest bloquante"
     },
     "perms_page_breakdown_perm11d": {
-        "message": "FastStream retient la requête d'un lecteur le seul temps de commencer à lire ses premiers octets (l'autorisation suivante en a besoin)."
+        "message": "FastStream retient la requête d'un lecteur juste le temps de commencer à lire ses premiers octets (l'autorisation suivante en a besoin)."
     },
     "perms_page_breakdown_perm12h": {
         "message": "Lire les premiers octets des réponses"

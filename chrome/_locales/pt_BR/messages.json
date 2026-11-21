@@ -1272,7 +1272,7 @@
         "message": "Este vídeo só carrega pela própria página, e o mpv não consegue abri-lo: o FastStream o reproduz aqui."
     },
     "player_mpv_needs_hls_helper": {
-        "message": "O mpv só consegue reproduzir esta transmissão com o auxiliar do mpv mais recente: execute update-local.cmd na pasta mpv do FastStream e envie-a novamente."
+        "message": "O mpv só consegue reproduzir este stream com o auxiliar do mpv mais recente: execute update-local.cmd na pasta mpv do FastStream e envie-o novamente."
     },
     "mpv_episode_loading": {
         "message": "carregando no mpv"
@@ -1395,7 +1395,7 @@
         "message": "Adiciona itens do FastStream ao menu de contexto de páginas da web: reproduzir o vídeo da página no FastStream ou MPV, ou abrir um link em uma nova aba com FastStream ou MPV ativado. O Firefox não exibe nenhum aviso sobre isso."
     },
     "perms_page_breakdown_perm11h": {
-        "message": "Acessar a API webRequest com bloqueio"
+        "message": "Acessar a API webRequest bloqueante"
     },
     "perms_page_breakdown_perm11d": {
         "message": "O FastStream retém a requisição de um player apenas pelo tempo necessário para começar a ler seus primeiros bytes (a próxima permissão precisa disso)."

@@ -40,6 +40,15 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 31 (2026-11-21, subtitle files no mpv reads; RequiredHostVersion stays 19).** Found by the review
+of 2026-11-21 (`docs/history/reviews.md`). A play's subtitle files now follow its playlists: `playMpv`
+writes them, and removes their folder at once when the play failed (no mpv on the pipe and none could
+start, the open mpv refused the stream, the window was closed), never when mpv was only busy (the load is
+in its pipe). A private window's subtitle folder also goes by its age, two minutes as its playlists'
+(`removeOldSubtitleDirs`, whenever a helper ends), and a folder whose files could not all be written is
+removed with the error. Before, a private window's subtitles stayed a day whenever no mpv played them
+(mpv not found, a refused or failed load), and a failed write left its folder.
+
 **Host 29 (2026-11-20, a private window's temp files; RequiredHostVersion stays 19).** The owner's
 decision D1 of the 2026-11-19 audit: mpv removes a private window's temp files itself.
 - A private window's subtitles go into `faststream-mpv-subs-p-<6>` (`PrivateSubtitleDirPrefix`), its

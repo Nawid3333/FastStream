@@ -602,6 +602,56 @@ describe('playing them', () => {
     expect(fs.readdirSync(path.join(base, folders[0])).sort()).toEqual(['0.m3u8', 'target.txt']);
   });
 
+  // A play's subtitle files follow its playlists: no mpv reads them after a play that did not go, and a private
+  // window's would otherwise stay a day.
+  const SUBS = [{srt: '1\n00:00:01,000 --> 00:00:02,000\nhi', label: 'English'}];
+  const TARGETS = ['https://cdn.test/v.mp4#fs-id=ab', 'https://cdn.test/v.mp4#fs-id=ab&fs-private=1'];
+  const subtitlePlay = (target) => /** @type {*} */ (checkPlayMessage({type: 'play', target, title: 'T',
+    subtitles: SUBS})).play;
+
+  it('removes the subtitle files of a play that did not go, a private window\'s and any other', async () => {
+    for (const target of TARGETS) {
+      const base = scratch();
+      const answer = await playMpv('mpv', subtitlePlay(target), {ipcToken: 'x'}, {
+        subtitleBase: base,
+        ipcRequest: async (commands) => ({ok: true, replies: [
+          {request_id: commands.length - 1, error: 'invalid parameter'}, {request_id: commands.length, data: 1}]}),
+        focus: async () => 'True',
+        platform: 'linux',
+        start: async () => ({ok: false, error: 'not here'}),
+      });
+      expect(answer.ok).toBe(false);
+      expect(fs.readdirSync(base)).toEqual([]);
+    }
+  });
+
+  it('removes them when there is no mpv to play them', async () => {
+    const base = scratch();
+    const answer = await playMpv(null, subtitlePlay(TARGETS[1]), {ipcToken: 'x'}, {
+      subtitleBase: base,
+      ipcRequest: async () => ({ok: false, error: 'no mpv ipc'}),
+      focus: async () => 'True',
+      platform: 'linux',
+    });
+    expect(answer.ok).toBe(false);
+    expect(fs.readdirSync(base)).toEqual([]);
+  });
+
+  it('keeps them when mpv was only busy, and for the mpv that plays the stream', async () => {
+    for (const ipcRequest of [async () => ({ok: false, busy: true, error: 'mpv did not answer'}),
+      async (commands) => ({ok: true, replies: commands.map((c, i) => ({request_id: i + 1, error: 'success', data: 4242}))})]) {
+      const base = scratch();
+      const answer = await playMpv('mpv', subtitlePlay(TARGETS[1]), {ipcToken: 'x'}, {
+        subtitleBase: base, ipcRequest, focus: async () => 'True', platform: 'linux',
+        start: async () => ({ok: false, error: 'not here'}),
+      });
+      expect(answer.window).toBe('');
+      const folders = fs.readdirSync(base);
+      expect(folders).toHaveLength(1);
+      expect(fs.readdirSync(path.join(base, folders[0]))).toEqual(['1 English.srt']);
+    }
+  });
+
   it('lets ffmpeg open files for a master only, whose playlists lie beside it', () => {
     expect(hlsPlayOptions(path.join('t', HlsDirPrefix + 'x', 'master.m3u8'))['demuxer-lavf-o'])
         .toMatch(/^protocol_whitelist=\[file,http,https,tcp,tls,crypto\],format_whitelist=\[hls,/);

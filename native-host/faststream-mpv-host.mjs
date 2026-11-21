@@ -46,7 +46,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 // The extension compares it with RequiredHostVersion (chrome/background/MpvBackend.mjs). Raise it
 // with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
-export const HostVersion = 30;
+export const HostVersion = 31;
 
 // The messages the extension may send; a host without this list gets the older ones. windows: play, ipc and
 // relay take a window, play newWindow and paused, and raise is there (host 30).
@@ -964,6 +964,8 @@ export const SubtitleDirPrefix = 'faststream-mpv-subs-';
 export const PrivateSubtitleDirPrefix = SubtitleDirPrefix + 'p-';
 // mpv reads a subtitle file when it loads the stream; older folders are removed.
 const SubtitleDirMaxAgeMs = 24 * 60 * 60 * 1000;
+// A private window's, should no mpv remove them: PrivateHlsDirMaxAgeMs's reasoning.
+const PrivateSubtitleDirMaxAgeMs = 2 * 60 * 1000;
 
 /**
  * Whether a play message's target comes from a private window (its fs-private tag).
@@ -1004,36 +1006,69 @@ export function subtitlesOf(message) {
 }
 
 /**
- * Writes subtitles into a fresh mkdtemp folder for mpv, after removing such folders older than a
- * day. The file name is what mpv's track list shows.
+ * Removes the subtitle folders past their age: a day, a private window's two minutes (as its playlists: mpv has
+ * read them by then). One that cannot be removed (another user's) stays.
+ * @param {string} [base] - The folder they are in; the temp folder by default.
+ * @param {number} [now]
+ */
+export function removeOldSubtitleDirs(base = os.tmpdir(), now = Date.now()) {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(base, {withFileTypes: true});
+  } catch (e) {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(SubtitleDirPrefix)) continue;
+    const dir = path.join(base, entry.name);
+    const maxAge = entry.name.startsWith(PrivateSubtitleDirPrefix) ? PrivateSubtitleDirMaxAgeMs : SubtitleDirMaxAgeMs;
+    try {
+      if (now - fs.statSync(dir).mtimeMs > maxAge) fs.rmSync(dir, {recursive: true, force: true});
+    } catch (e) {
+      // The next one still goes.
+    }
+  }
+}
+
+/**
+ * Writes subtitles into a fresh mkdtemp folder for mpv, after removing old such folders. The file name is what
+ * mpv's track list shows.
  * @param {Array<{srt: string, label: string}>} subtitles - From subtitlesOf.
  * @param {string} [base] - The folder to write under; the temp folder by default.
  * @param {boolean} [isPrivate] - A private window's: the folder is named for mpv to remove (PrivateSubtitleDirPrefix).
  * @return {Array<string>} The files, in order.
+ * @throws {Error} When a file cannot be written; nothing is left.
  */
 export function writeSubtitleFiles(subtitles, base = os.tmpdir(), isPrivate = false) {
   if (subtitles.length === 0) {
     return [];
   }
-  try {
-    for (const entry of fs.readdirSync(base, {withFileTypes: true})) {
-      if (entry.isDirectory() && entry.name.startsWith(SubtitleDirPrefix)) {
-        const dir = path.join(base, entry.name);
-        if (Date.now() - fs.statSync(dir).mtimeMs > SubtitleDirMaxAgeMs) {
-          fs.rmSync(dir, {recursive: true, force: true});
-        }
-      }
-    }
-  } catch (e) {
-    // Cleaning up is a courtesy; writing the new ones is what matters.
-  }
+  removeOldSubtitleDirs(base);
   const dir = fs.mkdtempSync(path.join(base, isPrivate ? PrivateSubtitleDirPrefix : SubtitleDirPrefix));
-  return subtitles.map((s, i) => {
-    const label = s.label.replace(/[^\p{L}\p{N} ._-]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
-    const file = path.join(dir, `${i + 1}${label ? ' ' + label : ''}.srt`);
-    fs.writeFileSync(file, s.srt, 'utf8');
-    return file;
-  });
+  try {
+    return subtitles.map((s, i) => {
+      const label = s.label.replace(/[^\p{L}\p{N} ._-]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+      const file = path.join(dir, `${i + 1}${label ? ' ' + label : ''}.srt`);
+      fs.writeFileSync(file, s.srt, 'utf8');
+      return file;
+    });
+  } catch (e) {
+    fs.rmSync(dir, {recursive: true, force: true});
+    throw e;
+  }
+}
+
+/**
+ * Removes the folder of writeSubtitleFiles' files, when no mpv will read them.
+ * @param {Array<string>} files - writeSubtitleFiles'.
+ */
+function removeSubtitleFiles(files) {
+  if (files.length === 0) return;
+  try {
+    fs.rmSync(path.dirname(files[0]), {recursive: true, force: true});
+  } catch (e) {
+    // The next helper to end removes it by its age.
+  }
 }
 
 // An HLS stream mpv cannot open from its address (docs/notes/mpv.md, "Streams mpv cannot open alone"): the
@@ -2598,16 +2633,26 @@ export async function playMpv(mpvPath, play, config, io = {}) {
       return {ok: false, error: 'Could not write the playlists of the stream for mpv: ' + String(e)};
     }
   }
-  const {busy, ...answer} = await playEntry(mpvPath, play, config, io, entry);
-  if (!play.hls) return answer;
-  if (answer.ok) return {...answer, local: entry};
-  // Busy: the load is in mpv's pipe, and mpv may still run it. The folder stays: mpv removes a private window's once
-  // it moved on from it (faststream-private.lua), and the next helper to end any by its age.
+  /** @type {Array<string>} */
+  let subFiles = [];
+  try {
+    subFiles = writeSubtitleFiles(play.subtitles, io.subtitleBase, isPrivateTarget(play.target));
+  } catch (e) {
+    // The stream still plays without them.
+    debugLog(config, 'subtitles-failed', {error: String(e)});
+  }
+  const {busy, ...answer} = await playEntry(mpvPath, play, config, io, entry, subFiles);
+  if (answer.ok) return play.hls ? {...answer, local: entry} : answer;
+  // Busy: the load is in mpv's pipe, and mpv may still run it. Its folders stay: mpv removes a private window's once
+  // it moved on from them (faststream-private.lua), and the next helper to end any by their age.
   if (!busy) {
-    try {
-      fs.rmSync(path.dirname(entry), {recursive: true, force: true});
-    } catch (e) {
-      // The next helper to end removes it.
+    removeSubtitleFiles(subFiles);
+    if (play.hls) {
+      try {
+        fs.rmSync(path.dirname(entry), {recursive: true, force: true});
+      } catch (e) {
+        // The next helper to end removes it.
+      }
     }
   }
   return answer;
@@ -2620,13 +2665,14 @@ export async function playMpv(mpvPath, play, config, io = {}) {
  * @param {Object} config
  * @param {NonNullable<Parameters<typeof playMpv>[3]>} io
  * @param {string} entry - play.target, or the entry of its playlists' folder.
+ * @param {Array<string>} subFiles - The subtitle files mpv loads with it.
  * @return {Promise<Awaited<ReturnType<typeof playMpv>> & {busy?: boolean}>} busy: the mpv on the pipe did not
  *   answer in time, with the load already written to it.
  */
-async function playEntry(mpvPath, play, config, io, entry) {
+async function playEntry(mpvPath, play, config, io, entry, subFiles) {
   const window = play.newWindow ? (io.randomHex ? io.randomHex() : crypto.randomBytes(8).toString('hex')) :
     play.window;
-  return {...await playWindow(mpvPath, play, config, io, entry, window), window};
+  return {...await playWindow(mpvPath, play, config, io, entry, subFiles, window), window};
 }
 
 /**
@@ -2637,22 +2683,15 @@ async function playEntry(mpvPath, play, config, io, entry) {
  * @param {Object} config
  * @param {NonNullable<Parameters<typeof playMpv>[3]>} io
  * @param {string} entry
+ * @param {Array<string>} subFiles
  * @param {string} window - Its id (WindowId), or ''.
  * @return {Promise<Awaited<ReturnType<typeof playMpv>> & {busy?: boolean, closed?: boolean}>}
  */
-async function playWindow(mpvPath, play, config, io, entry, window) {
+async function playWindow(mpvPath, play, config, io, entry, subFiles, window) {
   const platform = io.platform || process.platform;
   const ipcRequest = io.ipcRequest || mpvIpcRequest;
   const focus = io.focus || focusPid;
   const basePipe = ipcPipeFor(config, platform);
-  /** @type {Array<string>} */
-  let subFiles = [];
-  try {
-    subFiles = writeSubtitleFiles(play.subtitles, io.subtitleBase, isPrivateTarget(play.target));
-  } catch (e) {
-    // The stream still plays without them.
-    debugLog(config, 'subtitles-failed', {error: String(e)});
-  }
   const options = perFileOptions(play.headerFields, play.title, {start: play.start, subFiles});
   if (entry !== play.target) {
     Object.assign(options, hlsPlayOptions(entry));
@@ -2670,14 +2709,7 @@ async function playWindow(mpvPath, play, config, io, entry, window) {
     const answer = await answerOfOpenMpv(loaded, focus, config, platform);
     if (answer) return loaded.busy ? {...answer, busy: true} : answer;
     if (window) {
-      // Nothing was written to that window, so no mpv will play them or remove them (a private window's).
-      if (subFiles.length) {
-        try {
-          fs.rmSync(path.dirname(subFiles[0]), {recursive: true, force: true});
-        } catch (e) {
-          // The next helper to end removes it by its age.
-        }
-      }
+      // Nothing was written to that window: playMpv removes the subtitles and playlists no mpv will read.
       if (loaded.stalled) {
         return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
       }
@@ -3236,6 +3268,7 @@ async function main() {
   process.stdout.on('error', () => {});
   await handleMessage();
   removeOldHlsPackages();
+  removeOldSubtitleDirs();
   process.exit(0);
 }
 
