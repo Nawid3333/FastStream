@@ -101,6 +101,9 @@
     "welcome_page_keybinds_content27": {
         "message": "- Apri/chiudi lo strumento di risincronizzazione dei sottotitoli"
     },
+    "welcome_page_keybinds_content28": {
+        "message": "- Attiva/disattiva la riproduzione automatica del video successivo"
+    },
     "welcome_page_keybinds_content19": {
         "message": "- Picture-in-picture"
     },

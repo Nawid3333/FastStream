@@ -304,6 +304,18 @@ describe('Utils.getOptionsFromStorage', () => {
     expect(findKeybindConflicts(keybinds)).toEqual([]);
   });
 
+  it('gives the autoplay switch Shift+A, unless the user put something else there', async () => {
+    // Saved at version 6 with everything at its default: the new action gets its key.
+    store({keybindsVersion: 6, keybinds: {...DefaultKeybinds, ToggleAutoplayNext: undefined}});
+    expect((await Utils.getOptionsFromStorage()).keybinds.ToggleAutoplayNext).toBe('Shift+KeyA');
+    // The user's own Shift+A stays theirs: the switch is left without a key (the options page can give it one).
+    store({keybindsVersion: 6, keybinds: {...DefaultKeybinds, ToggleAutoplayNext: undefined, Screenshot: 'Shift+KeyA'}});
+    const {keybinds} = await Utils.getOptionsFromStorage();
+    expect(keybinds.Screenshot).toBe('Shift+KeyA');
+    expect(keybinds.ToggleAutoplayNext).toBe('None');
+    expect(findKeybindConflicts(keybinds)).toEqual([]);
+  });
+
   it('migrates once: a choice made afterwards, even the old default, is kept', async () => {
     store({keybinds: {...legacyBinds}});
     const migrated = await saveAndReload();

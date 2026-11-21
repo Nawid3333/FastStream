@@ -190,7 +190,7 @@ describe('Keybinds', function() {
       return Object.fromEntries(keys.map((key) => [key, manager.keyStringToKeybinds(key)]));
     });
     expect(reached).toEqual({
-      'Shift+KeyW': ['WindowedFullscreen'], 'Shift+KeyA': [], 'Shift+KeyB': ['PreviousVideo'],
+      'Shift+KeyW': ['WindowedFullscreen'], 'Shift+KeyA': ['ToggleAutoplayNext'], 'Shift+KeyB': ['PreviousVideo'],
       'Shift+KeyE': ['FlipVideo'], 'Shift+KeyR': ['RotateVideo'], 'Shift+KeyQ': [],
       'KeyW': ['SpeedPreset3_5'], 'KeyA': ['SpeedPreset4'], 'KeyB': ['SpeedPreset2_5'],
       'KeyE': ['SpeedPreset8'], 'KeyR': ['SpeedPreset1'], 'KeyQ': ['SpeedPreset3'],

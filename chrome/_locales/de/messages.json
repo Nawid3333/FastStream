@@ -101,6 +101,9 @@
     "welcome_page_keybinds_content27": {
         "message": "- Untertitel-Neusynchronisierung öffnen/schließen"
     },
+    "welcome_page_keybinds_content28": {
+        "message": "- Automatische Wiedergabe des nächsten Videos ein/aus"
+    },
     "welcome_page_keybinds_content19": {
         "message": "- Bild-in-Bild"
     },

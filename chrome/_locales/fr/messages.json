@@ -101,6 +101,9 @@
     "welcome_page_keybinds_content27": {
         "message": "- Ouvrir/fermer l'outil de resynchronisation des sous-titres"
     },
+    "welcome_page_keybinds_content28": {
+        "message": "- Activer/désactiver la lecture automatique de la vidéo suivante"
+    },
     "welcome_page_keybinds_content19": {
         "message": "- Image dans l'image"
     },
