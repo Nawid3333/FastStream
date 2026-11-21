@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "Bedankt voor het installeren van FastStream! Laat het ons weten als je problemen of suggesties hebt."
     },
+    "welcome_page_ram_header": {
+        "message": "Geheugen van deze computer"
+    },
+    "welcome_page_ram_question": {
+        "message": "Hoeveel geheugen (RAM) heeft deze computer? FastStream bewaart een deel van elke video in het RAM en de rest op schijf; je antwoord bepaalt hoeveel RAM het mag gebruiken."
+    },
+    "welcome_page_ram_set": {
+        "message": "Ingesteld: FastStream bewaart tot $1 video in het RAM, de rest op schijf. Je kunt dit wijzigen in de opties, onder \"Algemene opties\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Standaard toetsenbordbediening"
     },
@@ -828,7 +837,22 @@
         "message": "0: gedownloade video wordt niet bewaard en als \"Video op schijf bewaren\" uitstaat, wordt er niets vooruit gedownload, waardoor video's kunnen stoppen met laden. Laat het veld leeg voor geen limiet."
     },
     "options_general_rambudget_none": {
-        "message": "Geen limiet: alle gedownloade video blijft in RAM en er gaat niets naar schijf. Op een pc met weinig geheugen kan Firefox langzamer worden."
+        "message": "Geen limiet: alle gedownloade video blijft in het RAM, niets gaat naar de schijf. Een lange video kan meer geheugen innemen dan de computer heeft en hem laten vastlopen: stel een limiet in, tenzij hij ruim geheugen heeft."
+    },
+    "options_general_rambudget_high": {
+        "message": "Zoveel video in het RAM kan een computer laten vastlopen: Windows en Firefox hebben het grootste deel van het geheugen nodig. Met \"Video op schijf bewaren als deze RAM vol is\" aan wordt de rest van de video op schijf bewaard en speelt hij net zo af."
+    },
+    "options_general_ramsize": {
+        "message": "Geheugen van deze computer (RAM): stelt het RAM voor gebufferde video daarop af"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Niet ingesteld"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 of meer"
+    },
+    "options_list_ignored_lines": {
+        "message": "Overgeslagen, geen geldige regel: regel $1"
     },
     "options_general_bufferahead": {
         "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven wanneer vooraf downloaden uit staat, is gestopt of de ruimte op is"

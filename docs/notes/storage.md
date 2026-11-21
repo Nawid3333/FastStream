@@ -303,6 +303,16 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   between private and normal windows. The count is the sizes of the Blobs held, an estimate,
   not resident memory; MSE SourceBuffers (Firefox caps them at 150 MiB video / 20 MiB audio each,
   and the players keep only 20-40 s there) are not counted.
+- **Too much for the computer** (issue #798, 2026-11-21: an 8 GB laptop froze with the budget at
+  20 GB, and nothing on the page said that was too much). With no RAM size to read, the user is
+  asked: once on the welcome page, and in Options > General right before the budget ("This
+  computer's memory", `computerMemory` in GB, 0 when not given). An answer sets the budget to an
+  eighth of it, at most 4 GB (`RamGuard.ramBudgetFor`: 4 GB -> 500 MB, 8 -> 1 GB, 16 -> 2 GB,
+  32 or more -> 4 GB), and turns "Keep video on disk" on. The budget's field warns
+  (`ramBudgetRisky`, `options_general_rambudget_high`) above 4 GB, or above a quarter of the
+  memory given, and the no-limit hint names the freeze. Not chosen (the owner, 2026-11-21):
+  taking "no limit" away. A guard while playing (spilling to disk as the computer starts to
+  swap) waits for a measurement under a memory cap: built only if it shows a clear early signal.
 - **Release.** Fragments stay in RAM (`FSBlob` deferred saves). Over `HIGH` (90 %) of its share a
   player lets go of fragments until it is back at `LOW` (75 %): furthest behind the playhead
   first, then furthest ahead, never [-10 s, +60 s] around it (private: [-5 s, +30 s]); if that

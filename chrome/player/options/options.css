@@ -574,6 +574,17 @@ button:focus-visible {
   display: none;
 }
 
+/* The lines a list leaves out, under its field (IgnoredLines.mjs). */
+.ignored-lines {
+  font-size: 0.9em;
+  opacity: 0.8;
+  margin-top: var(--space-1);
+}
+
+.ignored-lines[hidden] {
+  display: none;
+}
+
 .option.grid2 .amount {
   grid-column: 2;
   display: flex;

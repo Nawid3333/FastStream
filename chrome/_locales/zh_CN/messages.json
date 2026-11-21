@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "感谢安装 FastStream！如有问题或建议，请告知我们。"
     },
+    "welcome_page_ram_header": {
+        "message": "此电脑的内存"
+    },
+    "welcome_page_ram_question": {
+        "message": "此电脑有多少内存（RAM）？FastStream 会把每个视频的一部分放在内存中，其余放在磁盘上；你的回答决定它可以使用多少内存。"
+    },
+    "welcome_page_ram_set": {
+        "message": "已设置：FastStream 最多在内存中保留 $1 的视频，其余放在磁盘上。你可以在选项的“常规选项”中更改。"
+    },
     "welcome_page_keybinds_header": {
         "message": "默认键盘控制"
     },
@@ -828,7 +837,22 @@
         "message": "0：不保存任何已下载的视频，且在“当此内存满时将视频保存在磁盘上”关闭时，不会在播放位置前方下载任何内容，因此视频可能会停止加载。将输入框留空即为无限制。"
     },
     "options_general_rambudget_none": {
-        "message": "无限制：已下载的视频全部保存在内存（RAM）中，不写入磁盘。在内存较少的电脑上，Firefox 可能会变慢。"
+        "message": "无限制：下载的视频全部留在内存中，不会写入磁盘。长视频占用的内存可能超过电脑的内存并让电脑卡死：除非内存充裕，否则请设置限制。"
+    },
+    "options_general_rambudget_high": {
+        "message": "在内存中放这么多视频可能会让电脑卡死：Windows 和 Firefox 需要大部分内存。开启“当此内存满时将视频保存在磁盘上”后，视频的其余部分会保存在磁盘上，播放效果相同。"
+    },
+    "options_general_ramsize": {
+        "message": "此电脑的内存（RAM）：据此设置缓冲视频所用内存"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "未设置"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 或更多"
+    },
+    "options_list_ignored_lines": {
+        "message": "已忽略，不是有效的条目：第 $1 行"
     },
     "options_general_bufferahead": {
         "message": "在播放位置前方保留缓冲的秒数（预下载关闭、停止或空间用尽时使用）"

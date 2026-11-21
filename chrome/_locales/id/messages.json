@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "Terima kasih telah memasang FastStream! Beri tahu kami jika Anda mengalami masalah atau punya saran."
     },
+    "welcome_page_ram_header": {
+        "message": "Memori komputer ini"
+    },
+    "welcome_page_ram_question": {
+        "message": "Berapa banyak memori (RAM) yang dimiliki komputer ini? FastStream menyimpan sebagian setiap video di RAM dan sisanya di disk; jawaban Anda menentukan berapa banyak RAM yang boleh dipakainya."
+    },
+    "welcome_page_ram_set": {
+        "message": "Sudah diatur: FastStream menyimpan hingga $1 video di RAM, sisanya di disk. Anda dapat mengubahnya di opsi, pada \"Opsi Umum\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Kontrol Keyboard Bawaan"
     },
@@ -828,7 +837,22 @@
         "message": "0: video yang diunduh tidak disimpan, dan dengan \"Simpan video di disk\" nonaktif, tidak ada yang diunduh di depan pemutaran, sehingga video mungkin terhenti saat memuat. Biarkan kolom kosong agar tidak ada batasan."
     },
     "options_general_rambudget_none": {
-        "message": "Tidak ada batasan: semua video yang diunduh tetap berada di RAM, tidak ada yang disimpan ke disk. Pada PC dengan memori terbatas, Firefox mungkin melambat."
+        "message": "Tanpa batas: semua video yang diunduh tetap di RAM, tidak ada yang ke disk. Video panjang dapat memakai lebih banyak memori daripada yang dimiliki komputer dan membuatnya macet: tetapkan batas kecuali memorinya banyak."
+    },
+    "options_general_rambudget_high": {
+        "message": "Video sebanyak ini di RAM dapat membuat komputer macet: Windows dan Firefox membutuhkan sebagian besar memorinya. Dengan \"Simpan video di disk saat RAM ini penuh\" aktif, sisa video disimpan di disk dan diputar sama saja."
+    },
+    "options_general_ramsize": {
+        "message": "Memori komputer ini (RAM): menyesuaikan RAM untuk video yang di-buffer"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Belum diatur"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 atau lebih"
+    },
+    "options_list_ignored_lines": {
+        "message": "Dilewati, bukan entri yang valid: baris $1"
     },
     "options_general_bufferahead": {
         "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload nonaktif, berhenti, atau kehabisan ruang)"

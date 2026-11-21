@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "¡Gracias por instalar FastStream! Háganos saber si tiene algún problema o sugerencia."
     },
+    "welcome_page_ram_header": {
+        "message": "Memoria de este ordenador"
+    },
+    "welcome_page_ram_question": {
+        "message": "¿Cuánta memoria (RAM) tiene este ordenador? FastStream guarda una parte de cada vídeo en la RAM y el resto en el disco; tu respuesta fija cuánta RAM puede usar."
+    },
+    "welcome_page_ram_set": {
+        "message": "Listo: FastStream guarda hasta $1 de vídeo en la RAM y el resto en el disco. Puedes cambiarlo en las opciones, en «Opciones Generales»."
+    },
     "welcome_page_keybinds_header": {
         "message": "Controles de Teclado Predeterminados"
     },
@@ -828,7 +837,22 @@
         "message": "0: no se guarda ningún vídeo descargado y, con \"Guardar el vídeo en el disco\" desactivado, no se descarga nada por adelantado, por lo que los vídeos podrían detenerse. Deja el campo vacío para que no haya límite."
     },
     "options_general_rambudget_none": {
-        "message": "Sin límite: todo el video descargado permanece en la RAM, nada se guarda en el disco. En un PC con poca memoria, Firefox puede volverse más lento."
+        "message": "Sin límite: todo el vídeo descargado se queda en la RAM y nada va al disco. Un vídeo largo puede ocupar más memoria de la que tiene el ordenador y congelarlo: pon un límite salvo que tenga mucha."
+    },
+    "options_general_rambudget_high": {
+        "message": "Tanto vídeo en la RAM puede congelar un ordenador: Windows y Firefox necesitan la mayor parte de su memoria. Con «Guardar el vídeo en el disco cuando esta RAM esté llena» activado, el resto del vídeo se guarda en el disco y se reproduce igual."
+    },
+    "options_general_ramsize": {
+        "message": "Memoria de este ordenador (RAM): ajusta la RAM para el vídeo en búfer en consecuencia"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Sin indicar"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 o más"
+    },
+    "options_list_ignored_lines": {
+        "message": "Omitida, no es una entrada válida: línea $1"
     },
     "options_general_bufferahead": {
         "message": "Segundos de video que se mantienen en el búfer por delante de la reproducción (se usa cuando la descarga previa está desactivada, se ha detenido o se queda sin espacio)"

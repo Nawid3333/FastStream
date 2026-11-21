@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "感謝安裝 FastStream！如有任何問題或建議，請告訴我們。"
     },
+    "welcome_page_ram_header": {
+        "message": "這台電腦的記憶體"
+    },
+    "welcome_page_ram_question": {
+        "message": "這台電腦有多少記憶體（RAM）？FastStream 會把每部影片的一部分放在記憶體中，其餘放在磁碟上；你的回答決定它可以使用多少記憶體。"
+    },
+    "welcome_page_ram_set": {
+        "message": "已設定：FastStream 最多在記憶體中保留 $1 的影片，其餘放在磁碟上。你可以在選項的「一般選項」中變更。"
+    },
     "welcome_page_keybinds_header": {
         "message": "預設鍵盤操作"
     },
@@ -828,7 +837,22 @@
         "message": "0：不會保留任何已下載的影片，且在「當此記憶體滿時將影片儲存在磁碟上」關閉時，不會在播放位置前方下載任何內容，因此影片可能會停止載入。留空表示無限制。"
     },
     "options_general_rambudget_none": {
-        "message": "無限制：所有已下載的影片都保留在記憶體中，不會存到磁碟。記憶體較少的電腦上，Firefox 可能會變慢。"
+        "message": "無限制：下載的影片全部留在記憶體中，不會寫入磁碟。長影片佔用的記憶體可能超過電腦的記憶體並讓電腦當機：除非記憶體充裕，否則請設定限制。"
+    },
+    "options_general_rambudget_high": {
+        "message": "在記憶體中放這麼多影片可能會讓電腦當機：Windows 和 Firefox 需要大部分記憶體。開啟「當此記憶體滿時將影片儲存在磁碟上」後，影片的其餘部分會保存在磁碟上，播放效果相同。"
+    },
+    "options_general_ramsize": {
+        "message": "這台電腦的記憶體（RAM）：據此設定緩衝影片所用記憶體"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "未設定"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 或以上"
+    },
+    "options_list_ignored_lines": {
+        "message": "已略過，不是有效的項目：第 $1 行"
     },
     "options_general_bufferahead": {
         "message": "在播放位置前方保留緩衝的秒數（預先下載關閉、停止或空間用完時使用）"
