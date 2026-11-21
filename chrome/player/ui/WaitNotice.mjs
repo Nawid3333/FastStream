@@ -41,6 +41,7 @@ export class WaitNotice {
     this.since = null;
     /** @type {*} The source it was told for. */
     this.toldFor = null;
+    this.shown = false;
   }
 
   /**
@@ -49,7 +50,12 @@ export class WaitNotice {
    */
   check(now = Date.now()) {
     const client = this.client;
-    // Paused downloads (the pause key) have their own message, which names the key that resumes them.
+    // Paused downloads (the pause key) have their own message, which names the key that resumes them: under this
+    // one, so this one goes.
+    if (client.downloadManager?.paused && this.shown) {
+      this.shown = false;
+      client.interfaceController.setStatusMessage(StatusTypes.WAIT, null, 'info');
+    }
     if (!client.state.buffering || !client.state.playing || client.downloadManager?.paused) {
       this.since = null;
       return;
@@ -63,6 +69,7 @@ export class WaitNotice {
     });
     if (!cause) return;
     this.toldFor = client.source;
-    client.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage(cause.key, cause.args), 'info', 12000);
+    this.shown = true;
+    client.interfaceController.setStatusMessage(StatusTypes.WAIT, Localize.getMessage(cause.key, cause.args), 'info', 12000);
   }
 }

@@ -4,6 +4,10 @@ import {DOMElements} from './DOMElements.mjs';
 export const StatusTypes = {
   WELCOME: 'welcome',
   DOWNLOAD: 'download',
+  // Notices about the video: over its download line, under the rest.
+  WAIT: 'wait',
+  SUBTITLES_HINT: 'subtitles-hint',
+  RESUMED: 'resumed',
   REQINTERACTION: 'reqinteraction',
   INFO: 'info',
   ERROR: 'error',
@@ -26,6 +30,10 @@ export class StatusManager {
 
     this.registerStatusLevel(StatusTypes.WELCOME);
     this.registerStatusLevel(StatusTypes.DOWNLOAD);
+    // A level each: on one level, a notice ended another's time. A later level shows over an earlier one.
+    this.registerStatusLevel(StatusTypes.WAIT);
+    this.registerStatusLevel(StatusTypes.SUBTITLES_HINT);
+    this.registerStatusLevel(StatusTypes.RESUMED);
     this.registerStatusLevel(StatusTypes.REQINTERACTION);
     this.registerStatusLevel(StatusTypes.INFO);
     this.registerStatusLevel(StatusTypes.ERROR);

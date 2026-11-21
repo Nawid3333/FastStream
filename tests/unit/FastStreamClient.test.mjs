@@ -27,7 +27,8 @@ vi.mock('../../chrome/player/utils/VideoTransformUtils.mjs', () => ({VideoTransf
 vi.mock('../../chrome/player/utils/Utils.mjs', () => ({Utils: {mergeOptions: (a) => a}}));
 vi.mock('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs', () => ({AudioAnalyzer: class {}}));
 vi.mock('../../chrome/player/modules/analyzer/PreviewFrameExtractor.mjs', () => ({PreviewFrameExtractor: class {}}));
-vi.mock('../../chrome/player/ui/StatusManager.mjs', () => ({StatusTypes: {INFO: 'info', REQINTERACTION: 'reqinteraction', QUALITY: 'quality'}}));
+vi.mock('../../chrome/player/ui/StatusManager.mjs', () => ({StatusTypes: {INFO: 'info', REQINTERACTION: 'reqinteraction', QUALITY: 'quality',
+  RESUMED: 'resumed'}}));
 vi.mock('../../chrome/player/utils/InterfaceUtils.mjs', () => ({InterfaceUtils: {}}));
 vi.mock('../../chrome/player/ui/audio/VirtualAudioNode.mjs', () => ({VirtualAudioNode: class {}}));
 vi.mock('../../chrome/player/players/SyncedAudioPlayer.mjs', () => ({
@@ -484,7 +485,7 @@ describe('FastStreamClient, remembered times', () => {
     client.keybindManager = {keybindMap: new Map([['GoToStart', 'Digit0']])};
     client.progressMemory = makeProgressMemory({lastTime: 30});
     await setSource(client, makeSource('http://127.0.0.1/vod.mp4'));
-    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('info', 'player_resumed_key', 'info', 5000);
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('resumed', 'player_resumed_key', 'info', 5000);
   });
 
   it('does not seek to it over a seek the user made while the player got ready', async () => {

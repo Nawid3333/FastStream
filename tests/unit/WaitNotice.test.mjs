@@ -79,7 +79,7 @@ describe('WaitNotice', () => {
     expect(said(client)).toEqual([]);
     notice.check(2000);
     expect(said(client)).toEqual(['player_wait_speed_zero']);
-    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('info', 'player_wait_speed_zero', 'info', 12000);
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('wait', 'player_wait_speed_zero', 'info', 12000);
     // Played on, waited again: told already.
     client.state.buffering = false;
     notice.check(3000);
@@ -107,6 +107,20 @@ describe('WaitNotice', () => {
     client.state.playing = false;
     notice.check(9000);
     expect(said(client)).toEqual([]);
+  });
+
+  it('takes itself down when the downloads are paused after it showed: the pause message is under it', () => {
+    vi.spyOn(Localize, 'getMessage').mockImplementation((key) => key);
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(false);
+    const {client, notice} = stalled({maxSpeed: 0});
+    notice.check(0);
+    notice.check(2000);
+    expect(said(client)).toEqual(['player_wait_speed_zero']);
+    client.downloadManager.paused = true;
+    notice.check(2500);
+    expect(client.interfaceController.setStatusMessage).toHaveBeenLastCalledWith('wait', null, 'info');
+    notice.check(3000);
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledTimes(2);
   });
 
   it('leaves a download pause to its own message, which names the key that resumes', () => {

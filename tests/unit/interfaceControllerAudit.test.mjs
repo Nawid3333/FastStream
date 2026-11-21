@@ -55,6 +55,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('InterfaceController.reset', () => {
+  it('takes the last video\'s notices down: "Resumed at 0:30" stayed over a next video that starts at 0', () => {
+    DOMElements.videoContainer.replaceChildren = () => {};
+    const noop = () => {};
+    const self = withMethods(InterfaceController, ['reset'], {
+      setStatusMessage: vi.fn(), resetPreviewVideo: noop, progressBar: {reset: noop}, saveManager: {reset: noop},
+      stopProgressLoop: noop, state: {}, updatePlayPauseButton: noop, showControlBar: noop, updateToolVisibility: noop,
+      fineTimeControls: {reset: noop}, playbackRateChanger: {reset: noop}, loopControls: {reset: noop}, timeUpdated: noop,
+    });
+    self.reset();
+    const cleared = self.setStatusMessage.mock.calls.filter((call) => call[1] === null).map((call) => call[0]);
+    expect(cleared).toEqual(expect.arrayContaining(['resumed', 'wait']));
+  });
+});
+
 describe('InterfaceController.updateDownloadStatus', () => {
   it('says all is buffered again after a pause, not "paused" for good', () => {
     const manager = {paused: false, getSpeed: () => 0, runningCount: () => 0};

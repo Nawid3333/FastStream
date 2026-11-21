@@ -256,6 +256,9 @@ export class InterfaceController {
     this.setStatusMessage('error', null, 'error');
     // The last video's download line stayed up over a next video that never loaded.
     this.setStatusMessage('download', null, 'success');
+    // Its notices are not the next one's ("Resumed at 0:30" over a video that starts at 0).
+    this.setStatusMessage(StatusTypes.RESUMED, null, 'info');
+    this.setStatusMessage(StatusTypes.WAIT, null, 'info');
     // And its "all buffered" was the next one's: one buffered from the start never said so.
     this.shownDownloadComplete = false;
     // The next video may never have fragments to count, and then nothing else hides it.

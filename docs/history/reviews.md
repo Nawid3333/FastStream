@@ -1350,3 +1350,10 @@ Fixed:
   keys typed meanwhile and clicks are now listened for in the capture phase.
 
 Rejected: **the five new strings are missing.** They are in all 16 locales; the review saw a cut diff.
+
+Codex's next pass, with #804 (the resume and subtitles notices) folded in, found three notices on one
+status level: each set ended another's time, the wait notice still covered the pause message when
+the pause came after it, and "Resumed at 0:30" stayed over the next video. Each has its own level
+now; the wait notice goes when the downloads are paused, and `reset()` takes the resume and wait
+notices down. The subtitles notice came again each time the frame's list came with a new stream:
+only tracks the player did not have count now.

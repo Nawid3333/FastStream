@@ -1141,7 +1141,7 @@ export class FastStreamClient extends EventEmitter {
               this.setSeekSave(false);
               this.currentTime = lastTime;
               this.setSeekSave(true);
-              this.interfaceController.setStatusMessage(StatusTypes.INFO, resumedMessage(lastTime,
+              this.interfaceController.setStatusMessage(StatusTypes.RESUMED, resumedMessage(lastTime,
                   this.keybindManager?.keybindMap), 'info', 5000);
             }
           };

@@ -227,8 +227,9 @@ async function recieveSources(request, sendResponse) {
         try {
           track.loadText(sub.data);
           if (track.cues.length > 0) {
-            /** @type {FastStreamWindow} */ (window).fastStream.loadSubtitleTrack(track, request.autoSetSource);
-            loaded++;
+            const added = /** @type {FastStreamWindow} */ (window).fastStream.loadSubtitleTrack(track, request.autoSetSource);
+            // A track the player has already (the frame's list sent again with another stream) is not new.
+            if (added === track) loaded++;
           }
         } catch (e) {
           console.error(e);
@@ -240,7 +241,7 @@ async function recieveSources(request, sendResponse) {
     // Loaded and none on: say they are there (the auto-enable setting is off by default).
     const client = /** @type {FastStreamWindow} */ (window).fastStream;
     if (loaded > 0 && client.interfaceController.subtitlesManager.activeTracks.length === 0) {
-      client.interfaceController.setStatusMessage('info', subtitlesMessage(loaded,
+      client.interfaceController.setStatusMessage('subtitles-hint', subtitlesMessage(loaded,
           client.keybindManager?.keybindMap), 'info', 8000);
     }
   }

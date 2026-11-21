@@ -184,7 +184,10 @@ describe('the player page\'s messages', () => {
     client.addSource = vi.fn(async (s) => s);
     client.clearSubtitles = vi.fn();
     client.setAutoPlay = vi.fn();
-    client.loadSubtitleTrack = vi.fn();
+    // As SubtitlesManager.loadTrackAndActivateBest: the track the player has already for one it has.
+    const tracks = [];
+    client.loadSubtitleTrack = vi.fn((track) => tracks.find((t) => t.label === track.label) ??
+      (tracks.push(track), track));
     return {listener, client};
   }
 
@@ -210,8 +213,19 @@ describe('the player page\'s messages', () => {
     expect(client.interfaceController.carryFullscreen).toHaveBeenCalledTimes(1);
     expect(client.loadSubtitleTrack).toHaveBeenCalledTimes(1);
     // Loaded and none turned on: the player says they are there, once.
-    const said = client.interfaceController.setStatusMessage.mock.calls.filter((call) => call[0] === 'info' && call[3] === 8000);
-    expect(said).toHaveLength(1);
+    const said = () => client.interfaceController.setStatusMessage.mock.calls.filter((call) => call[0] === 'subtitles-hint');
+    expect(said()).toHaveLength(1);
+    expect(said()[0][3]).toBe(8000);
+    // The frame's list sent again with another stream: no new track, nothing said again.
+    listener({
+      type: 'SOURCES',
+      sources: [{url: 'https://cdn.test/ep3.m3u8', mode: 'hls', headers: {}, duration: 1400}],
+      autoSetSource: false,
+      subtitles: [{label: 'English', language: null, data: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello'}],
+    }, {}, vi.fn());
+    // The notice is decided in the same step as the loads.
+    await vi.waitFor(() => expect(client.loadSubtitleTrack).toHaveBeenCalledTimes(2));
+    expect(said()).toHaveLength(1);
   });
 
   it('carries the fullscreen before the subtitles are fetched', async () => {
