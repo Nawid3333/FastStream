@@ -1374,3 +1374,12 @@ Rejected:
   write fails only on a broken or full profile.
 - **An imported regex can hang the URL lists** (`autoEnableURLs`, custom source patterns): the cloud
   copy is the user's own, from their own Mozilla account, as if typed into the options.
+
+## Codex's reviews of #802 and #803 (2026-11-21)
+
+Fixed (#803): **a queued send's check was the first asker's only.** The page after a navigation
+asking for the same stream got the pending send back, and when the old page's check said no,
+both were dropped. A queued send now goes while any asker still wants it.
+
+Rejected (#802): **the Shift+A test mocks the on-screen display it checks.** The test checks what
+the key asks the display to show; showing it is the display's own job, shared by every key.

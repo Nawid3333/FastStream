@@ -212,6 +212,8 @@ function legacyWatch(port, onEvent) {
 
 export class MpvBackend {
   constructor() {
+    /** @type {WeakMap<Promise<StreamResult>, Array<?(() => boolean)>>} A queued send's askers' checks (openStream). */
+    this.sendWanted = new WeakMap();
     /** @type {boolean} */
     this.warnedAboutHost = false;
     /** @type {string} */
@@ -442,9 +444,11 @@ export class MpvBackend {
     }
 
     if (tab && tab.mpvSentUrls) {
-      // One still on its way: its own answer, as an "ok" at once was wrong when that one failed.
+      // One still on its way: its own answer, as an "ok" at once was wrong when that one failed. It goes while any
+      // asker wants it: the page after a navigation asks for the stream its old page queued.
       const sending = tab.mpvSending?.get(url);
       if (sending) {
+        this.sendWanted.get(sending)?.push(wanted);
         return sending;
       }
       if (tab.mpvSentUrls.has(url)) {
@@ -456,7 +460,10 @@ export class MpvBackend {
     /** @type {MpvStream} */
     const stream = {url, headers, contentType, pageUrl, pageTitle, extras: extras || {}};
     // Never a rejection: a throw while the message was built is a send that did not go.
-    const sent = this.sendStream(stream, wanted).catch((e) => ({ok: false, error: String(e)})).then((result) => {
+    /** @type {Array<?(() => boolean)>} null wants it whatever happens. */
+    const wants = [wanted];
+    const anyWanted = () => wants.some((want) => !want || want());
+    const sent = this.sendStream(stream, wanted ? anyWanted : null).catch((e) => ({ok: false, error: String(e)})).then((result) => {
       // Not sent, or mpv never started: forget the URL so the user can retry it.
       if (!result.ok && tab && tab.mpvSentUrls) {
         tab.mpvSentUrls.delete(url);
@@ -466,6 +473,7 @@ export class MpvBackend {
     if (tab && tab.mpvSentUrls) {
       if (!tab.mpvSending) tab.mpvSending = new Map();
       tab.mpvSending.set(url, sent);
+      this.sendWanted.set(sent, wants);
       sent.then(() => {
         if (tab.mpvSending.get(url) === sent) tab.mpvSending.delete(url);
       }).catch(() => {});
