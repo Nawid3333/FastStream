@@ -1963,8 +1963,10 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   "RAM for buffered video" 0 where nothing goes to disk, the client downloads nothing ahead; only
   the players' own 10-30 s are buffered, and a short slowdown of the line stops the video. After
   2 s of waiting while playing, once per video, an info for 12 s names the setting
-  (`player_wait_*`). Nothing for a live stream or with no such limit (a slow line).
-  `WaitNotice.test.mjs`.
+  (`player_wait_*`). Nothing for a live stream, with no such limit (a slow line), or while the
+  downloads are paused (that message names the key). The speed limit is named only while the
+  downloads reach 80% of it: the gate stops them only above it, so on a line slower than the limit
+  the line is the cause. `WaitNotice.test.mjs`.
 
 ## Utils, options, enums, dash2mp4: reasons behind the code
 
