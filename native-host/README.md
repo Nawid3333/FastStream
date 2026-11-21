@@ -98,8 +98,8 @@ A process the WMI service creates may not take the foreground, so mpv would
 open behind the browser. The host's PowerShell waits for mpv's window (up to
 30 s for an mpv it starts, 5 s for the one already open) and
 raises it (it attaches to the foreground window's input queue), then checks
-250 ms later that mpv's window really is in front. The answer to an `open`
-says how that went (host version 3): `focus` (`True`, `False`, `nowindow`, ...)
+250 ms later that mpv's window really is in front. The answer to a `play`
+says how that went: `focus` (`True`, `False`, `nowindow`, ...)
 and `foreground` (`True` when the check found mpv in front), plus `reused: true`
 when the stream went into the mpv already open; the message list at the top of
 `faststream-mpv-host.mjs` names every value. Both describe that moment only. An
@@ -291,11 +291,11 @@ Since host 15 (2026-10-13) this should rarely be needed: the host became a thin
 helper that only starts mpv and passes allowlisted commands to it, and what used to
 change in it (the stream's fragment tags, titles, the quality list, MPV autoplay's
 end detection, notices) lives in the extension, which Firefox updates. The host
-sends its version (`HostVersion` in `faststream-mpv-host.mjs`) and what it offers
-(`capabilities`) with every answer. An older host keeps working through the
-messages it knows and only lacks newer features: FastStream says so in the toolbar
-button's tooltip in MPV mode and in **Test mpv connection** on the options page,
-without a `!` on the button or a warning in the player.
+sends its version (`HostVersion` in `faststream-mpv-host.mjs`) with every answer.
+Only the latest host is supported: one older than the extension needs
+(`RequiredHostVersion` in `chrome/background/MpvBackend.mjs`) gets no stream, and
+FastStream says what to run in the player, as a `!` with a tooltip on the toolbar
+button in MPV mode, and in **Test mpv connection** on the options page.
 
 ## Testing the host by hand
 

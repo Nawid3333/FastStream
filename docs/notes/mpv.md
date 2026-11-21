@@ -22,13 +22,15 @@ Editing `native-host/faststream-mpv-host.mjs` in the repo changes nothing
 until it is copied to the install directory — a rebuild does **not** ship it.
 
 **The host's version (2026-10-04).** `HostVersion` in the host goes out with every answer
-(`withHostVersion`), and `RequiredHostVersion` in `MpvBackend.mjs` is the host the
-extension was released with. An answer with a lower version, or with none (a host from
-before this), is an outdated host (`MpvBackend.isHostOutdated`): the stream still goes
-to it, and the result carries `hostOutdated`. That shows as "!" on the toolbar button
-in MPV mode with what to run in the tooltip (`tab.mpvHostOutdated`, persisted like
-`mpvError`, whose reason comes first), in the player's "Sent to mpv" message, and after
-"Test mpv connection". This replaced `mpv-host-changed.yml`'s e-mail. **Every change to
+(`withHostVersion`), and `RequiredHostVersion` in `MpvBackend.mjs` is the oldest host the
+extension works with. An answer with a lower version, or with none (a host from before
+versions answers "unknown message"), is an outdated host (`MpvBackend.isHostOutdated`).
+Since host 32 it gets no stream: `MpvBackend.checkHost` pings before the first stream after
+each background start, and again while the last answer was outdated, and an outdated host
+makes the hand-off fail with `hostOutdated` and what to run (`options_mpv_test_outdated`,
+`_unix` outside Windows). That shows as "!" on the toolbar button in MPV mode with what to
+run in the tooltip (`tab.mpvHostOutdated`, persisted like `mpvError`), as the player's
+"Could not open in mpv" reason, and after "Test mpv connection". This replaced `mpv-host-changed.yml`'s e-mail. **Every change to
 the host file or to `install.ps1` raises `HostVersion` by one**, and `RequiredHostVersion`
 with it only when the extension needs the new host (since 2026-10-23: a change that alters
 no behaviour, such as the host's types, has every installed host go on working, and nobody
@@ -39,6 +41,15 @@ from the repository's by the host file alone; a raised `HostVersion` changes tha
 extension changes with it, so such a push releases, Firefox updates the extension, and
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
+
+**Host 32 (2026-11-21, the latest helper only; RequiredHostVersion 32).** The owner supports only the
+latest Firefox and the latest mpv helper, so no code for older helpers is kept. The helper drops the
+`open`, `status` and `watch` messages of extensions before host 15 (`launchMpv`, `loadIntoExisting`,
+`queryDecoder`, `watchMpv` and its copies of the target builders, which `MpvTarget.mjs` holds); the
+extension drops `capabilities` (`learn()`, `mayUse`), the legacy watch and decoder question, the
+fallbacks for "unknown message" and `player_mpv_needs_hls_helper`, and sends a helper below 32 nothing
+but a ping (above). Every message to the helper may be 16 MB (1 MB without a stream's playlists
+before). The helper still names its `capabilities`, which extensions before this one read.
 
 **Host 31 (2026-11-21, subtitle files no mpv reads; RequiredHostVersion stays 19).** Found by the review
 of 2026-11-21 (`docs/history/reviews.md`). A play's subtitle files now follow its playlists: `playMpv`
@@ -206,9 +217,7 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   playlists at the open; going back to such an episode in mpv's playlist then fails. The playlists are kept out of
   the debug log (their key). Messages to the helper may be 16 MB (1 MB before).
 - *Answer:* `local`, the entry's path: MPV autoplay knows mpv's `path` by it (`watchMpvFor`).
-- *Older helper:* `knows('hls')` asks it again until it has the capability (an update is noticed at
-  the next send); without it nothing goes and the user reads `player_mpv_needs_hls_helper` (an older
-  helper would ignore the field and play the address). No helper at all: it goes, and the answer says so.
+- *Older helper:* gets no stream (host 32, above). No helper at all: it goes, and the answer says so.
 - *Quality list:* not sent for such a stream (its addresses lack the key).
 Measured on the live stream: the variant's package 357 KB, the master's 1.07 MB in 234 ms; mpv played
 1920x816 from both. Codex's design review (2026-11-18) shaped the parser port and the whitelist; the
@@ -231,8 +240,8 @@ The helper now lets the extension read `keep-open` and set `file-local-options/k
 (the playing file only). While MPV autoplay is on, the relay watch asks for each new file's
 keep-open and sets the file's to "yes" when the user's is "no". Turning autoplay off puts "no"
 back, and mpv gives the next file the user's own value. So a stock mpv now stays on the last
-frame, paused, for the countdown, as an mpv with keep-open does. A helper before 24 refuses
-both commands with `mpv-refused`; the watch goes on without them, as before. Left as is (the Claude
+frame, paused, for the countdown, as an mpv with keep-open does. Should the helper refuse
+both commands (`mpv-refused`), the watch goes on without them. Left as is (the Claude
 API review): a watch that ends mid-file (an extension reload) leaves that one file's "yes", and a
 new watch reads it as the user's value; the next file has the user's own again. And the user's
 "no" now counts only with autoplay off: a film, or a series' last episode, waits on its last
@@ -260,17 +269,14 @@ installed host 22 behaves the same.
 reinstall by hand, because policy lived in it. The owner chose to move the policy into the
 extension and keep only mechanics in the host, offered as allowlisted primitives: `play`
 (mpv's target, title, start and header fields built by `chrome/background/MpvTarget.mjs`,
-byte for byte as the host built them from `open`, `tests/unit/MpvTarget.test.mjs` compares
-them with the host's own functions), `ipc` (one-shot mpv commands: `decoderStatus` asks
+byte for byte as the host built them from `open`; `tests/unit/MpvTarget.test.mjs` pins
+the values), `ipc` (one-shot mpv commands: `decoderStatus` asks
 mpv's decoder properties itself, once a second while it opens) and `relay` (a port that
-passes mpv's lines on: `chrome/background/MpvRelayWatch.mjs` is watchMpv's end detection,
+passes mpv's lines on: `chrome/background/MpvRelayWatch.mjs` is the end detection the host's watchMpv had,
 and `MpvBackend.watch()` gives background.mjs the same events). Every host-15 answer names
-its `capabilities`; `MpvBackend` remembers them from every answer (`learn()`), sends the new
-message while nothing is known, and an older host's "unknown message" makes it use the
-legacy `open`/`status`/`watch` from then on. No hard version gate since: an outdated host
-shows in the toolbar's tooltip and "Test mpv connection" only, with no "!" (only an error
-shows "!") and no warning in the player ("Sent to mpv", the owner chose silence). `play`
-carries the options page's mpv path as `open` does, and the host takes it by the same rule
+its `capabilities`; until host 32 `MpvBackend` used them to fall back to the legacy
+`open`/`status`/`watch` for an older host, with no hard version gate (host 32 ended both). `play`
+carries the options page's mpv path as `open` did, and the host takes it by the same rule
 (`resolveMpvPath`: an mpv executable only). Notices go to notify.lua in whole seconds, 1 to
 60 (the host refuses "6.5", and notify.lua reads "0" as "stay until hidden").
 
@@ -774,7 +780,7 @@ pipe names are machine-wide, so another account must not be able to guess it
 that answers `loadfile` with an error is not replaced by a second one.
 
 **`@native` (2026-11-18, Nawid's ask):** no upscaler for a site or video; mpv's gpu-toggles.lua (mpv-config) treats `fs-content=native` like a local file for Auto (no shaders; Anime/Movie still by hand). A helper older than 26 drops the tag, which mpv also plays without shaders.
-**Anime/movie content-type hint (2026-09-12).** `open` messages always
+**Anime/movie content-type hint (2026-09-12).** Streams sent to mpv always
 carry `contentType: 'anime'|'movie'|'native'` — never omitted — resolved by
 `background.mjs`'s `resolveMpvContentType(explicit, url)`: the player's
 manual override if set (`SaveManager.mjs`'s `mpvContentType`, right-click
@@ -787,9 +793,8 @@ accepted but never required. Only the manual override is available on the
 button-click path — the two webRequest/DNR auto-forward paths
 (`onSourceRecieved`, `openMpvWithSources`) never load the player, so they
 only ever see the allowlist tag (or the movie default).
-`faststream-mpv-host.mjs`'s `withContentTypeFragment` appends it to the
-stream URL as `#fs-content=anime`/`movie`/`native` before either launch
-path (`launchMpv`'s spawn args, `loadIntoExisting`'s `loadfile` command) —
+`MpvTarget.mjs`'s `withContentTypeFragment` (the host's until host 15) appends it to the
+stream URL as `#fs-content=anime`/`movie`/`native` in the `play` message's target —
 a URL fragment, so it never reaches the CDN and cannot break a signed URL.
 An mpv-side script reads that marker back off the `path` property as its
 *sole* signal (`fs-content=anime` present → anime, else movie) — an earlier
@@ -850,9 +855,8 @@ no end; once the user goes back and plays on, the real end is one. An answer tha
 (no length, a helper that refuses) counts as an end, as before; so does an end-file "eof", after
 which there is nothing left to ask. Checked with the real `relayWatch` over a stand-in helper port
 against the real mpv: main's told an end at 60 s of the broken stream, the new one none, and one
-at 180 s of the stream that did not break off. The helper's `watchMpv` keeps the old rule: only
-extensions from before the relay use it, and a change there would move the host's version for no
-one.
+at 180 s of the stream that did not break off. The helper's `watchMpv` kept the old rule until host 32
+removed it.
 
 **The next page's stream: the longest, not the first (2026-10-14).** His report (2026-10-13):
 MPV autoplay from an anime site's season 1 to season 2 showed episode 1's title in mpv on a black
@@ -972,7 +976,9 @@ host's come first. "Test mpv connection" asks too (`waitMs: 0`) and adds the sam
 while such an mpv is open. A host from before answers "unknown message", which reads as no
 answer. Tests: `tests/unit/mpvDecoderStatus.test.mjs`, including a socket that answers as
 mpv does (Linux) and the background end to end; not yet run against a real mpv. mpv's own
-choice of stream version is issue #330.
+choice of stream version is issue #330. Since host 15 `decoderStatus` asks mpv over `ipc` and the
+relay watch reads the decoder as mpv opens a stream; host 32 removed `status`, `queryDecoder`,
+`followMpvDecoder` and `tab.mpvDecoderQuery`.
 
 **How raising mpv's window went, an mpv that quits at once, mpv.com (2026-10-04, host
 version 3).** From the review of the owner's "mpv opens behind Firefox" (since 1.3.82.57):
@@ -1067,8 +1073,7 @@ resume position for a stream sent from a private window. `openInMpv` reads the t
 `incognito` and passes `extras.private`; `mpvTargetUrl` adds `fs-private=1` after `fs-id`, and
 mpv-config's `stream-resume.lua` neither reads nor saves a position for such a file. The
 `fs-id` stays: mpv's episode buttons (`faststream-episodes.lua`) know a FastStream stream by it,
-so dropping it would have taken MPV autoplay away in private windows. Only the thin helper's
-play carries it: a helper before host 15 builds the URL itself and cannot.
+so dropping it would have taken MPV autoplay away in private windows. Only `play` carries it.
 
 ## Host 15: the thin helper
 
@@ -1092,30 +1097,30 @@ second mpv on it), the start through WMI with the focus script on Windows (`laun
 job object) and `launchDirect` elsewhere, the subtitle files in a fresh temp folder
 (`writeSubtitleFiles`), the per-file options and their escaping (`perFileOptions`, `listItem`,
 the path list), and the IPC transport with its own request numbering (`mpvIpcRequest`). The
-legacy messages `ping`, `open`, `status` and `watch` stay exactly as they were for older
-extensions; every answer of host 15 also carries `capabilities: ['play', 'ipc', 'relay']`,
-and a host before 15 answers those types "unknown message" without it.
+legacy messages `open`, `status` and `watch` stayed for older extensions until host 32, and
+`ping` stays; every answer since host 15 carries `capabilities`, and a host before 15 answers
+the new types "unknown message" without it.
 
 **The three primitives.**
 - `play` (`checkPlayMessage`, `playMpv`): `{target, title?, start?, headers?, subtitles?,
   fullscreen?, newWindow?}`. The extension builds `target` (the URL with its fs-* tags) and the
-  title as the helper's own functions did for `open` (they stay exported for that comparison).
+  title as the helper's own functions did for `open` (removed with `open` in host 32).
   Without newWindow the stream goes into the mpv on the helper's pipe as one named `loadfile`
-  (`loadInto`, shared with the legacy `loadIntoExisting`). With none there, or with newWindow,
+  (`loadInto`). With none there, or with newWindow,
   mpv starts with helper-fixed arguments only (`freshMpvArgs`: `--input-ipc-server=<pipe>
   --idle=once --force-window=immediate --no-terminal [--fullscreen]`), the helper waits up to
   15 s for its pipe (`waitForPipe`, `get_property pid` every 200 ms), then sends the same
   `loadfile`. newWindow's pipe is the helper's plus `-` and 16 random hex digits: the window on
   the helper's pipe stays the one later sends, `ipc` and `relay` reach without a window (host 30
   names the new one, below).
-  `play` takes the options page's `mpvPath` as the legacy `open` does: resolveMpvPath accepts
+  `play` takes the options page's `mpvPath` as the legacy `open` did: resolveMpvPath accepts
   only an mpv executable or its folder (no network or device path), so it names no program but
   mpv; without one, config.json's `mpvPath`, the usual folders and the PATH count, and a missing
-  mpv says what `open` says (mpvNotFoundError).
+  mpv says what `open` said (mpvNotFoundError).
 - `ipc` (`runIpc`): at most 32 array-form commands, all allowlisted or none sent
   (`{ok: false, error: 'refused', index, reason}`); replies in the commands' order,
   `{error: 'no reply'}` for one mpv did not answer in time.
-- `relay` (`checkRelayMessage`, `relayMpv`): a port like `watch`. Every line of mpv's goes to
+- `relay` (`checkRelayMessage`, `relayMpv`): a port like the legacy `watch`. Every line of mpv's goes to
   the extension as `{type: 'mpv', data}` except the replies to the relay's own requests (every
   line it writes, the heartbeat's and onStop's included, carries a request id of its own, so
   mpv's answers are told apart from events); a line over 1000 KB (`MaxRelayLineBytes`) is dropped, and when it was the
@@ -1171,7 +1176,7 @@ set `user-data/faststream/connected` to false; `ipc` refused `run` and `options/
 `time-pos` is unavailable for about 0.1 s after `play` answers (loadfile answers before mpv
 has opened the stream): the extension must read that as "not yet", not as an error. Not
 measured: `play` through WMI and the focus script with a real window (the unit tests cover the
-decisions; the launch itself is the legacy one).
+decisions; the launch itself is the one `open` used).
 
 **Tests.** `tests/unit/mpvAllowlist.test.mjs` (every allowed shape, and many refused ones:
 the commands above, wrong types, extra arguments, `${`, control characters, other notify
@@ -1205,7 +1210,6 @@ plays, the helper addresses more than one window (capability `windows`):
 - `ipc`, `relay` and the new `raise` (`raiseMpv`: the window's pid over its pipe, then the focus script) take
   `window`. `checkWindow` refuses anything but `''` or a WindowId before a pipe name is made, and `ipcPipeFor`
   throws on one, so a window can only ever be a hex suffix of the helper's own pipe name (token included).
-- An older helper answers no `window` and has no `windows` capability: the extension keeps one window then.
 
 **Tests.** `mpvAllowlist.test.mjs` (window and paused checks in play and relay), `mpvThinHost.test.mjs`
 (play into an open window, a closed one, a busy one; the paused arguments and no raise; raiseMpv; a copy of the
@@ -1218,10 +1222,8 @@ gone one closed).
 ### Several mpv windows in the extension
 
 - `MpvMode.mjs` keeps one `MpvWatch` per window followed (`mpvWindows`, by the helper's id, `''` for the one on its
-  pipe); `MpvBackend.watch` keeps one relay port per window, and `relay` names only a window other than `''`, so a
-  helper before 30 sees the same messages as before. The window comes from `play`'s answer; an older helper's
-  answer has none, which is `''`. openStream's answer for a stream the tab sent already names none either: the tab
-  keeps the window it follows.
+  pipe); `MpvBackend.watch` keeps one relay port per window, and `relay` names only a window other than `''`. The window comes from `play`'s answer;
+  openStream's answer for a stream the tab sent already names none: the tab keeps the window it follows.
 - A tab's stream follows one window (`tab.mpvWindow`). Its next stream going to another window lets the one before
   go (`letGoOfTab`): that window plays on, and its end and keys say "unavailable" at once, with no countdown.
 - Another file opened in a followed window (dropped in, from mpv's own playlist) stops a countdown running there
@@ -1268,7 +1270,7 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
   once-per-page latch and the page player's `mpvLastPlaySend` stay, so its own repeated play does not ask again:
   that repeat guard holds while mpv asks and for `MpvPlayRepeatMs` from the answer, not from the send. The player's
   button says so (`player_mpv_declined`) and waits 30 s for an answer (the waits before a send, 2 s to ask, 17 s).
-- Not asked: MPV autoplay's next episode (its own window), "Reuse one mpv window" off, a helper before 30, a URL the
+- Not asked: MPV autoplay's next episode (its own window), "Reuse one mpv window" off, a URL the
   tab sent or is sending, and a window FastStream does not follow (no relay to hear the answer). The page or MPV
   gone while it asked sends nothing.
 
@@ -1278,14 +1280,14 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
 
 ## Background: reasons behind the code
 
-- **`MpvSubtitles.mjs`** - A track's file is read only up to twice the host's message cap
-  (`HostMaxMessageBytes`, 1 MB): a larger one could not be sent anyway, and parsing it would
+- **`MpvSubtitles.mjs`** - A track's file is read only up to twice what the helper takes of one
+  track (`MaxSubtitleChars`, 1,048,576 characters): a larger one could not be sent anyway, and parsing it would
   hold up the background and every tab's detection. The parser is imported when first needed,
   because vtt.js takes its window from the global scope when it loads.
 - **`MpvBackend.addSubtitles`** - A track over the helper's 1,048,576 UTF-16 units
   (`MaxSubtitleChars` there and here) is left out: the helper refuses the whole play message for
-  one. A message with a stream's playlists may be 16 MB and has room for such a track, where the
-  1 MB of any other message never had; the stream then failed with "the subtitles are not at most
+  one. A message may be 16 MB and has room for such a track, where the 1 MB of a message without
+  a stream's playlists before host 32 never had; the stream then failed with "the subtitles are not at most
   8 SubRip texts with labels" instead of playing without that track.
 - **`MpvRelayWatch.relayWatch`** - mpv's JSON IPC as measured with the pinned mpv (headless,
   keep-open): `observe_property` sends the current value at once, so the first eof-reached and
@@ -1306,9 +1308,6 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
 - **`MpvBackend.sentPageUrl`** - A page URL holding half of a surrogate pair cannot be
   percent-encoded (`encodeURIComponent` throws): a helper before host 15 threw on it, answered
   nothing, and the hand-off said the helper was not installed.
-- **`MpvBackend.sendStreamNow`** - A private window's stream is not sent to a helper before
-  host 15: its open message has no `fs-private`, and mpv would keep the stream's position on
-  disk (stream-resume.json).
 - **`MpvMode.goToEpisode`** - Waits at most `MpvPageNavigateMs` for a frame to answer its
   next/previous request: a frame that never answered kept `state.going` set, and every later
   key, button and autoplay of the session returned at it. Space at an episode's end stops that
@@ -1339,6 +1338,6 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
 - **`WindowWaitSeconds`** - 30 s, half of mpv's 60 s `--network-timeout`: deadlines of 3 s and
   10 s expired on cold starts of this mpv setup (gpu-next on Vulkan, uosc, thumbfast, shaders)
   and on slow streams, and mpv then opened behind the browser.
-- **`watchMpv`'s `notify`, `hide`** - A notice names how long it stays: with notify.lua's 2 s
+- **`notify`'s seconds (`MaxNoticeSeconds`), `hide`** - A notice names how long it stays: with notify.lua's 2 s
   default, a countdown ("next episode in 5 s") or a sentence to read was gone before it was read.
   `hide` takes a countdown down when it stops with nothing else to say.
