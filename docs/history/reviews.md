@@ -1332,7 +1332,11 @@ asking for the same stream got the pending send back, and when the old page's ch
 both were dropped. A first fix let the send go while any asker wanted it; Codex's next pass found
 that this sends the old page's payload, placed in an mpv window the user may have filled since
 (no offer). Now a page given a send dropped as another page's, and still wanting it, hands the
-stream off itself (`openInMpv` again): placed anew, with its own page.
+stream off itself (`openInMpv` again): placed anew, with its own page. Codex's third pass: the
+retry started from `url`, by then the quality the first try picked, and a disguised stream's keyed
+playlist package is built only from the detected address, so mpv got the bare quality address and a
+403. It starts from `detected` now (Codex reproduced it in the background harness; the unit test
+covers the retry from a master playlist, whose qualities still go along).
 
 Rejected (#802): **the Shift+A test mocks the on-screen display it checks.** The test checks what
 the key asks the display to show; showing it is the display's own job, shared by every key.

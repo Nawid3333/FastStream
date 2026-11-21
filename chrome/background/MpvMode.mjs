@@ -1422,8 +1422,9 @@ export async function openInMpv(tabId, url, ...rest) {
     const args = Array.from({length: 6}, (_, i) => rest[i]);
     let result = await Mpv.openStream(url, ...args, wanted);
     // Given the same stream's send, queued for the page before a navigation, and dropped as that page's: this page
-    // hands it off itself, placed anew (an mpv window's state is what it is now).
-    if (result.dropped && wanted?.()) return await openInMpv(tabId, url, ...given);
+    // hands it off itself, placed anew (an mpv window's state is what it is now), from the stream it detected: `url`
+    // may be a quality of it by now, whose keyed package comes only from the detected one.
+    if (result.dropped && wanted?.()) return await openInMpv(tabId, detected, ...given);
     if (placed.extras?.window && !result.ok && 'closed' in result && result.closed) {
       // The window went meanwhile: a fresh one, not the helper's own pipe's, where another window may play.
       rest[5] = {...rest[5], newWindow: true};

@@ -69,8 +69,11 @@ describe('MPV mode with the thin helper', () => {
     return bg.ports.at(-1);
   }
 
-  it('hands the stream off for the page after a navigation that asked for it while the page before still waited',
-      async () => {
+  const Master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=8000000,RESOLUTION=1920x1080\n1080.m3u8\n' +
+    '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720\n720.m3u8\n';
+  it.each([['a media playlist', false], ['a master playlist, from the detected master', true]])(
+      'hands the stream off for the page after a navigation that asked for it while the page before still waited: %s',
+      async (name, master) => {
         // Another tab's play takes 2 s, and tab 1's stream waits behind it. Tab 1 goes to the next page of the site
         // meanwhile, which finds the same stream: it got the waiting send's answer, dropped as the old page's.
         const OTHER = 'https://site.test/watch/9';
@@ -79,7 +82,7 @@ describe('MPV mode with the thin helper', () => {
         bg = await loadBackground({
           options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true},
           tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER, title: 'Other'}],
-          fetch: () => Promise.resolve(response(hlsPlaylist(1400))),
+          fetch: (url) => Promise.resolve(response(master && url === S1 ? Master : hlsPlaylist(1400))),
           thinHost: true,
           onNative: (message) => message.type === 'play' && message.target.startsWith(S9) ?
             new Promise((resolve) => setTimeout(() => resolve(thinHelper(message)), 2000)) : thinHelper(message),
@@ -98,9 +101,11 @@ describe('MPV mode with the thin helper', () => {
         await bg.wait(4000);
         const plays = bg.native.filter((m) => m.type === 'play');
         // Once, as the new page's.
-        const sent = plays.filter((m) => m.target.startsWith(S1));
+        const sent = plays.filter((m) => m.target.startsWith('https://cdn.test/one/'));
         expect(sent).toHaveLength(1);
         expect(new URL(sent[0].target).hash).toContain('fs-page=' + encodeURIComponent(NEXT));
+        // With the master's qualities, as the first try had them.
+        expect(new URL(sent[0].target).hash.includes('fs-quality=')).toBe(master);
       });
 
   // The owner's pick: mpv keeps no resume position for a private window's
