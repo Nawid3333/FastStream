@@ -2197,7 +2197,7 @@ export class FastStreamClient extends EventEmitter {
       // A reload to mend a load that went wrong keeps what it downloaded: one click starts over without it.
       this.interfaceController.setStatusMessage(StatusTypes.REUSED,
           Localize.getMessage('player_buffer_reused', [StringUtils.formatSize(bytes)]), 'info', ReusedNoticeMs,
-          () => this.downloadAgain());
+          () => this.source === source && this.downloadAgain());
     }
     onDisk.then((fromDisk) => {
       record.taken += fromDisk;
@@ -2212,7 +2212,8 @@ export class FastStreamClient extends EventEmitter {
    */
   downloadAgain() {
     const source = this.source;
-    if (!source || !this.player || !/^https?:/i.test(source.url)) {
+    // Not while another source is on its way in (a reset waiting for a save): it would replace that one.
+    if (!source || !this.player || !/^https?:/i.test(source.url) || this.fallbacks.request !== this.sourceRequests) {
       return false;
     }
     this.interfaceController.setStatusMessage(StatusTypes.REUSED, null);

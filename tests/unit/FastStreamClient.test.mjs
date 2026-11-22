@@ -3339,6 +3339,17 @@ describe('FastStreamClient, downloading the video again', () => {
     expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('reused', null);
   });
 
+  it('does not replace a source that is on its way in', async () => {
+    const client = makeClient();
+    await setSource(client, makeSource('https://cdn.example/a.m3u8'));
+    // setSource(B) counted its request; its reset still waits (for a save to be cancelled, say).
+    client.sourceRequests++;
+    client.playerLoader.createPlayer = vi.fn();
+    expect(client.downloadAgain()).toBe(false);
+    await settle();
+    expect(client.playerLoader.createPlayer).not.toHaveBeenCalled();
+  });
+
   it('does nothing without a player, or for a file', async () => {
     const client = makeClient();
     expect(client.downloadAgain()).toBe(false);
@@ -3371,6 +3382,17 @@ describe('FastStreamClient, a buffer taken back', () => {
     client.downloadAgain = vi.fn();
     call[4]();
     expect(client.downloadAgain).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not download another video again, clicked once that one plays', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client = clientTaking({taken: 1, bytes: 1.4e9});
+    await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+    const call = client.interfaceController.setStatusMessage.mock.calls.find(([key]) => key === 'reused');
+    client.source = makeSource('https://cdn.example/other.m3u8');
+    client.downloadAgain = vi.fn();
+    call[4]();
+    expect(client.downloadAgain).not.toHaveBeenCalled();
   });
 
   it('says nothing when none of it was taken (another link)', async () => {
