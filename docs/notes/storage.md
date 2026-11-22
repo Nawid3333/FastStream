@@ -384,6 +384,18 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   `ExtensionPermissionMessages.sys.mjs`'s `PERMISSIONS_WITH_MESSAGE`, so the update installs without
   asking. Persistent storage is not cleared under disk pressure: a session left by a crash goes by
   the heartbeat prune (`opfs-worker.mjs` `prune`), as before.
+- **The persisted quota needs a `persist()` from a top-level page** (2026-11-22, #798 again). The
+  quota is half the size of the file system the Firefox profile is on, not of its free space
+  (Windows: 899.6 GB of a 1,799 GB drive; Linux, WSL Ubuntu 26.04: 540.55 GB of a 1007 GiB ext4, and
+  12.63 GB for a profile on a 24 GiB tmpfs). The framed player shares the extension's storage (no
+  partition per site). But `unlimitedStorage` alone persisted it only when a top-level extension page
+  opened the storage first, or after a Firefox restart: with the player framed in a web page opened
+  first (a site, right after an install), the storage kept the 10 GiB of best-effort storage for the
+  whole session, on Windows and Linux alike, and the frame's own `persist()` answers false. A
+  `persist()` from a top-level page answers true in a few ms, and the framed player has the full quota
+  at once. The background (a top-level page) asks at every start (`background.mjs`): measured with
+  the built extension, framed first, 899.6 GB on Windows and 540.55 GB on Linux at once, where 229
+  had 10.74 GB. An update (227 to 229) got the quota within seconds without it.
 - **Why a video is not predownloaded whole** (2026-11-21, #798): `roomWarning` names the cause, once
   per video, as an info for 12 s, and each message says it still plays and how far ahead it keeps
   loading. The maximum size setting (`player_buffer_size_warning`; none for a maximum of 0, which
