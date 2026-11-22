@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "Danke fürs Installieren von FastStream! Bitte lass uns wissen, falls du irgendwelche Probleme oder Vorschläge hast."
     },
+    "welcome_page_ram_header": {
+        "message": "Arbeitsspeicher dieses Computers"
+    },
+    "welcome_page_ram_question": {
+        "message": "Wie viel Arbeitsspeicher (RAM) hat dieser Computer? FastStream behält einen Teil jedes Videos im Arbeitsspeicher und den Rest auf der Festplatte; deine Antwort legt fest, wie viel Arbeitsspeicher es nutzen darf."
+    },
+    "welcome_page_ram_set": {
+        "message": "Eingestellt: FastStream behält bis zu $1 Video im Arbeitsspeicher, den Rest auf der Festplatte. Du kannst das in den Einstellungen unter „Allgemeine Einstellungen“ ändern."
+    },
     "welcome_page_keybinds_header": {
         "message": "Standard-Tastatursteuerung"
     },
@@ -861,7 +870,22 @@
         "message": "0: Heruntergeladenes Video wird nicht beibehalten, und wenn „Video auf der Festplatte speichern“ deaktiviert ist, wird nichts vor der Wiedergabe heruntergeladen, sodass Videos stoppen könnten. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_rambudget_none": {
-        "message": "Keine Begrenzung: Alle heruntergeladenen Videos bleiben im Arbeitsspeicher, nichts wird auf die Festplatte geschrieben. Auf einem PC mit wenig Speicher kann es sein, dass Firefox langsamer wird."
+        "message": "Kein Limit: Das gesamte heruntergeladene Video bleibt im Arbeitsspeicher, nichts kommt auf die Festplatte. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren: Lege ein Limit fest, außer er hat reichlich davon."
+    },
+    "options_general_rambudget_high": {
+        "message": "So viel Video im Arbeitsspeicher kann einen Computer einfrieren: Windows und Firefox brauchen den Großteil davon. Mit „Video auf der Festplatte speichern, wenn dieser Arbeitsspeicher voll ist“ bleibt der Rest des Videos auf der Festplatte und spielt genauso."
+    },
+    "options_general_ramsize": {
+        "message": "Arbeitsspeicher dieses Computers (RAM): stellt den Arbeitsspeicher für gepuffertes Video passend ein"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Nicht angegeben"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 oder mehr"
+    },
+    "options_list_ignored_lines": {
+        "message": "Ausgelassen, kein gültiger Eintrag: Zeile $1"
     },
     "options_general_bufferahead": {
         "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, wenn Vorab-Laden deaktiviert ist, gestoppt wurde oder der Speicherplatz ausgeht)"

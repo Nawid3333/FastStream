@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "Obrigado por instalar o FastStream! Nos informe se tiver algum problema ou sugestão."
     },
+    "welcome_page_ram_header": {
+        "message": "Memória deste computador"
+    },
+    "welcome_page_ram_question": {
+        "message": "Quanta memória (RAM) este computador tem? O FastStream guarda parte de cada vídeo na RAM e o resto no disco; sua resposta define quanta RAM ele pode usar."
+    },
+    "welcome_page_ram_set": {
+        "message": "Pronto: o FastStream guarda até $1 de vídeo na RAM, o resto no disco. Você pode mudar isso nas opções, em \"Opções gerais\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Controles padrão do teclado"
     },
@@ -861,7 +870,22 @@
         "message": "0: nenhum vídeo baixado é mantido e, com \"Manter o vídeo no disco\" desativado, nada é baixado antes da reprodução, então os vídeos podem parar de carregar. Deixe o campo vazio para não haver limite."
     },
     "options_general_rambudget_none": {
-        "message": "Sem limite: todo o vídeo baixado fica na RAM, nada vai para o disco. Em um computador com pouca memória, o Firefox pode ficar lento."
+        "message": "Sem limite: todo o vídeo baixado fica na RAM, nada vai para o disco. Um vídeo longo pode ocupar mais memória do que o computador tem e travá-lo: defina um limite, a menos que ele tenha bastante."
+    },
+    "options_general_rambudget_high": {
+        "message": "Tanto vídeo na RAM pode travar um computador: o Windows e o Firefox precisam da maior parte da memória. Com \"Manter o vídeo no disco quando esta RAM estiver cheia\" ativado, o resto do vídeo fica no disco e é reproduzido do mesmo jeito."
+    },
+    "options_general_ramsize": {
+        "message": "Memória deste computador (RAM): ajusta a RAM para o vídeo em buffer de acordo"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Não definida"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 ou mais"
+    },
+    "options_list_ignored_lines": {
+        "message": "Ignorada, não é uma entrada válida: linha $1"
     },
     "options_general_bufferahead": {
         "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download está desativado, parou ou ficou sem espaço)"

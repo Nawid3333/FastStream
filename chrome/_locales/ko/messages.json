@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "FastStream을 설치해 주셔서 감사합니다! 문제나 제안이 있으면 알려주세요."
     },
+    "welcome_page_ram_header": {
+        "message": "이 컴퓨터의 메모리"
+    },
+    "welcome_page_ram_question": {
+        "message": "이 컴퓨터의 메모리(RAM)는 얼마나 되나요? FastStream은 각 동영상의 일부를 RAM에, 나머지를 디스크에 보관합니다. 답에 따라 사용할 수 있는 RAM 양이 정해집니다."
+    },
+    "welcome_page_ram_set": {
+        "message": "설정됨: FastStream은 RAM에 동영상을 최대 $1까지 두고 나머지는 디스크에 보관합니다. 옵션의 \"일반 옵션\"에서 바꿀 수 있습니다."
+    },
     "welcome_page_keybinds_header": {
         "message": "기본 키보드 단축키"
     },
@@ -861,7 +870,22 @@
         "message": "0: 다운로드한 비디오가 유지되지 않으며, \"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"이 꺼져 있으면 재생보다 앞서 다운로드하는 내용이 없으므로 비디오 로딩이 중단될 수 있습니다. 제한 없음으로 하려면 칸을 비워 두세요."
     },
     "options_general_rambudget_none": {
-        "message": "제한 없음: 다운로드한 비디오가 모두 RAM에 유지되고 디스크에는 저장되지 않습니다. 메모리가 적은 PC에서는 Firefox가 느려질 수 있습니다."
+        "message": "제한 없음: 다운로드한 동영상이 모두 RAM에 남고 디스크로는 가지 않습니다. 긴 동영상은 컴퓨터의 메모리보다 많이 차지해 컴퓨터를 멈추게 할 수 있습니다. 메모리가 넉넉하지 않다면 제한을 설정하세요."
+    },
+    "options_general_rambudget_high": {
+        "message": "이만큼의 동영상을 RAM에 두면 컴퓨터가 멈출 수 있습니다. Windows와 Firefox가 메모리의 대부분을 필요로 하기 때문입니다. \"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"을 켜 두면 나머지는 디스크에 보관되며 재생은 똑같습니다."
+    },
+    "options_general_ramsize": {
+        "message": "이 컴퓨터의 메모리(RAM): 버퍼링된 동영상에 쓰는 RAM을 이에 맞게 설정합니다"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "설정 안 함"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 이상"
+    },
+    "options_list_ignored_lines": {
+        "message": "올바른 항목이 아니어서 제외됨: $1번째 줄"
     },
     "options_general_bufferahead": {
         "message": "재생 지점 이후 구간을 버퍼에 유지할 초 수(사전 다운로드가 꺼져 있거나 중지되었거나 공간이 부족할 때 사용)"

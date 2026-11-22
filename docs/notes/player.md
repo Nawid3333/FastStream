@@ -1591,6 +1591,10 @@ readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own p
 - **`background.mjs` `noteProblem`** - Not for a private window's tab: the problem list is kept
   on disk and shown on the options page, so a private window's sites stayed listed there for
   good.
+- **Options page: the URL lists and the custom source patterns** - A line they cannot read (a
+  regex that does not compile, a bare `~` or `-`, a tag alone, an unknown source type) was
+  dropped without a word; the page names those lines under the field (`IgnoredLines.mjs`),
+  numbered as the field shows them, when it loads and after each change.
 
 ## The background's questions to a frame have a time limit
 

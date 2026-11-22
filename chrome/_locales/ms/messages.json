@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "Terima kasih kerana memasang FastStream! Sila maklumkan kepada kami jika anda mempunyai sebarang isu atau cadangan."
     },
+    "welcome_page_ram_header": {
+        "message": "Memori komputer ini"
+    },
+    "welcome_page_ram_question": {
+        "message": "Berapa banyak memori (RAM) yang ada pada komputer ini? FastStream menyimpan sebahagian setiap video dalam RAM dan selebihnya pada cakera; jawapan anda menentukan berapa banyak RAM yang boleh digunakannya."
+    },
+    "welcome_page_ram_set": {
+        "message": "Sudah ditetapkan: FastStream menyimpan sehingga $1 video dalam RAM, selebihnya pada cakera. Anda boleh mengubahnya dalam pilihan, di bawah \"Pilihan Umum\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Kawalan Papan Kekunci Lalai"
     },
@@ -861,7 +870,22 @@
         "message": "0: tiada video yang dimuat turun disimpan, dan dengan \"Simpan video pada cakera\" mati, tiada apa-apa yang dimuat turun di hadapan main balik, jadi video mungkin terhenti. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
     "options_general_rambudget_none": {
-        "message": "Tanpa had: semua video yang dimuat turun kekal dalam RAM, tiada yang disimpan pada cakera. Pada PC dengan memori kecil, Firefox mungkin menjadi perlahan."
+        "message": "Tiada had: semua video yang dimuat turun kekal dalam RAM, tiada yang ke cakera. Video yang panjang boleh menggunakan lebih banyak memori daripada yang ada pada komputer dan menyebabkannya tergantung: tetapkan had melainkan memorinya banyak."
+    },
+    "options_general_rambudget_high": {
+        "message": "Video sebanyak ini dalam RAM boleh menyebabkan komputer tergantung: Windows dan Firefox memerlukan sebahagian besar memorinya. Dengan \"Simpan video pada cakera apabila RAM ini penuh\" dihidupkan, baki video disimpan pada cakera dan dimainkan sama seperti biasa."
+    },
+    "options_general_ramsize": {
+        "message": "Memori komputer ini (RAM): menetapkan RAM untuk video yang ditimbal mengikutnya"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Tidak ditetapkan"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 atau lebih"
+    },
+    "options_list_ignored_lines": {
+        "message": "Diabaikan, bukan entri yang sah: baris $1"
     },
     "options_general_bufferahead": {
         "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan apabila muat turun awal dimatikan, berhenti atau kehabisan ruang)"

@@ -49,6 +49,7 @@ export const DefaultOptions = {
   maxSpeed: -1,
   maxVideoSize: 5000000000,
   ramBudget: 2000000000, // all players together; beyond it: disk (private windows: let go)
+  computerMemory: 0, // GB, as the user gave it (0: not given): sets ramBudget, and when its field warns
   bufferToDisk: true, // false: beyond the RAM budget let go, downloaded again when needed
   bufferAhead: 300, // seconds, when predownloading is off or unavailable
   bufferBehind: 20, // seconds to keep buffered behind playback before trimming

@@ -303,6 +303,26 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   between private and normal windows. The count is the sizes of the Blobs held, an estimate,
   not resident memory; MSE SourceBuffers (Firefox caps them at 150 MiB video / 20 MiB audio each,
   and the players keep only 20-40 s there) are not counted.
+- **Too much for the computer** (issue #798, 2026-11-21: an 8 GB laptop froze with the budget at
+  20 GB, and nothing on the page said that was too much). With no RAM size to read, the user is
+  asked: once on the welcome page, and in Options > General right before the budget ("This
+  computer's memory", `computerMemory` in GB, 0 when not given). An answer sets the budget to an
+  eighth of it, at most 4 GB (`RamGuard.ramBudgetFor`: 4 GB -> 500 MB, 8 -> 1 GB, 16 -> 2 GB,
+  32 or more -> 4 GB), and turns "Keep video on disk" on. The budget's field warns
+  (`ramBudgetRisky`, `options_general_rambudget_high`) above 4 GB, or above a quarter of the
+  memory given, and the no-limit hint names the freeze. Not chosen (the owner, 2026-11-21):
+  taking "no limit" away.
+- **No guard while playing** (measured 2026-11-21; the owner chose not to build one). The one
+  sign an extension has of a computer running out of memory is its own timers running late.
+  Measured with the web player in headless Firefox 160 under a systemd scope (WSL Ubuntu 26.04:
+  3 GB RAM, 2 GB swap; Firefox and the driver took ~2 GB of it), downloading a 60 Mbit/s stream
+  at 20 MB/s, a 50 ms timer's worst lateness per second: with no limit, as the scope filled its
+  RAM and then all its swap, 874 ms once when swapping began, ~200 ms for 20 s, then under 100 ms
+  again; unpaced (~75 MB/s) under 0.5 s until the swap was full, then 13 s and 62 s: frozen.
+  Controls: a 1 GB limit with the disk on, 34 ms at worst (0.75-0.93 GB held, no swap); every core
+  busy, 105 ms; Firefox stopped 5 s (as a laptop asleep), 4993 ms once. The lateness comes only
+  with the freeze, and one late tick looks like a wake from sleep: a guard on it would act too
+  late, or for nothing. The limit itself is what kept the same video smooth.
 - **Release.** Fragments stay in RAM (`FSBlob` deferred saves). Over `HIGH` (90 %) of its share a
   player lets go of fragments until it is back at `LOW` (75 %): furthest behind the playhead
   first, then furthest ahead, never [-10 s, +60 s] around it (private: [-5 s, +30 s]); if that

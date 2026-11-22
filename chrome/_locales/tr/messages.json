@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "FastStream'i yüklediğiniz için teşekkürler! Herhangi bir sorun veya öneriniz olursa lütfen bize bildirin."
     },
+    "welcome_page_ram_header": {
+        "message": "Bu bilgisayarın belleği"
+    },
+    "welcome_page_ram_question": {
+        "message": "Bu bilgisayarda ne kadar bellek (RAM) var? FastStream her videonun bir kısmını RAM'de, kalanını diskte tutar; cevabınız ne kadar RAM kullanabileceğini belirler."
+    },
+    "welcome_page_ram_set": {
+        "message": "Ayarlandı: FastStream RAM'de en fazla $1 video tutar, kalanını diskte. Bunu seçeneklerde, \"Genel Seçenekler\" altında değiştirebilirsiniz."
+    },
     "welcome_page_keybinds_header": {
         "message": "Varsayılan Klavye Kontrolleri"
     },
@@ -861,7 +870,22 @@
         "message": "0: indirilen hiçbir video tutulmaz ve \"Bu RAM dolduğunda videoyu diskte tut\" kapalıyken oynatma noktasının ilerisinde hiçbir şey indirilmez, bu nedenle videolar yüklenirken durabilir. Sınırsız olması için alanı boş bırakın."
     },
     "options_general_rambudget_none": {
-        "message": "Sınırsız: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey yazılmaz. Belleği az olan bir bilgisayarda Firefox yavaşlayabilir."
+        "message": "Sınır yok: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey gitmez. Uzun bir video bilgisayardaki bellekten fazlasını kaplayıp onu dondurabilir: belleği bol değilse bir sınır belirleyin."
+    },
+    "options_general_rambudget_high": {
+        "message": "RAM'de bu kadar video bir bilgisayarı dondurabilir: Windows ve Firefox belleğin büyük kısmına ihtiyaç duyar. \"Bu RAM dolduğunda videoyu diskte tut\" açıkken videonun geri kalanı diskte tutulur ve aynı şekilde oynatılır."
+    },
+    "options_general_ramsize": {
+        "message": "Bu bilgisayarın belleği (RAM): arabelleğe alınan video için RAM'i buna göre ayarlar"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Belirtilmedi"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 veya üzeri"
+    },
+    "options_list_ignored_lines": {
+        "message": "Atlandı, geçerli bir girdi değil: $1. satır"
     },
     "options_general_bufferahead": {
         "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (ön indirme kapalıysa, durduysa veya yer kalmadıysa kullanılır)"

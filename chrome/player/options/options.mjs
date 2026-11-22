@@ -23,6 +23,8 @@ import {MpvSuggestion} from './MpvSuggestion.mjs';
 import {holdImportedNumbers, importedForMigration, settingsForExport} from './SettingsFile.mjs';
 import {CloudSettings} from './CloudSettings.mjs';
 import {WebStorage} from '../utils/WebStorage.mjs';
+import {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory, ramBudgetRisky} from './RamGuard.mjs';
+import {ignoredPatternLines, ignoredUrlLines, showIgnoredLines} from './IgnoredLines.mjs';
 
 // Empty until loadOptions: the select menus below are built before it.
 let Options = /** @type {typeof DefaultOptions} */ ({});
@@ -48,6 +50,7 @@ const maxSize = /** @type {HTMLInputElement} */ (document.getElementById('maxsiz
 const maxSizeUnit = /** @type {HTMLSelectElement} */ (document.getElementById('maxsizeunit'));
 const ramBudget = /** @type {HTMLInputElement} */ (document.getElementById('rambudget'));
 const ramBudgetUnit = /** @type {HTMLSelectElement} */ (document.getElementById('rambudgetunit'));
+const ramSize = /** @type {HTMLSelectElement} */ (document.getElementById('ramsize'));
 const bufferToDisk = /** @type {HTMLInputElement} */ (document.getElementById('buffertodisk'));
 const bufferAhead = /** @type {HTMLInputElement} */ (document.getElementById('bufferahead'));
 const bufferBehind = /** @type {HTMLInputElement} */ (document.getElementById('bufferbehind'));
@@ -193,6 +196,7 @@ async function loadOptions(newOptions) {
   mpvModeToggle.checked = !!Options.mpvMode;
   mpvModeSectionToggle.checked = !!Options.mpvMode;
   mpvAllowlistInput.value = (Options.mpvAllowlist || []).join('\n');
+  showIgnoredLines(mpvAllowlistInput, ignoredUrlLines);
   mpvPathInput.value = Options.mpvPath || '';
   mpvFullscreenToggle.checked = !!Options.mpvFullscreen;
   mpvPausePageToggle.checked = !!Options.mpvPausePage;
@@ -209,11 +213,13 @@ async function loadOptions(newOptions) {
   showSpeed(Options.maxSpeed);
   showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
   bufferToDisk.checked = Options.bufferToDisk !== false;
+  ramSize.value = String(ComputerMemorySizes.includes(Options.computerMemory) ? Options.computerMemory : 0);
   showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
   showSeconds(bufferAhead, Options.bufferAhead);
   showSeconds(bufferBehind, Options.bufferBehind);
   seekStepSize.value = /** @type {any} */ (Math.round(Options.seekStepSize * 100) / 100);
   customSourcePatterns.value = Options.customSourcePatterns || '';
+  showIgnoredLines(customSourcePatterns, ignoredPatternLines);
   // A share of the player, shown in percent.
   miniSize.value = /** @type {any} */ (Math.round(Options.miniSize * 1000) / 10);
   storeProgress.checked = !!Options.storeProgress;
@@ -253,6 +259,7 @@ async function loadOptions(newOptions) {
   });
 
   autoEnableURLSInput.value = Options.autoEnableURLs.join('\n');
+  showIgnoredLines(autoEnableURLSInput, ignoredUrlLines);
 
   if (Options.dev) {
     /** @type {HTMLElement} */ (document.getElementById('dev')).style.display = '';
@@ -586,6 +593,7 @@ mpvModeSectionToggle.addEventListener('change', () => {
 mpvAllowlistInput.addEventListener('change', (e) => {
   Options.mpvAllowlist = mpvAllowlistInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
   mpvAllowlistInput.value = Options.mpvAllowlist.join('\n');
+  showIgnoredLines(mpvAllowlistInput, ignoredUrlLines);
   optionChanged();
 });
 
@@ -794,6 +802,7 @@ function showLimitHint(input, value) {
   const hint = document.getElementById(input.id + 'hint');
   let key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
   if (input === ramBudget && value === 0 && !bufferToDisk.checked) key = 'options_general_rambudget_zero_nodisk';
+  if (input === ramBudget && !key && ramBudgetRisky(value, Options.computerMemory)) key = 'options_general_rambudget_high';
   if (!hint) return;
   hint.textContent = key ? Localize.getMessage(key) : '';
   hint.hidden = !key;
@@ -854,6 +863,20 @@ const onRamBudgetChange = /** @param {Event} e */ (e) => {
 };
 ramBudget.addEventListener('change', onRamBudgetChange);
 ramBudgetUnit.addEventListener('change', onRamBudgetChange);
+
+for (const gigabytes of ComputerMemorySizes) {
+  const option = document.createElement('option');
+  option.value = String(gigabytes);
+  option.textContent = memorySizeLabel(gigabytes);
+  ramSize.append(option);
+}
+
+ramSize.addEventListener('change', () => {
+  Object.assign(Options, optionsForComputerMemory(Number(ramSize.value)));
+  bufferToDisk.checked = Options.bufferToDisk !== false;
+  showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
+  optionChanged();
+});
 
 bufferToDisk.addEventListener('change', () => {
   Options.bufferToDisk = bufferToDisk.checked;
@@ -1006,11 +1029,13 @@ WebUtils.setupTabIndex(/** @type {HTMLElement} */ (document.getElementById('rese
 autoEnableURLSInput.addEventListener('change', (e) => {
   Options.autoEnableURLs = autoEnableURLSInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
   autoEnableURLSInput.value = Options.autoEnableURLs.join('\n');
+  showIgnoredLines(autoEnableURLSInput, ignoredUrlLines);
   optionChanged();
 });
 
 customSourcePatterns.addEventListener('change', (e) => {
   Options.customSourcePatterns = customSourcePatterns.value;
+  showIgnoredLines(customSourcePatterns, ignoredPatternLines);
   optionChanged();
 });
 

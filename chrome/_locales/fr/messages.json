@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "Merci d'avoir installé FastStream ! N'hésitez pas à nous signaler tout problème ou suggestion."
     },
+    "welcome_page_ram_header": {
+        "message": "Mémoire de cet ordinateur"
+    },
+    "welcome_page_ram_question": {
+        "message": "Combien de mémoire (RAM) cet ordinateur a-t-il ? FastStream garde une partie de chaque vidéo en mémoire vive et le reste sur le disque ; votre réponse fixe la quantité de mémoire vive qu'il peut utiliser."
+    },
+    "welcome_page_ram_set": {
+        "message": "C'est réglé : FastStream garde jusqu'à $1 de vidéo en mémoire vive, le reste sur le disque. Vous pouvez le modifier dans les options, sous « Options générales »."
+    },
     "welcome_page_keybinds_header": {
         "message": "Raccourcis clavier par défaut"
     },
@@ -861,7 +870,22 @@
         "message": "0 : aucune vidéo téléchargée n'est conservée et, avec « Conserver la vidéo sur le disque » désactivé, rien n'est téléchargé à l'avance, ce qui peut provoquer des interruptions de lecture. Laissez le champ vide pour supprimer la limite."
     },
     "options_general_rambudget_none": {
-        "message": "Pas de limite : toute la vidéo téléchargée reste dans la mémoire vive, rien n'est transféré sur le disque. Sur un PC avec peu de mémoire, Firefox peut ralentir."
+        "message": "Aucune limite : toute la vidéo téléchargée reste en mémoire vive, rien ne va sur le disque. Une longue vidéo peut prendre plus de mémoire que l'ordinateur n'en a et le figer : fixez une limite, sauf s'il en a beaucoup."
+    },
+    "options_general_rambudget_high": {
+        "message": "Autant de vidéo en mémoire vive peut figer un ordinateur : Windows et Firefox ont besoin de la plus grande partie de sa mémoire. Avec « Conserver la vidéo sur le disque lorsque cette mémoire vive est pleine » activé, le reste de la vidéo est conservé sur le disque et se lit de la même façon."
+    },
+    "options_general_ramsize": {
+        "message": "Mémoire de cet ordinateur (RAM) : règle la mémoire vive pour la vidéo en mémoire tampon en conséquence"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Non indiquée"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 ou plus"
+    },
+    "options_list_ignored_lines": {
+        "message": "Ignorée, entrée non valide : ligne $1"
     },
     "options_general_bufferahead": {
         "message": "Secondes à conserver en mémoire tampon devant la lecture lorsque le pré-téléchargement est désactivé, arrêté ou à court d'espace"

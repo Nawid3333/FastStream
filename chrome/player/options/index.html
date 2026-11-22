@@ -107,6 +107,15 @@
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
+                    <div class="label search-target-text" data-i18n="options_general_ramsize"></div>
+                    <div class="amount">
+                        <select id="ramsize" data-i18n-label="options_general_ramsize">
+                            <option value="0" data-i18n="options_general_ramsize_unknown"></option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
                     <div class="label search-target-text" data-i18n="options_general_rambudget"></div>
                     <div class="amount">
                         <input class="number" type="text" inputmode="decimal" id="rambudget" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
@@ -379,6 +388,7 @@
                 <p><span data-i18n="options_autourl_hint"></span> <a target="_blank" rel="noopener noreferrer"
                         href="https://regex101.com/">Regex101</a></p>
                 <textarea id="autoEnableURLs" data-i18n-label="options_autourl_body"></textarea>
+                <div class="ignored-lines" id="autoEnableURLsignored" hidden></div>
             </div>
         </section>
 
@@ -393,6 +403,7 @@
                         href="https://github.com/Andrews54757/FastStream/wiki/Custom-Source-Patterns" data-i18n="options_pattern_learnmore"></a>
                 </p>
                 <textarea id="customSourcePatterns" data-i18n-label="options_pattern_body"></textarea>
+                <div class="ignored-lines" id="customSourcePatternsignored" hidden></div>
             </div>
         </section>
 
@@ -422,6 +433,7 @@
                 <p><span data-i18n="options_autourl_hint"></span> <a target="_blank" rel="noopener noreferrer"
                         href="https://regex101.com/">Regex101</a></p>
                 <textarea id="mpvAllowlist" data-i18n-label="options_mpv_allowlist"></textarea>
+                <div class="ignored-lines" id="mpvAllowlistignored" hidden></div>
             </div>
             <div class="search-target-remove">
                 <div class="option grid1">

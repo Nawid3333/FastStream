@@ -208,9 +208,9 @@ describe('the options page\'s controls', () => {
   it('names each menu on the <select> itself', () => {
     const selects = doc.querySelectorAll('select');
     // Eight until the colour-blindness filter's was removed; two more since the
-    // MB/GB pickers beside the maximum size and the RAM budget, and one for the aspect
-    // ratio.
-    expect(selects.length).toBe(10);
+    // MB/GB pickers beside the maximum size and the RAM budget, one for the aspect
+    // ratio, and one for the computer's memory.
+    expect(selects.length).toBe(11);
     for (const select of selects) {
       // A menu options.mjs builds takes its name from its wrapper; a unit picker written in
       // the page carries its own, which i18n.mjs applies.

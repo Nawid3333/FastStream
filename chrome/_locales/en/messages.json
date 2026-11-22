@@ -41,6 +41,15 @@
     "welcome_page_usage_end": {
         "message": "Thank you for installing FastStream! Please let us know if you have any issues or suggestions."
     },
+    "welcome_page_ram_header": {
+        "message": "This computer's memory"
+    },
+    "welcome_page_ram_question": {
+        "message": "How much memory (RAM) does this computer have? FastStream keeps part of each video in RAM and the rest on disk; your answer sets how much RAM it may use."
+    },
+    "welcome_page_ram_set": {
+        "message": "Set: FastStream keeps up to $1 of video in RAM, the rest on disk. You can change it in the options, under \"General Options\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Default Keyboard Controls"
     },
@@ -861,7 +870,22 @@
         "message": "0: no downloaded video is kept, and with \"Keep video on disk\" off nothing is downloaded ahead of playback, so videos may stop to load. Leave the field empty for no limit."
     },
     "options_general_rambudget_none": {
-        "message": "No limit: all downloaded video stays in RAM, none goes to disk. On a PC with little memory, Firefox may slow down."
+        "message": "No limit: all downloaded video stays in RAM, none goes to disk. A long video can take more memory than the computer has and freeze it: set a limit unless it has plenty."
+    },
+    "options_general_rambudget_high": {
+        "message": "This much video in RAM can freeze a computer: Windows and Firefox need most of its memory. With \"Keep video on disk when this RAM is full\" on, the rest of the video is kept on disk and plays the same."
+    },
+    "options_general_ramsize": {
+        "message": "This computer's memory (RAM): sets the RAM for buffered video to suit it"
+    },
+    "options_general_ramsize_unknown": {
+        "message": "Not set"
+    },
+    "options_general_ramsize_more": {
+        "message": "$1 or more"
+    },
+    "options_list_ignored_lines": {
+        "message": "Left out, not a valid entry: line $1"
     },
     "options_general_bufferahead": {
         "message": "Seconds to keep buffered ahead of playback when predownload is off, has stopped, or has run out of space"
