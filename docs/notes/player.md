@@ -1888,6 +1888,16 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   nearly invisible at first on a dark video. The rule stays for transitions added later and
   for the libraries' styles. The tools that closed a second after their last use (precise
   seek, the silence skipper, the subtitle syncer) close at once.
+- **A status message the bar cuts short shows whole above it** (`StatusManager.updateFullText`, the owner,
+  2026-11-22: "make sure that the message is always readable"). The status line is one line between the
+  left and right buttons: in a player inside a page (640 px) the disk warning showed about a quarter of its
+  text, and the rest only as a `title` tooltip, which shows late and never on touch. The whole text
+  wraps above the bar for its reading time (60 ms a character, 4 to 15 s, never past the message's own
+  time) when the message is new, and while the pointer is on it (a finger: its reading time after it
+  lifts). New means a level that was empty, another type, or other words: the same message counting on
+  (a save's percent, a countdown) does not show it again. Never by itself for the download line, which
+  changes all the time. The bubble is in the control bar's box and fades with it; the `title` went, or the
+  text showed twice. Checked in headless Firefox at 500, 640 and 1280 px; `statusFullText.test.mjs`.
 - **The autoplay switch is always in the bar; the next button only with a next video**
   (the owner, 2026-10-11): with the switch tied to the next button, it was missing wherever no
   next link was found.
