@@ -184,11 +184,18 @@ async function reloadPage() {
 }
 
 /**
- * The newest session directory (fsblob-<time>-<n>): the player's that played last.
- * @param {string[]} names
- * @return {string}
+ * The session directory the page's player writes to, as it says: the newest one by its name may be one an extension
+ * page left as it went (a player's clear goes on in a new directory).
+ * @return {Promise<?string>}
  */
-const newest = (names) => names.reduce((a, b) => (Number(b.split('-')[1]) > Number(a.split('-')[1]) ? b : a));
+async function playerSession() {
+  if (!await intoPlayer()) {
+    return null;
+  }
+  const name = await browser.execute(() => window.fastStream?.downloadManager?.blobStore?.opfsManager?.sessionName ?? null);
+  await browser.switchFrame(null);
+  return name;
+}
 
 /**
  * The segments the server sent for a signature.
@@ -342,9 +349,10 @@ describe('A reload of the page', function() {
     segments = [];
     const first = await loadAndBuffer('/watch-disk', 12);
     const oldSessions = await sessions();
+    const own = await playerSession();
     // On the disk indeed: files in the player's session.
     let onDisk = [];
-    await browser.waitUntil(async () => (onDisk = await sessionFiles(newest(oldSessions))).length >= 5,
+    await browser.waitUntil(async () => (onDisk = await sessionFiles(/** @type {string} */ (own))).length >= 5,
         {timeout: 30000, timeoutMsg: 'the player wrote no files to the disk'});
     const buffered = placesFor(first);
     await reloadPage();
@@ -360,7 +368,7 @@ describe('A reload of the page', function() {
     expect(oldSessions.length).toBeGreaterThan(0);
     expect(again).toEqual([]);
     // The old player's directory went once its files were moved into the new player's.
-    expect(nowSessions).not.toContain(newest(oldSessions));
+    expect(nowSessions).not.toContain(own);
   });
 
   it('lets go of what nobody takes back within 20 s, files and all', async function() {
@@ -370,7 +378,8 @@ describe('A reload of the page', function() {
     const buffered = placesFor(first);
     const oldSessions = await sessions();
     expect(oldSessions.length).toBeGreaterThan(0);
-    const handedOver = newest(oldSessions);
+    const handedOver = await playerSession();
+    expect(oldSessions).toContain(handedOver);
     await browser.url(`${SITE}/elsewhere`);
     const left = Date.now();
     // Kept for now: the next player could still take it back.
@@ -389,6 +398,6 @@ describe('A reload of the page', function() {
         `old sessions ${JSON.stringify(oldSessions)}, now ${JSON.stringify(nowSessions)}`);
     expect(again.length).toBeGreaterThan(0);
     // Its directory deleted with it.
-    expect(nowSessions).not.toContain(newest(oldSessions));
+    expect(nowSessions).not.toContain(handedOver);
   });
 });

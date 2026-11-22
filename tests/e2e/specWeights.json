@@ -23,6 +23,7 @@
   "ext-specs/header-rules.e2e.mjs": 10,
   "ext-specs/iframe-redirect.e2e.mjs": 11,
   "ext-specs/keybinds-storage.e2e.mjs": 14,
+  "ext-specs/many-tabs.e2e.mjs": 40,
   "ext-specs/mpv.e2e.mjs": 34,
   "ext-specs/options-mpv.e2e.mjs": 20,
   "ext-specs/page-qualities.e2e.mjs": 33,

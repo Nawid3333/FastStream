@@ -610,8 +610,19 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   (`fsblob-prune`) 65 s after `runtime.onStartup` and `runtime.onInstalled`: every earlier run's
   heartbeat is past `STALE_MS` by then, and every live player's is not, also one restored with its
   tab at the start. The background sees the default OPFS partition only: a container's leftovers
-  wait for its next player. Measured with the keep check (tab closed, `fs` on the disk): Off empties
-  it at once (usage 1 MB at once, the folder 0 MB 3 s later). `backgroundSessionPrune.test.mjs`.
+  wait for its next player. The alarm listener returns the prune, so Firefox keeps the event page up
+  until it is done (a Codex review). `backgroundSessionPrune.test.mjs`.
+- **The keep time, measured in Firefox 160.0.1 on Linux** (a scratch check: FastStream installed for
+  good in a fresh profile, a 710 MB video from a local 100 Mbit/s line, Disk only, the tab closed after
+  ~310 MB, the `fs` folder measured on the disk, the sessions listed from an extension page): Off
+  emptied it at once (usage 1 MB, the folder 0 MB 3 s later); 20 s kept the files 18-21 s, then the
+  directory went; 1 minute kept them with their `_kept.json` past the event page's unload and deleted
+  them 50-60 s after the close; RAM only with 1 minute wrote nothing to the disk and let go of it after
+  20 s. Firefox closed with the video open: 422 MB stayed, and went 60-70 s after the next start with no
+  video opened (1.3.82.233: until a video opened). The fix build ran on the unbranded 160.0.1 (the
+  shipped release's source; it installs an unsigned add-on for good), 1.3.82.233 on the release build.
+  A pitfall of such checks: after an install, WebdriverIO's `newWindow` answered with the welcome tab's
+  handle, and the check closed the welcome tab while the video played on; find the tab by its address.
 - **A moved file whose part was let go of** is deleted (`adoptOne`), but not when the same part was downloaded
   again meanwhile: that download is saved under the same key, and deleting it lost it (an area review, 2026-11-21).
   "Its data under the key" is `entry.blobId ?? key` (`keepsDataUnder`): a download moved on to a new link keeps its
@@ -641,6 +652,44 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   audio track kept, playing if it played, without `keepStorage`, so the reset deletes everything
   downloaded, in RAM and on the disk. `FastStreamClient.test.mjs` ("downloading the video again",
   "a buffer taken back").
+
+## Players in many tabs
+
+The owner (2026-11-22): a stress test of FastStream buffering in several tabs at once, to see what
+breaks or interferes. `ext-specs/many-tabs.e2e.mjs`: FastStream's player in four tabs of its own, a
+70 MB video each from one 200 Mbit/s line, one RAM budget of 60 MB for all and the rest on the disk,
+"Off" for the closed tabs. Every tab reports over a BroadcastChannel to the others; the server
+holds the segments until all four report (a burst before a tab's probe went unseen: a Codex review).
+
+- **A closed tab left most of its files.** Its player clears them as it goes (no hand-off with
+  "Off"), and the worker deleted one file at a time after listing them; beside three other players
+  Firefox stopped it part way: 229-253 of ~330 files stayed (one player alone, in the keep check:
+  none). The directory stayed with its last heartbeat until the next player's start, or the next
+  Firefox start (`fsblob-prune`). `clearStorage` now deletes the session's directory in one call
+  (`removeEntry(name, {recursive: true})`), which Firefox finishes after the page is gone, and the
+  player goes on in a new directory under a new name, which `OPFSManager.clearStorage` takes from
+  the answer: made again under the old name, another player's prune could take it between the
+  making and its first heartbeat, and delete files written meanwhile (a Codex review); a new name is
+  younger than `STALE_MS`, no prune's. One file at a time only when the directory cannot go (a save
+  holds a file open). The spec failed before (237-253 files) and passes after;
+  `opfsStorage.test.mjs` ("opfs-worker: clear").
+- **A page that goes leaves an empty directory.** A clear as the page goes makes the new directory
+  too; it holds nothing and is pruned like any other. A spec that took "the newest directory" as the
+  player's found such a one (the extension page the specs set options from): ask the player for its
+  session (`reload-keeps-buffer.e2e.mjs` `playerSession`). Tried and dropped: making the new
+  directory only at its first file. Taking a hand-off back moves files into the player's directory
+  on the main thread before the worker writes anything, so it needed the directory made there too.
+- **The budget holds, with a second of the line on top.** It is kept on the client's tick, once a
+  second: the four held 46-56 MB in RAM together once done and written (`ramBytes()`, what is on its
+  way to the disk included), and at most 73-88 MB on the 200 Mbit/s line. From a local server,
+  unpaced (hundreds of MB/s), the most was 100-163 MB (1.7-2.7 budgets), for a moment: on a real
+  line it is at most a second of the line per player.
+- **Nothing froze.** The tab in front's 50 ms timer was at most 2-17 ms late; all four played and
+  downloaded their whole video; the one left had the whole budget once the others closed, and
+  played on.
+- **A flake that was there before.** `reload-keeps-buffer.e2e.mjs` "keeps what was buffered in RAM"
+  failed 1 run in 3 without its retry, with the old worker as with the new: the segments still
+  downloading as the page reloads (2-6) are asked for again.
 
 ## Network layer: reasons behind the code
 

@@ -18,6 +18,7 @@ vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessag
 
 const {OPFSManager} = await import('../../chrome/player/network/OPFSManager.mjs');
 const {FSBlob} = await import('../../chrome/player/modules/FSBlob.mjs');
+const {pruneSessions} = await import('../../chrome/player/network/SessionPrune.mjs');
 
 /** How many more bytes the stand-in disk takes; a write past it is cut short. */
 let diskRoom = Infinity;
@@ -393,6 +394,75 @@ describe('opfs-worker: a session whose directory another player deleted', () => 
       expect(JSON.parse(new TextDecoder().decode(meta.bytes)).updated_time).toBe(Date.now());
     } finally {
       vi.useRealTimers();
+      await manager.close();
+    }
+  });
+});
+
+describe('opfs-worker: clear', () => {
+  // A tab closing beside three other players had Firefox stop its worker half way through deleting one file at a
+  // time; one call for the whole directory is finished by Firefox.
+  it('deletes the session\'s directory in one call, and goes on in a new one', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      const fsblob = root.children.get('fsblob');
+      const old = manager.sessionName;
+      for (let i = 0; i < 20; i++) sessionOf(root, manager).children.set(`f${i}`, new FakeFile('video', `f${i}`));
+      const removed = vi.spyOn(fsblob, 'removeEntry');
+      await manager.clearStorage();
+      expect(removed.mock.calls).toEqual([[old, {recursive: true}]]);
+      expect(manager.sessionName).not.toBe(old);
+      expect([...fsblob.children.keys()]).toEqual([manager.sessionName]);
+      expect([...sessionOf(root, manager).children.keys()]).toEqual([]);
+      await expect(manager.call('get', {identifier: 'f1'})).rejects.toThrow();
+      await manager.call('set', {identifier: 'f0', data: new TextEncoder().encode('next')});
+      expect(new TextDecoder().decode(sessionOf(root, manager).children.get('f0').bytes)).toBe('next');
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it('is no other player\'s prune before its first heartbeat, though the player is old', async () => {
+    vi.useFakeTimers();
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      await vi.advanceTimersByTimeAsync(5 * 60000);
+      await manager.clearStorage();
+      // A file written, the first heartbeat not yet, as another player starts.
+      await manager.call('set', {identifier: 'f0', data: new TextEncoder().encode('next')});
+      expect(sessionOf(root, manager).children.has('_meta.json')).toBe(false);
+      await pruneSessions(root.children.get('fsblob'), 'fsblob-1-another');
+      expect(sessionOf(root, manager)?.children.has('f0')).toBe(true);
+      // And its heartbeat comes.
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(sessionOf(root, manager).children.has('_meta.json')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      await manager.close();
+    }
+  });
+
+  it('deletes one file at a time what it can, when the directory cannot go at once', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      const fsblob = root.children.get('fsblob');
+      const old = sessionOf(root, manager);
+      for (let i = 0; i < 5; i++) old.children.set(`f${i}`, new FakeFile('video', `f${i}`));
+      // A save holds its file open.
+      const removeEntry = fsblob.removeEntry.bind(fsblob);
+      vi.spyOn(fsblob, 'removeEntry').mockImplementation((name, options) => (options?.recursive ?
+        Promise.reject(new Error('NoModificationAllowedError: a file is held')) : removeEntry(name)));
+      await manager.clearStorage();
+      expect([...old.children.keys()]).toEqual([]);
+      // Never written to again: the next file goes to the new session.
+      await manager.call('set', {identifier: 'f0', data: new TextEncoder().encode('next')});
+      expect([...old.children.keys()]).toEqual([]);
+      expect([...sessionOf(root, manager).children.keys()]).toEqual(['f0']);
+    } finally {
+      vi.restoreAllMocks();
       await manager.close();
     }
   });

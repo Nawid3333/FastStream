@@ -67,9 +67,14 @@ async function writeHeartbeat() {
   }
 }
 
+/** @return {string} Its time first: a session younger than STALE_MS is no prune's, its heartbeat or none. */
+function newSessionName() {
+  return 'fsblob-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+}
+
 async function init() {
   fsBlobRoot = await getFsBlobRoot();
-  sessionName = 'fsblob-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+  sessionName = newSessionName();
 
   // Before this session's own directory exists, so prune never takes it.
   await pruneSessions(/** @type {FileSystemDirectoryHandle} */ (fsBlobRoot), sessionName);
@@ -128,12 +133,32 @@ async function deleteFile(identifier) {
   }
 }
 
+/**
+ * The session's directory goes in one call, which Firefox finishes as the page goes: one file at a time, a tab
+ * closing beside three other players left most of them (storage.md, "Players in many tabs"). The player goes on in
+ * a new one, young: made again under the same name, another player's prune could take it before its next heartbeat.
+ * @return {Promise<string>} The new session's name.
+ */
 async function clearStorage() {
-  const names = [];
-  for await (const name of /** @type {FileSystemDirectoryHandle} */ (sessionDir).keys()) {
-    if (name !== META_FILE) names.push(name);
+  const root = /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot);
+  const old = /** @type {string} */ (sessionName);
+  const oldDir = /** @type {FileSystemDirectoryHandle} */ (sessionDir);
+  sessionName = newSessionName();
+  try {
+    await root.removeEntry(old, {recursive: true});
+  } catch (e) {
+    // A file held open (a heartbeat or save being written), or a prune took it: what can go, one at a time; the
+    // rest is pruned once its heartbeat is stale.
+    const names = [];
+    try {
+      for await (const name of oldDir.keys()) names.push(name);
+    } catch (err) {
+      // Gone already.
+    }
+    await Promise.all(names.map((name) => oldDir.removeEntry(name).catch(() => {})));
   }
-  await Promise.all(names.map((name) => /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(name).catch(() => {})));
+  sessionDir = await root.getDirectoryHandle(sessionName, {create: true});
+  return sessionName;
 }
 
 async function destroy() {
@@ -225,7 +250,7 @@ self.addEventListener('message', async (event) => {
         await queue.push(() => deleteFile(identifier));
         break;
       case 'clear':
-        await queue.push(() => clearStorage());
+        result = {sessionName: await queue.push(() => clearStorage())};
         break;
       case 'destroy':
         await queue.push(() => destroy());
