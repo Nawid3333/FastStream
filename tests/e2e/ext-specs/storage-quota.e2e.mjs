@@ -11,7 +11,7 @@ import {browser, expect} from '@wdio/globals';
 import {EXTENSION_UUID} from '../wdio.extension.conf.mjs';
 
 const PLAYER = `moz-extension://${EXTENSION_UUID}/player/index.html`;
-const SITE_PORT = 41977;
+const SITE_PORT = 41972;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
 // Best-effort storage's group limit; the persisted quota is half the disk (a CI runner's is far larger).
 const BestEffortQuota = 10 * 1024 ** 3;
