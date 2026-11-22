@@ -1478,3 +1478,17 @@ Rejected:
 Left as it is: **the toolbar cannot be reordered on Android.** A hold starts the reordering only
 with a mouse (a touch's mouse events come after the finger lifts) and Sortable is off on phones;
 touch controls are among what is not done yet for touchscreens (build-and-release.md).
+
+## Codex's and glm-5.3-flash's reviews of #810 (2026-11-22)
+
+Rejected: **a helper put back by hand while Firefox runs gets one hand-off** (Codex). The helper's
+version is known from its last answer. The first stream after an older helper was installed over a
+current one is therefore sent: that helper plays it, and the player says to update the helper while
+the page goes on playing. `streamResult` answers it with the update text ("an older helper put
+back"), and the next send pings first. Only an old helper installed by hand during a session gets
+there: "Update mpv" installs the release's helper, and an add-on update restarts the background. A
+ping before every hand-off would start the helper twice per send.
+
+glm-5.3-flash found nothing: every message the extension still sends (`ping`, `play`, `ipc`,
+`raise`, the relay port's) has its handler in helper 32 with the fields the extension reads, a helper
+below 32 is sent nothing but a ping, and no removed name is used.
