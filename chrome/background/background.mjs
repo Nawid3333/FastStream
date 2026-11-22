@@ -116,6 +116,8 @@ export let Logging = false;
 chrome.management.getSelf().then((self) => {
   Logging = self.installType === 'development';
 }).catch(console.error);
+// The quota unlimitedStorage allows, from the start: asked only here, in a top-level page (storage.md, "unlimitedStorage").
+navigator.storage?.persist?.().catch(() => {});
 export const Tabs = new TabTracker();
 const ruleManager = new RuleManager();
 
