@@ -574,6 +574,18 @@ button:focus-visible {
   display: none;
 }
 
+/* "Use 1 GB": puts the recommended RAM amount in (options.mjs showRamHint). */
+.option.grid2 .limit-hint .ram-recommended {
+  margin-left: var(--space-2);
+  min-height: 0;
+  padding: 0 var(--control-pad-x);
+}
+
+.option.grid2 .limit-hint .ram-recommended[hidden],
+#ramoptions[hidden] {
+  display: none;
+}
+
 /* The lines a list leaves out, under its field (IgnoredLines.mjs). */
 .ignored-lines {
   font-size: 0.9em;

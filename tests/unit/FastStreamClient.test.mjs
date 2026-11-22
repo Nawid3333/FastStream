@@ -54,7 +54,7 @@ const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mj
 const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
 const {DownloadStatus} = await import('../../chrome/player/enums/DownloadStatus.mjs');
 const {ReferenceTypes} = await import('../../chrome/player/enums/ReferenceTypes.mjs');
-const {DISK_ONLY_ROOM_BYTES, LOW} = await import('../../chrome/player/network/MemoryBudget.mjs');
+const {DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, LOW} = await import('../../chrome/player/network/MemoryBudget.mjs');
 const {MessageTypes} = await import('../../chrome/player/enums/MessageTypes.mjs');
 const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');
 const {LevelManager} = await import('../../chrome/player/players/LevelManager.mjs');
@@ -1151,11 +1151,13 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(said.filter((key) => key === 'player_outofstorage')).toHaveLength(1);
   });
 
-  it('keeps nothing ahead with a budget of 0, and has no limit with an empty field', () => {
+  it('keeps ahead what fits in the RAM "Disk only" keeps anyway at 0, and has no limit with an empty field', () => {
+    // Nothing ahead at all, the video waited for each part.
     const none = clientWithVideo({bufferToDisk: false, ramBudget: 0});
     none.updateHasDownloadSpace();
     expect(none.hasDownloadSpace).toBe(false);
-    expect(none.state.bufferAhead).toBe(0);
+    expect(none.state.bufferAhead).toBe(fits(DISK_ONLY_ROOM_BYTES));
+    expect(none.state.bufferAhead).toBeGreaterThan(0);
 
     const unlimited = clientWithVideo({bufferToDisk: false, ramBudget: -1});
     unlimited.updateHasDownloadSpace();
@@ -1269,11 +1271,17 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
       expect(said(client)).toEqual([]);
     });
 
-    it('says nothing when nothing is kept ahead: RAM only, with "RAM for buffered video" at 0', () => {
-      // "It still plays normally and keeps loading 0 s ahead" would not hold; the options page warns about the 0.
-      const client = movie({bufferToDisk: false, ramBudget: 0}, 900 * GB);
+    it('says nothing when nothing is kept ahead: a RAM limit too small for a second of it', () => {
+      // "It still plays normally and keeps loading 0 s ahead" would not hold.
+      const client = movie({bufferToDisk: false, ramBudget: 1}, 900 * GB);
       expect(client.hasDownloadSpace).toBe(false);
       expect(said(client)).toEqual([]);
+    });
+
+    it('says what "Disk only" keeps ahead where nothing goes to the disk', () => {
+      const client = movie({bufferToDisk: false, ramBudget: 0}, 900 * GB);
+      expect(client.hasDownloadSpace).toBe(false);
+      expect(said(client)).toEqual(['player_buffer_ram_warning']);
     });
 
     it('says it once per video, though a moving bitrate crosses the line again', () => {
@@ -1304,19 +1312,23 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(client.hasDownloadSpace).toBe(true);
   });
 
-  it('keeps nothing ahead at 0 when the bitrate is not known yet, and reads a broken setting as 2 GB', () => {
+  it('keeps "Buffer ahead" at 0 when the bitrate is not known yet, and reads a broken setting as the default', () => {
+    // What does not fit the RAM "Disk only" keeps is let go of (keepWithinMemoryBudget).
     const client = clientWithVideo({bufferToDisk: false, ramBudget: 0});
     client.player.getVideoLevels = () => new Map([['video-1', {}]]);
     client.updateHasDownloadSpace();
-    expect(client.state.bufferAhead).toBe(0);
+    expect(client.state.bufferAhead).toBe(client.options.bufferAhead);
+    expect(client.state.bufferAhead).toBeGreaterThan(0);
 
+    // 350 MB: fits the default, not 0.
     const broken = clientWithVideo({bufferToDisk: false, ramBudget: NaN});
+    broken.player.getVideoLevels = () => new Map([['video-1', {bitrate: 2e6}]]);
     broken.updateHasDownloadSpace();
     expect(broken.hasDownloadSpace).toBe(true);
     const small = clientWithVideo({bufferToDisk: false, ramBudget: NaN, downloadAll: false});
     small.player.getVideoLevels = () => new Map([['video-1', {bitrate: 1e8}]]);
     small.updateHasDownloadSpace();
-    expect(small.state.bufferAhead).toBe(Math.floor(2 * GB * 8 * 0.75 / 1e8 / 1.1));
+    expect(small.state.bufferAhead).toBe(Math.floor(DEFAULT_BUDGET_BYTES * 8 * 0.75 / 1e8 / 1.1));
   });
 
   it('fits a private window\'s buffer in the budget too, whatever the switch says', () => {
@@ -1646,7 +1658,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
 
   /** Whether the RAM budget counts this player full, holding this many bytes in RAM. */
   function ramFull(ramBudget, held, toDisk = true) {
-    const client = makeClient({ramBudget});
+    const client = makeClient({ramBudget, bufferToDisk: toDisk});
     client.state.playing = true;
     client.peers = {visible: () => true, livePeers: () => []};
     client.downloadManager = {blobStore: {}, memoryFull: false, ramBytes: () => held,
@@ -1660,14 +1672,15 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     expect(ramFull(0, 0)).toBe(false);
     expect(ramFull(0, 10e6)).toBe(false);
     expect(ramFull(0, DISK_ONLY_ROOM_BYTES)).toBe(true);
-    // A private window keeps nothing on disk: nothing ahead there.
-    expect(ramFull(0, 0, false)).toBe(true);
-    expect(ramFull(0, 1e6, false)).toBe(true);
+    // A private window keeps nothing on disk: the RAM "Disk only" keeps anyway, and no more.
+    expect(ramFull(0, 0, false)).toBe(false);
+    expect(ramFull(0, 1e6, false)).toBe(false);
+    expect(ramFull(0, DISK_ONLY_ROOM_BYTES, false)).toBe(true);
     // 0 and the empty field are not the 2 GB default
     expect(ramFull(-1, 50e9)).toBe(false);
-    // A budget the options never set is the default, 2 GB.
-    expect(ramFull(undefined, 1e9)).toBe(false);
-    expect(ramFull(undefined, 3e9)).toBe(true);
+    // A budget the options never set is the default, 1 GB.
+    expect(ramFull(undefined, 0.5e9)).toBe(false);
+    expect(ramFull(undefined, 1.5e9)).toBe(true);
     expect(ramFull(1e9, 3e9)).toBe(true);
   });
 });

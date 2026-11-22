@@ -24,6 +24,8 @@ import {holdImportedNumbers, importedForMigration, settingsForExport} from './Se
 import {CloudSettings} from './CloudSettings.mjs';
 import {WebStorage} from '../utils/WebStorage.mjs';
 import {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory, ramBudgetRisky} from './RamGuard.mjs';
+import {BufferAheadMaxSeconds, migrateStorage, optionsForStorageMode, recommendedRamBudget, StorageModes, storageModeOf} from './StorageMode.mjs';
+import {StringUtils} from '../utils/StringUtils.mjs';
 import {ignoredPatternLines, ignoredUrlLines, showIgnoredLines} from './IgnoredLines.mjs';
 import {BufferKeepChoices, bufferKeepLabel, bufferKeepSeconds} from './BufferKeep.mjs';
 
@@ -52,7 +54,12 @@ const maxSizeUnit = /** @type {HTMLSelectElement} */ (document.getElementById('m
 const ramBudget = /** @type {HTMLInputElement} */ (document.getElementById('rambudget'));
 const ramBudgetUnit = /** @type {HTMLSelectElement} */ (document.getElementById('rambudgetunit'));
 const ramSize = /** @type {HTMLSelectElement} */ (document.getElementById('ramsize'));
-const bufferToDisk = /** @type {HTMLInputElement} */ (document.getElementById('buffertodisk'));
+const storageMode = /** @type {HTMLSelectElement} */ (document.getElementById('storagemode'));
+const storageModeHint = /** @type {HTMLElement} */ (document.getElementById('storagemodehint'));
+const ramOptions = /** @type {HTMLElement} */ (document.getElementById('ramoptions'));
+const ramBudgetHint = /** @type {HTMLElement} */ (document.getElementById('rambudgethint'));
+const ramBudgetHintText = /** @type {HTMLElement} */ (document.getElementById('rambudgethinttext'));
+const ramRecommended = /** @type {HTMLButtonElement} */ (document.getElementById('ramrecommended'));
 const bufferAhead = /** @type {HTMLInputElement} */ (document.getElementById('bufferahead'));
 const bufferBehind = /** @type {HTMLInputElement} */ (document.getElementById('bufferbehind'));
 const bufferKeep = /** @type {HTMLSelectElement} */ (document.getElementById('bufferkeep'));
@@ -214,9 +221,8 @@ async function loadOptions(newOptions) {
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   showSpeed(Options.maxSpeed);
   showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
-  bufferToDisk.checked = Options.bufferToDisk !== false;
   ramSize.value = String(ComputerMemorySizes.includes(Options.computerMemory) ? Options.computerMemory : 0);
-  showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
+  showStorage();
   showSeconds(bufferAhead, Options.bufferAhead);
   showSeconds(bufferBehind, Options.bufferBehind);
   bufferKeep.value = String(bufferKeepSeconds(Options.bufferKeep));
@@ -790,9 +796,8 @@ function showSpeed(bytesPerSecond) {
 /** @type {Object<string, {zero: string, none?: string}>} By the field's id. */
 const LIMIT_HINTS = {
   maxspeed: {zero: 'options_general_targetspeed_zero'},
-  maxsize: {zero: 'options_general_maxsize_zero'},
-  rambudget: {zero: 'options_general_rambudget_zero', none: 'options_general_rambudget_none'},
-  bufferahead: {zero: 'options_general_bufferahead_zero', none: 'options_general_bufferahead_none'},
+  maxsize: {zero: 'options_general_maxsize_zero', none: 'options_general_maxsize_none'},
+  bufferahead: {zero: 'options_general_bufferahead_zero'},
   bufferbehind: {zero: 'options_general_bufferbehind_zero', none: 'options_general_bufferbehind_none'},
 };
 
@@ -802,13 +807,52 @@ const LIMIT_HINTS = {
  * @param {number} value - The limit as saved: -1 for none.
  */
 function showLimitHint(input, value) {
+  if (input === ramBudget) {
+    showRamHint(value);
+    return;
+  }
   const hint = document.getElementById(input.id + 'hint');
-  let key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
-  if (input === ramBudget && value === 0 && !bufferToDisk.checked) key = 'options_general_rambudget_zero_nodisk';
-  if (input === ramBudget && !key && ramBudgetRisky(value, Options.computerMemory)) key = 'options_general_rambudget_high';
+  const key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
   if (!hint) return;
   hint.textContent = key ? Localize.getMessage(key) : '';
   hint.hidden = !key;
+}
+
+/**
+ * Under the RAM field: the amount recommended for the memory given, and, when the amount can freeze the computer, why;
+ * a button puts the recommended amount in.
+ * @param {number} bytes - The amount as the field says it: -1 for no limit.
+ * @param {?string} [refused] - Why what was typed was not taken.
+ */
+function showRamHint(bytes, refused = null) {
+  const gigabytes = ComputerMemorySizes.includes(Options.computerMemory) ? Options.computerMemory : 0;
+  const recommended = gigabytes > 0 ? recommendedRamBudget(gigabytes) : null;
+  const parts = refused ? [refused] : [];
+  if (bytes < 0) {
+    parts.push(Localize.getMessage('options_general_rambudget_none'));
+  } else if (ramBudgetRisky(bytes, gigabytes)) {
+    parts.push(Localize.getMessage('options_general_rambudget_high'));
+  }
+  parts.push(recommended === null ? Localize.getMessage('options_general_rambudget_unknown') :
+    Localize.getMessage('options_general_rambudget_recommended',
+        [memorySizeLabel(gigabytes), StringUtils.formatSize(recommended)]));
+  ramBudgetHintText.textContent = parts.join(' ');
+  ramBudgetHint.hidden = false;
+  ramRecommended.hidden = recommended === null || bytes === recommended;
+  if (recommended !== null) {
+    ramRecommended.textContent = Localize.getMessage('options_general_rambudget_use', [StringUtils.formatSize(recommended)]);
+  }
+}
+
+/** The mode the RAM settings make, its explanation, and the RAM rows where the mode uses them. */
+function showStorage() {
+  const mode = storageModeOf(Options);
+  storageMode.value = mode;
+  storageModeHint.textContent = Localize.getMessage('options_general_storage_' + mode + '_hint');
+  ramOptions.hidden = mode === StorageModes.DISK_ONLY;
+  // No limit keeps all of it in RAM: only where nothing goes to the disk anyway.
+  ramBudget.placeholder = mode === StorageModes.RAM_ONLY ? Localize.getMessage('options_general_nolimit') : '';
+  showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
 }
 
 /**
@@ -860,9 +904,14 @@ maxSizeUnit.addEventListener('change', onMaxSizeChange);
 
 const onRamBudgetChange = /** @param {Event} e */ (e) => {
   const value = readLimit(ramBudget, Number(ramBudgetUnit.value));
-  if (value !== null) Options.ramBudget = value;
-  if (e.isTrusted) showSize(ramBudget, ramBudgetUnit, Options.ramBudget, true);
-  if (value !== null) optionChanged();
+  // 0 is "Disk only", and no limit is for "RAM only": the field keeps what it had.
+  const refused = value === 0 || (value !== null && value < 0 && storageModeOf(Options) !== StorageModes.RAM_ONLY);
+  if (value !== null && !refused) Options.ramBudget = value;
+  if (e.isTrusted) {
+    showSize(ramBudget, ramBudgetUnit, Options.ramBudget, true);
+    if (refused) showRamHint(Options.ramBudget, Localize.getMessage('options_general_rambudget_refused'));
+  }
+  if (value !== null && !refused) optionChanged();
 };
 ramBudget.addEventListener('change', onRamBudgetChange);
 ramBudgetUnit.addEventListener('change', onRamBudgetChange);
@@ -889,15 +938,19 @@ bufferKeep.addEventListener('change', () => {
 
 ramSize.addEventListener('change', () => {
   Object.assign(Options, optionsForComputerMemory(Number(ramSize.value)));
-  bufferToDisk.checked = Options.bufferToDisk !== false;
-  showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
+  showStorage();
   optionChanged();
 });
 
-bufferToDisk.addEventListener('change', () => {
-  Options.bufferToDisk = bufferToDisk.checked;
-  // What the field says now: a number typed is saved only 400 ms later.
-  showLimitHint(ramBudget, readLimit(ramBudget, Number(ramBudgetUnit.value)) ?? Options.ramBudget);
+ramRecommended.addEventListener('click', () => {
+  Options.ramBudget = recommendedRamBudget(Options.computerMemory);
+  showStorage();
+  optionChanged();
+});
+
+storageMode.addEventListener('change', () => {
+  Object.assign(Options, optionsForStorageMode(storageMode.value, Options));
+  showStorage();
   optionChanged();
 });
 
@@ -927,17 +980,26 @@ function showSeconds(input, seconds) {
 }
 
 // An empty field is no limit; anything else that is no number keeps the value saved.
-for (const [input, option] of /** @type {[HTMLInputElement, 'bufferAhead'|'bufferBehind'][]} */ ([[bufferAhead, 'bufferAhead'], [bufferBehind, 'bufferBehind']])) {
-  input.addEventListener('change', (e) => {
-    const text = input.value.trim().replace(',', '.');
-    const seconds = text === '' ? -1 : Number(text);
-    if (seconds === -1 || (Number.isFinite(seconds) && seconds >= 0)) {
-      Options[option] = seconds === -1 ? -1 : Math.floor(seconds);
-      optionChanged();
-    }
-    if (e.isTrusted) showSeconds(input, Options[option]);
-  });
-}
+// "Ahead" takes a number only: the whole video is predownload's. Empty is its default.
+bufferAhead.addEventListener('change', (e) => {
+  const text = bufferAhead.value.trim().replace(',', '.');
+  const seconds = text === '' ? DefaultOptions.bufferAhead : Number(text);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    Options.bufferAhead = Math.min(Math.floor(seconds), BufferAheadMaxSeconds);
+    optionChanged();
+  }
+  if (e.isTrusted) showSeconds(bufferAhead, Options.bufferAhead);
+});
+
+bufferBehind.addEventListener('change', (e) => {
+  const text = bufferBehind.value.trim().replace(',', '.');
+  const seconds = text === '' ? -1 : Number(text);
+  if (seconds === -1 || (Number.isFinite(seconds) && seconds >= 0)) {
+    Options.bufferBehind = seconds === -1 ? -1 : Math.floor(seconds);
+    optionChanged();
+  }
+  if (e.isTrusted) showSeconds(bufferBehind, Options.bufferBehind);
+});
 
 seekStepSize.addEventListener('change', () => {
   Options.seekStepSize = readNumberField(seekStepSize, DefaultOptions.seekStepSize, NUMBER_LIMITS.seekStepSize);
@@ -1118,6 +1180,7 @@ function applyImportedSettings(newOptionsObj) {
   /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
   holdToFields(newOptions);
   holdImportedNumbers(newOptions);
+  migrateStorage(newOptions);
   const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
   const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
   loadOptions(newOptions);

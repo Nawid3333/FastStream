@@ -4,6 +4,7 @@ import {ClickActions} from '../options/defaults/ClickActions.mjs';
 import {DefaultOptions} from '../options/defaults/DefaultOptions.mjs';
 import {isKeyString, migrateKeybinds} from '../options/KeybindUtils.mjs';
 import {DefaultSubtitlesSettings} from '../options/defaults/DefaultSubtitlesSettings.mjs';
+import {migrateStorage} from '../options/StorageMode.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
 export class Utils {
@@ -13,8 +14,8 @@ export class Utils {
    */
   static async getOptionsFromStorage() {
     const stored = await Utils.readStoredConfig('options');
-    return /** @type {typeof DefaultOptions} */ (Utils.migrateClickActions(
-        Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored), stored));
+    return /** @type {typeof DefaultOptions} */ (migrateStorage(Utils.migrateClickActions(
+        Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored), stored)));
   }
 
   /**

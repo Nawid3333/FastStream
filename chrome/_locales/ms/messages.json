@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Sudah ditetapkan: FastStream menyimpan sehingga $1 video dalam RAM, selebihnya pada cakera. Anda boleh mengubahnya dalam pilihan, di bawah \"Pilihan Umum\"."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Ditetapkan: FastStream mengekalkan sehingga $1 video dalam RAM; yang tidak muat dimuat turun semula jika perlu. Anda boleh mengubahnya dalam pilihan, di bawah \"Pilihan Umum\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Kawalan Papan Kekunci Lalai"
     },
@@ -588,10 +591,10 @@
         "message": "Video menunggu data kerana \"Sasaran kelajuan muat turun bagi pemuat turun awal\" ($1 Mbit/s) lebih rendah daripada keperluan video ini (kira-kira $2 Mbit/s): hanya sedikit dimuat turun lebih awal. Naikkan tetapan itu, atau biarkan kosong untuk tiada had."
     },
     "player_wait_ahead_zero": {
-        "message": "Video menunggu data kerana \"Detik yang dikekalkan dalam penampan di hadapan main balik\" ialah 0: tiada apa-apa disimpan lebih awal. Naikkan tetapan itu, atau biarkan kosong untuk tiada had."
+        "message": "Video menunggu data kerana \"Detik yang dikekalkan dalam penampan di hadapan main balik\" ialah 0: tiada apa-apa disimpan lebih awal. Naikkan tetapan itu."
     },
     "player_wait_ram_zero": {
-        "message": "Video menunggu data kerana \"RAM untuk video yang ditimbal\" ialah 0 dan tiada apa-apa disimpan pada cakera di sini: tiada apa-apa dimuat turun lebih awal. Naikkan tetapan itu, atau biarkan kosong untuk tiada had."
+        "message": "Video menunggu data: tiada apa-apa disimpan pada cakera di sini, dan \"Cakera sahaja\" mengekalkan hanya 64 MB dalam RAM. Pilih mod lain di bawah \"Tempat menyimpan video yang dimuat turun\" untuk menyimpan lebih banyak di hadapan."
     },
     "player_fragment_failed_singular": {
         "message": "$1 bahagian video gagal dimuat turun. Klik untuk mencuba semula."
@@ -699,7 +702,7 @@
         "message": "Dalam tetingkap peribadi, FastStream menyimpan video dalam RAM sahaja, dan video ini (kira-kira $1) lebih besar daripada bahagian \"RAM untuk video yang ditimbal\" yang boleh digunakan FastStream untuknya ($2), jadi ia tidak dimuat turun awal sepenuhnya. Ia tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Simpan video pada cakera\" dimatikan, jadi FastStream menyimpan video dalam RAM sahaja, dan video ini (kira-kira $1) lebih besar daripada bahagian \"RAM untuk video yang ditimbal\" yang boleh digunakan FastStream untuknya ($2). Ia tidak dimuat turun awal sepenuhnya, tetapi tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Untuk memuat turun awal sepenuhnya, hidupkan \"Simpan video pada cakera\"."
+        "message": "\"Tempat menyimpan video yang dimuat turun\" ialah \"RAM sahaja\", jadi FastStream menyimpan video dalam RAM sahaja, dan video ini (kira-kira $1) lebih besar daripada bahagian \"RAM untuk video yang ditimbal\" yang boleh digunakan FastStream untuknya ($2). Ia tidak dimuat turun awal sepenuhnya, tetapi tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Untuk memuat turun awal sepenuhnya, pilih \"RAM, kemudian cakera\" di sana."
     },
     "player_buffer_disk_warning": {
         "message": "Video ini (kira-kira $1) lebih besar daripada ruang cakera yang diberikan Firefox kepada FastStream ($2 kosong), jadi ia tidak dimuat turun awal sepenuhnya. Ia tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Mengosongkan ruang cakera membantu."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "RAM untuk video yang ditimbal (semua tab)"
     },
-    "options_general_buffertodisk": {
-        "message": "Simpan video pada cakera apabila RAM ini penuh (mati: buang dan muat turun semula jika perlu, supaya tiada apa-apa ditulis pada cakera)"
-    },
     "options_general_nolimit": {
         "message": "Tanpa had"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: tiada apa-apa yang dimuat turun awal; hanya bilangan detik yang ditetapkan di bawah dikekalkan di hadapan. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: video yang dimuat turun tidak disimpan dalam RAM, tetapi pada cakera, kecuali beberapa saat berikutnya. Dalam tetingkap peribadi, yang tidak menyimpan apa-apa pada cakera, tiada apa-apa yang dimuat turun di hadapan main balik. Biarkan medan ini kosong jika anda mahu tanpa had."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: tiada video yang dimuat turun disimpan, dan dengan \"Simpan video pada cakera\" mati, tiada apa-apa yang dimuat turun di hadapan main balik, jadi video mungkin terhenti. Biarkan medan ini kosong jika anda mahu tanpa had."
+    "options_general_maxsize_none": {
+        "message": "Tanpa had: sebanyak mana yang muat dalam RAM dan dalam ruang yang diberikan Firefox kepada FastStream pada cakera."
     },
     "options_general_rambudget_none": {
-        "message": "Tiada had: semua video yang dimuat turun kekal dalam RAM, tiada yang ke cakera. Video yang panjang boleh menggunakan lebih banyak memori daripada yang ada pada komputer dan menyebabkannya tergantung: tetapkan had melainkan memorinya banyak."
+        "message": "Tiada had: semua video yang dimuat turun kekal dalam RAM. Video yang panjang boleh menggunakan lebih banyak memori daripada yang ada pada komputer dan menyebabkannya tergantung."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Disyorkan untuk $1: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Pilih memori komputer ini di atas untuk melihat jumlah yang disyorkan."
+    },
+    "options_general_rambudget_use": {
+        "message": "Guna $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Tidak diterima: untuk tiada video dalam RAM, pilih \"Cakera sahaja\" di atas; \"Tanpa had\" hanya untuk \"RAM sahaja\"."
     },
     "options_general_rambudget_high": {
-        "message": "Video sebanyak ini dalam RAM boleh menyebabkan komputer tergantung: Windows dan Firefox memerlukan sebahagian besar memorinya. Dengan \"Simpan video pada cakera apabila RAM ini penuh\" dihidupkan, baki video disimpan pada cakera dan dimainkan sama seperti biasa."
+        "message": "Video sebanyak ini dalam RAM boleh menyebabkan komputer tergantung: sistem dan Firefox memerlukan sebahagian besar memorinya. Jumlah yang lebih kecil dimainkan sama seperti biasa, kerana baki video disimpan pada cakera atau dimuat turun semula jika perlu."
     },
     "options_general_ramsize": {
-        "message": "Memori komputer ini (RAM): menetapkan RAM untuk video yang ditimbal mengikutnya"
+        "message": "Memori komputer ini (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Memilih satu saiz akan memasukkan jumlah yang disyorkan ke dalam medan RAM di bawah."
     },
     "options_general_ramsize_unknown": {
         "message": "Tidak ditetapkan"
@@ -894,13 +906,10 @@
         "message": "Diabaikan, bukan entri yang sah: baris $1"
     },
     "options_general_bufferahead": {
-        "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan apabila muat turun awal dimatikan, berhenti atau kehabisan ruang)"
+        "message": "Detik yang dikekalkan dalam penampan di hadapan main balik apabila keseluruhan video tidak dimuat turun awal (0 hingga 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: tiada apa-apa yang dikekalkan dalam penampan di hadapan, jadi video kerap berhenti untuk memuatkan. Biarkan medan ini kosong jika anda mahu tanpa had."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Tanpa had: keseluruhan video dimuat turun di hadapan main balik, walaupun muat turun awal dimatikan: dalam RAM, kemudian pada cakera apabila had RAM di atas telah penuh. Jika kelajuan muat turun di atas ialah 0, tiada apa-apa yang dimuat turun di hadapan main balik."
+        "message": "0: tiada apa-apa yang dikekalkan dalam penampan di hadapan, jadi video kerap berhenti untuk memuatkan."
     },
     "options_general_bufferbehind": {
         "message": "Detik yang dikekalkan dalam penampan di belakang main balik sebelum dipangkas"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Mati"
     },
+    "options_general_storage": {
+        "message": "Tempat menyimpan video yang dimuat turun"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM, kemudian cakera"
+    },
+    "options_general_storage_ramonly": {
+        "message": "RAM sahaja"
+    },
+    "options_general_storage_disk": {
+        "message": "Cakera sahaja"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Disyorkan. Video kekal dalam RAM sehingga jumlah yang ditetapkan di bawah; yang tidak muat disimpan pada cakera dan dimainkan sama seperti biasa. Tetingkap peribadi tidak pernah menulis pada cakera: di sana hanya RAM digunakan."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Tiada apa-apa ditulis pada cakera. Yang tidak muat dalam RAM yang ditetapkan di bawah dibuang dan dimuat turun semula jika perlu."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Untuk komputer yang memorinya sedikit: video disimpan pada cakera sebaik sahaja tiba, dan hanya bahagian yang sedang dimainkan kekal dalam RAM. Tetingkap peribadi, yang tidak menulis apa-apa pada cakera, mengekalkan 64 MB dalam RAM."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: video yang telah dimainkan terus dibuang; mencari ke belakang memuatkan semula. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
     "options_general_bufferbehind_none": {
-        "message": "Tanpa had: semua yang telah dimainkan dikekalkan, dalam RAM dan kemudian pada cakera apabila had RAM di atas telah penuh."
+        "message": "Tanpa had: semua yang telah dimainkan dikekalkan, dalam RAM atau pada cakera mengikut pilihan di bawah."
     },
     "options_general_blockpopups": {
         "message": "Sekat popup/popunder yang dibuka sejurus selepas mengklik pemain"

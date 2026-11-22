@@ -293,8 +293,9 @@ copy of it stayed in RAM as well, because Firefox keeps a private `Response.blob
 0.24 ms from RAM, 1.5 ms from OPFS and 5.6 ms from the Cache API (same measurement, 40 reads
 each): reads are not the bottleneck at one piece per 4 s of video; the writes were.
 
-- **The budget.** A setting (Options > General, "RAM for buffered video", 16 locales), 2 GB by
-  default, for all FastStream players together; an empty field is no limit, 0 is none (below):
+- **The budget.** A setting (Options > General, "RAM for buffered video", 16 locales), 1 GB by
+  default (2 GB until 2026-11-22, "Where downloaded video is kept" below), for all FastStream
+  players together; an empty field is no limit, 0 is none (below):
   Firefox tells an extension
   nothing of the computer's RAM (no `navigator.deviceMemory`). Players announce their RAM over
   `PlayerPeers`; a player's share (`MemoryBudget.shareOf`) is its weight's part of the budget
@@ -307,11 +308,12 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   20 GB, and nothing on the page said that was too much). With no RAM size to read, the user is
   asked: once on the welcome page, and in Options > General right before the budget ("This
   computer's memory", `computerMemory` in GB, 0 when not given). An answer sets the budget to an
-  eighth of it, at most 4 GB (`RamGuard.ramBudgetFor`: 4 GB -> 500 MB, 8 -> 1 GB, 16 -> 2 GB,
-  32 or more -> 4 GB), and turns "Keep video on disk" on. The budget's field warns
-  (`ramBudgetRisky`, `options_general_rambudget_high`) above 4 GB, or above a quarter of the
-  memory given, and the no-limit hint names the freeze. Not chosen (the owner, 2026-11-21):
-  taking "no limit" away.
+  eighth of it, at most 4 GB (`StorageMode.recommendedRamBudget`: 4 GB -> 500 MB, 8 -> 1 GB,
+  16 -> 2 GB, 32 or more -> 4 GB); where the rest goes is the storage mode's (it turned "Keep
+  video on disk" on until 2026-11-22). The budget's field warns (`ramBudgetRisky`,
+  `options_general_rambudget_high`) above 4 GB, or above a quarter of the memory given, names the
+  recommended amount, and offers it on a button. Not chosen (the owner, 2026-11-21): taking "no
+  limit" away; since 2026-11-22 it is offered only with "RAM only".
 - **No guard while playing** (measured 2026-11-21; the owner chose not to build one). The one
   sign an extension has of a computer running out of memory is its own timers running late.
   Measured with the web player in headless Firefox 160 under a systemd scope (WSL Ubuntu 26.04:
@@ -335,27 +337,31 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
 - **0 is straight to disk** (the owner's decision of 2026-10-09; it stopped every download
   ahead before, like a download speed of 0). A share of 0 lets go of all but the next 10 s, so a
   normal window writes the rest to disk as it comes, and downloads ahead go on while the player
-  holds under `MemoryBudget.DISK_ONLY_ROOM_BYTES` (64 MB): what is on its way to disk. A
-  private window, with no disk, downloads nothing ahead at 0. (ram-budget.e2e: 4 MB of a 33 MB
-  stream in RAM, the rest on disk; the old client never finished the download.)
+  holds under `MemoryBudget.DISK_ONLY_ROOM_BYTES` (64 MB): what is on its way to disk. Where
+  nothing goes to disk (a private window, the disk gone) 0 is that 64 MB in RAM
+  (`FastStreamClient.memoryShare`, since 2026-11-22: before, nothing was downloaded ahead and the
+  video waited for each part). (ram-budget.e2e: 4 MB of a 33 MB stream in RAM, the rest on disk;
+  the old client never finished the download.)
 - **Private windows keep nothing on disk** (`FSBlob` `memoryOnly`): the owner's decision of
   2026-10-09, after Firefox's own design (`browser.privatebrowsing.forceMediaMemoryCache` keeps a
   private window's media in RAM). What a private player lets go of is downloaded again when
   needed. A save is the user's own request to write the video to disk: its converters
   (`hls2mp4`, `mp4merger`, `remuxer`, `StreamSaver`) still stage in Firefox's encrypted
   private storage.
-- **"Keep video on disk when this RAM is full"** (Options > General, under the budget; the
-  owner's decision of 2026-10-10, for those who want no SSD writes for buffering): on by
-  default, as before. Off, a normal window's player works like a private one's: what does not
+- **"Keep video on disk when this RAM is full"** (the owner's decision of 2026-10-10, for those
+  who want no SSD writes for buffering; since 2026-11-22 the "RAM only" mode of "Where to keep
+  downloaded video", below, and no checkbox of its own): `bufferToDisk`, on by default, as
+  before. Off, a normal window's player works like a private one's: what does not
   fit is let go of and downloaded again when needed (`DownloadManager.setBufferToDisk` ->
   `FSBlob.setMemoryOnly`, at once, also mid-video; what is on disk already is read from there
   until it is deleted). Only the buffer: watch progress (`SecureMemory`, IndexedDB) and saves
   keep their storage. Every budget works with it: what is kept has to fit below `LOW` of the
   budget (`updateHasDownloadSpace`, `ramAheadSeconds`), so a video that fits (2 GB, 8 GB...)
   is predownloaded whole, a bigger one keeps what fits ahead with the storage warning and
-  nothing pinned (grandfathered fragments could not be let go of), 0 keeps nothing ahead (its
-  hint says so, `options_general_rambudget_zero_nodisk`), and an empty field is no limit, all
-  in RAM, as with the disk. Kept beyond the budget, the far end was let go of and fetched again
+  nothing pinned (grandfathered fragments could not be let go of), 0 keeps the 64 MB above (the
+  options page no longer makes that pair: saved, it is read as RAM only with the recommended
+  amount, `StorageMode.migrateStorage`), and an empty field is no limit, all in RAM, as with the
+  disk. Kept beyond the budget, the far end was let go of and fetched again
   by the downloads ahead, round and round - private windows did that with "Buffer ahead" (300 s)
   in a small budget; they get the same cap. (ram-budget.e2e: with the switch off and a 2 MB
   budget, 64 fragments let go, 2.9 MB in RAM, 0 files, and the start downloaded again and
@@ -447,9 +453,75 @@ were logged at the budget-0 check, with about 52 from the test before).
 with a 2 MB budget 64 fragments went to disk, 2.9 MB stayed, and the start played again from
 disk; the same with "Keep video on disk" off: let go, no file, played again);
 `FastStreamClient.test.mjs` "the RAM budget with nothing on disk" (2 GB, 8 GB, 500 MB, 100 MB,
-0, empty, a private window); `options-fields.e2e.mjs` (the switch is saved, the 0 hint follows it); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
+0, empty, a private window); `options-fields.e2e.mjs` (the storage modes, the amounts each refuses, the recommended amount);
+`StorageMode.test.mjs` (the modes, the migration); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
 `MemoryBudget.test.mjs`; `opfsStorage.test.mjs` (deferred saves, spill, `memoryOnly`, an old
 write racing a new save); `DownloadEntry.test.mjs`, `DownloadManager.test.mjs` (lost data).
+
+## Where downloaded video is kept: three modes
+
+The owner (2026-11-22): settings were piling up and could work against each other. "RAM for
+buffered video" and "Keep video on disk when this RAM is full" made three ways of keeping video
+and two pairs that contradicted themselves: no limit with the disk on (the disk never used: all in
+RAM), and 0 with the disk off (nothing kept ahead, the video waiting for each part).
+
+- **"Where to keep downloaded video"** (Options > General): RAM, then disk / RAM only / Disk only,
+  with a line under it saying what the chosen one does. No option of its own: `StorageMode.mjs`
+  reads it from `ramBudget` and `bufferToDisk` (`storageModeOf`) and sets the two for a mode
+  (`optionsForStorageMode`): Disk only is 0, and leaving it, or no limit for RAM, then disk, takes
+  the recommended amount. The memory and RAM rows hide in Disk only. Cloud copies, files and older
+  builds read the same two keys.
+- **The contradicting pairs, saved before**, are read as what they did (`migrateStorage`, on every
+  load in `Utils.getOptionsFromStorage` and on an import): no limit with the disk on is RAM only
+  with no limit; 0 with the disk off is RAM only with the recommended amount (it did not work).
+- **The RAM field takes what its mode uses.** 0 (Disk only's) and an empty field (no limit, RAM
+  only's) are refused in the other modes, on leaving the field: it shows its amount again and says
+  why (`options_general_rambudget_refused`); the 400 ms save while typing takes neither. Under it,
+  the recommended amount for the memory given (`options_general_rambudget_recommended`), the
+  warning when the amount can freeze the computer, and a button that puts the recommended amount
+  in. Picking the memory sets the amount only: where the rest goes stays the user's mode.
+- **"Seconds to keep buffered ahead" takes a number, 0 to 3600.** Empty was no limit and downloaded
+  the whole video with predownload off, which made the predownload checkbox mean nothing. Empty is
+  its default (300) now; a saved no limit is read as predownload on with no maximum size, which
+  downloads the same.
+- **"Downloads at the same time"** stays in the hidden developer options (`#dev`): moving it next to
+  the speed limit, as first proposed, would have shown it to everyone.
+
+**Measured (2026-11-22)** to pick the numbers, with a scratch bench (the web player, a 6-minute
+1080p HLS video at 16 Mbit/s, 710 MB, from a local server, played while it downloads at full
+speed; four modes, three rounds each, interleaved). Windows 11, NVMe SSD, Firefox 160.0.1:
+
+| | All in RAM (4 GB) | RAM 200 MB, then disk | Disk only | RAM only, 200 MB |
+|---|---|---|---|---|
+| Whole video downloaded in | 3.2-3.9 s | 5.2-6.2 s | 4.2-6.7 s | - (keeps what fits) |
+| A 50 ms timer's worst lateness | 49-55 ms | 21-37 ms | 14-97 ms | 13-84 ms |
+| Dropped frames | 0 | 0 | 0 | 0 |
+| Eight far seeks to `seeked`, median | 335 ms | 351 ms | 350 ms | 390 ms |
+| Firefox's private memory | 1.7-2.1 GB | 1.2-1.3 GB | 1.0-1.2 GB | 1.1-1.4 GB |
+
+The same on Linux (Ubuntu 26.04 in WSL 2, ext4 on its virtual disk, Firefox 160.0.1, headless):
+
+| | All in RAM (4 GB) | RAM 200 MB, then disk | Disk only | RAM only, 200 MB |
+|---|---|---|---|---|
+| Whole video downloaded in | 4.3-5.6 s | 8.3-9.3 s | 8.3-11.1 s | - (keeps what fits) |
+| A 50 ms timer's worst lateness | 32-82 ms | 79-80 ms | 38-125 ms | 28-116 ms |
+| Dropped frames (of ~1790) | 10-40 | 8-19 | 17-45 | 8-41 |
+| Eight far seeks to `seeked`, median | 193 ms | 178 ms | 190 ms | 247 ms |
+| Firefox's private memory | 1.6-1.7 GB | 1.0-1.1 GB | 0.8-0.9 GB | 0.9-1.2 GB |
+
+Frames dropped in every mode, RAM's too: software decoding in a headless VM, not the disk. The
+virtual disk wrote 65-85 MB/s, still five times a 100 Mbit/s line.
+
+- The disk costs nothing that shows: as smooth, no more dropped frames, at most 15 ms more per seek, and written
+  at 100+ MB/s, beyond any line (100 Mbit/s is 12.5 MB/s).
+- The budget is real memory, about one to one (600 MB more video in RAM, ~650 MB more Firefox).
+- More RAM buys only fewer SSD writes ("What goes to the disk, measured": nothing within the
+  budget, the overflow once). RAM only costs downloads again (39-48 fragments let go of per run).
+- The spill rule (over 90 % of the share, down to 75 %, furthest behind first, never the next
+  minute) made no stutter: unchanged.
+- So the default (no memory given) is 1 GB, not 2 GB: half a 4 GB laptop's memory bought nothing
+  but fewer writes. The recommended amount for a memory given stays an eighth, at most 4 GB: a
+  typical episode stays whole in RAM (no writes) on 8 GB and more.
 
 ## What goes to the disk, measured
 
@@ -527,9 +599,19 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   first, and one larger than that on its own is kept 20 s in RAM only. A private window keeps 20 s
   in RAM only, never on the disk (`ramOnly`). Firefox closed: the id in `storage.session` is gone
   with it, so a record from before is not this Firefox's and is deleted at the next start, with its
-  files; the OPFS prune (`opfs-worker.mjs`, 60 s heartbeat) leaves a directory alone while its
+  files; the OPFS prune (`SessionPrune.mjs`, 60 s heartbeat) leaves a directory alone while its
   `_kept.json` says it is kept, at most 1 h. Off: the player hands nothing over and the reset
   deletes its files at once. `BufferKeep.test.mjs`, `opfsStorage.test.mjs`.
+- **Firefox closed with players open** (#798, 2026-11-22): their session directories stayed, as
+  their players never deleted them and the stash's timers went with the event page, until a player
+  started again (only its start pruned): a user found 18.3 GB in `fs` after a restart. Reproduced
+  in Firefox 160 on Linux with 1.3.82.233 installed for good: 438 MB stayed 90 s after the restart
+  with no video opened, and went once one opened. Now the background prunes too, on an alarm
+  (`fsblob-prune`) 65 s after `runtime.onStartup` and `runtime.onInstalled`: every earlier run's
+  heartbeat is past `STALE_MS` by then, and every live player's is not, also one restored with its
+  tab at the start. The background sees the default OPFS partition only: a container's leftovers
+  wait for its next player. Measured with the keep check (tab closed, `fs` on the disk): Off empties
+  it at once (usage 1 MB at once, the folder 0 MB 3 s later). `backgroundSessionPrune.test.mjs`.
 - **A moved file whose part was let go of** is deleted (`adoptOne`), but not when the same part was downloaded
   again meanwhile: that download is saved under the same key, and deleting it lost it (an area review, 2026-11-21).
   "Its data under the key" is `entry.blobId ?? key` (`keepsDataUnder`): a download moved on to a new link keeps its

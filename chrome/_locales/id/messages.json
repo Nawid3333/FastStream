@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Sudah diatur: FastStream menyimpan hingga $1 video di RAM, sisanya di disk. Anda dapat mengubahnya di opsi, pada \"Opsi Umum\"."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Ditetapkan: FastStream menyimpan hingga $1 video di RAM; yang tidak muat diunduh lagi bila dibutuhkan. Anda dapat mengubahnya di opsi, di bagian \"Opsi Umum\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Kontrol Keyboard Bawaan"
     },
@@ -588,10 +591,10 @@
         "message": "Video menunggu data karena \"Kecepatan unduh target predownloader\" ($1 Mbit/s) di bawah kebutuhan video ini (sekitar $2 Mbit/s): hanya sedikit yang diunduh lebih dulu. Naikkan pengaturan itu, atau kosongkan agar tanpa batas."
     },
     "player_wait_ahead_zero": {
-        "message": "Video menunggu data karena \"Detik yang tetap dibuffer di depan pemutaran\" bernilai 0: tidak ada yang disimpan lebih dulu. Naikkan pengaturan itu, atau kosongkan agar tanpa batas."
+        "message": "Video menunggu data karena \"Detik yang tetap dibuffer di depan pemutaran\" bernilai 0: tidak ada yang disimpan lebih dulu. Naikkan pengaturan itu."
     },
     "player_wait_ram_zero": {
-        "message": "Video menunggu data karena \"RAM untuk video yang di-buffer\" bernilai 0 dan tidak ada yang disimpan di disk di sini: tidak ada yang diunduh lebih dulu. Naikkan pengaturan itu, atau kosongkan agar tanpa batas."
+        "message": "Video menunggu data: tidak ada yang disimpan di disk di sini, dan \"Hanya disk\" hanya menyimpan 64 MB di RAM. Pilih mode lain di \"Tempat menyimpan video yang diunduh\" agar lebih banyak yang disimpan lebih dulu."
     },
     "player_fragment_failed_singular": {
         "message": "$1 bagian video gagal diunduh. Klik untuk mencoba lagi."
@@ -699,7 +702,7 @@
         "message": "Di jendela pribadi, FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Simpan video di disk\" nonaktif, jadi FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2). Video tidak dipraunduh seluruhnya, tetapi tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk mempraunduh seluruhnya, aktifkan \"Simpan video di disk\"."
+        "message": "\"Tempat menyimpan video yang diunduh\" disetel ke \"Hanya RAM\", jadi FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2). Video tidak dipraunduh seluruhnya, tetapi tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk mempraunduh seluruhnya, pilih \"RAM lalu disk\" di pengaturan itu."
     },
     "player_buffer_disk_warning": {
         "message": "Video ini (sekitar $1) lebih besar dari ruang disk yang diberikan Firefox kepada FastStream ($2 kosong), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan. Mengosongkan ruang disk akan membantu."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "RAM untuk video yang di-buffer (semua tab)"
     },
-    "options_general_buffertodisk": {
-        "message": "Simpan video di disk saat RAM ini penuh (nonaktif: buang dan unduh lagi bila dibutuhkan, sehingga tidak ada yang ditulis ke disk)"
-    },
     "options_general_nolimit": {
         "message": "Tidak ada batasan"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: tidak ada yang dipraunduh; hanya detik yang diatur di bawah yang disimpan di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: video yang diunduh tidak disimpan di RAM, melainkan di disk, kecuali beberapa detik berikutnya. Di jendela privat, yang tidak menyimpan apa pun di disk, tidak ada yang diunduh di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: video yang diunduh tidak disimpan, dan dengan \"Simpan video di disk\" nonaktif, tidak ada yang diunduh di depan pemutaran, sehingga video mungkin terhenti saat memuat. Biarkan kolom kosong agar tidak ada batasan."
+    "options_general_maxsize_none": {
+        "message": "Tanpa batas: sebanyak yang muat di RAM dan di ruang yang Firefox berikan untuk FastStream di disk."
     },
     "options_general_rambudget_none": {
-        "message": "Tanpa batas: semua video yang diunduh tetap di RAM, tidak ada yang ke disk. Video panjang dapat memakai lebih banyak memori daripada yang dimiliki komputer dan membuatnya macet: tetapkan batas kecuali memorinya banyak."
+        "message": "Tanpa batas: semua video yang diunduh tetap di RAM. Video panjang dapat memakai lebih banyak memori daripada yang dimiliki komputer dan membuatnya macet."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Direkomendasikan untuk $1: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Pilih memori komputer ini di atas untuk melihat jumlah yang disarankan."
+    },
+    "options_general_rambudget_use": {
+        "message": "Gunakan $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Tidak diterima: agar tidak ada video di RAM, pilih \"Hanya disk\" di atas; \"Tidak ada batasan\" hanya berlaku untuk \"Hanya RAM\"."
     },
     "options_general_rambudget_high": {
-        "message": "Video sebanyak ini di RAM dapat membuat komputer macet: Windows dan Firefox membutuhkan sebagian besar memorinya. Dengan \"Simpan video di disk saat RAM ini penuh\" aktif, sisa video disimpan di disk dan diputar sama saja."
+        "message": "Video sebanyak ini di RAM dapat membuat komputer macet: sistem dan Firefox membutuhkan sebagian besar memorinya. Jumlah yang lebih kecil diputar sama saja, karena sisa video pindah ke disk atau diunduh lagi bila dibutuhkan."
     },
     "options_general_ramsize": {
-        "message": "Memori komputer ini (RAM): menyesuaikan RAM untuk video yang di-buffer"
+        "message": "Memori komputer ini (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Memilih ukuran akan memasukkan jumlah yang disarankan ke kolom RAM di bawah."
     },
     "options_general_ramsize_unknown": {
         "message": "Belum diatur"
@@ -894,13 +906,10 @@
         "message": "Dilewati, bukan entri yang valid: baris $1"
     },
     "options_general_bufferahead": {
-        "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload nonaktif, berhenti, atau kehabisan ruang)"
+        "message": "Detik yang tetap dibuffer di depan pemutaran saat video tidak dipraunduh seluruhnya (0 hingga 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: tidak ada yang tetap dibuffer di depan pemutaran, jadi video sering berhenti untuk memuat. Biarkan kolom kosong untuk tanpa batas."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Tanpa batas: seluruh video diunduh di depan, bahkan saat predownload nonaktif: di RAM, lalu pindah ke disk setelah batas RAM di atas penuh. Jika kecepatan unduhan di atas adalah 0, tidak ada yang diunduh di depan."
+        "message": "0: tidak ada yang tetap dibuffer di depan pemutaran, jadi video sering berhenti untuk memuat."
     },
     "options_general_bufferbehind": {
         "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Mati"
     },
+    "options_general_storage": {
+        "message": "Tempat menyimpan video yang diunduh"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM lalu disk"
+    },
+    "options_general_storage_ramonly": {
+        "message": "Hanya RAM"
+    },
+    "options_general_storage_disk": {
+        "message": "Hanya disk"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Disarankan. Video tetap di RAM hingga jumlah di bawah; yang tidak muat pindah ke disk dan tetap diputar sama saja. Jendela privat tidak pernah menulis ke disk: di sana video hanya disimpan di RAM."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Tidak ada yang ditulis ke disk. Yang tidak muat di RAM di bawah akan dibuang dan diunduh lagi bila dibutuhkan."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Untuk komputer dengan memori sedikit: video langsung ke disk saat datang, dan hanya bagian yang sedang diputar tetap di RAM. Jendela privat, yang tidak menulis apa pun ke disk, menyimpan 64 MB di RAM."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: video yang sudah diputar langsung dibuang; mundur ke bagian sebelumnya akan memuatnya lagi. Biarkan kolom kosong untuk tanpa batas."
     },
     "options_general_bufferbehind_none": {
-        "message": "Tanpa batas: semua yang sudah diputar tetap disimpan, di RAM lalu pindah ke disk setelah batas RAM di atas penuh."
+        "message": "Tanpa batas: semua yang sudah diputar tetap disimpan, di RAM atau di disk sesuai yang dipilih di bawah."
     },
     "options_general_blockpopups": {
         "message": "Blokir popup/popunder yang dibuka tepat setelah mengklik pemutar"

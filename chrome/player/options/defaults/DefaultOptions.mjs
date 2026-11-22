@@ -49,7 +49,7 @@ export const DefaultOptions = {
   videoAspectRatio: AspectRatios.AUTO,
   maxSpeed: -1,
   maxVideoSize: 5000000000,
-  ramBudget: 2000000000, // all players together; beyond it: disk (private windows: let go)
+  ramBudget: 1000000000, // all players together; beyond it: the storage mode (StorageMode.mjs)
   computerMemory: 0, // GB, as the user gave it (0: not given): sets ramBudget, and when its field warns
   bufferToDisk: true, // false: beyond the RAM budget let go, downloaded again when needed
   bufferKeep: BufferKeepDefault, // seconds a gone player's buffer waits for the next player of its video (BufferKeep.mjs); 0: none

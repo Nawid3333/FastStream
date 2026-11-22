@@ -38,21 +38,21 @@ Notes:
 
 ## RAM and disk
 
-FastStream downloads the video ahead and keeps it until it is played. Two settings (Options > General) decide where:
+FastStream downloads the video ahead and keeps it until it is played. **Where to keep downloaded video** (Options > General) decides where:
 
-- **RAM for buffered video (all tabs)** - how much downloaded video is kept in RAM, for all FastStream tabs together. Default 2 GB; 0 = none; empty = no limit.
-- **Keep video on disk when this RAM is full** - on (default): what does not fit in that RAM is written to the disk and read from there. Off: it is let go of and downloaded again when you need it, and nothing of the buffer is written to the disk.
-
-| You want | RAM for buffered video | Keep video on disk |
+| Mode | What it does | For |
 |---|---|---|
-| RAM first, the rest on the disk (default) | e.g. 2 GB | on |
-| As little RAM as possible (a PC with 8 GB) | 0 | on - only the next seconds stay in RAM |
-| No disk writes at all (to spare an SSD) | as much as you can give, e.g. 4 GB | off |
-| Everything in RAM, no limit | empty | either |
+| **RAM, then disk** (default) | Video stays in RAM up to the amount you set; what does not fit is written to the disk and read from there. A video that fits is never written to the disk. | Most computers |
+| **RAM only** | Nothing of the buffer is written to the disk. What does not fit in the RAM is let go of and downloaded again when you need it. | Sparing an SSD's writes |
+| **Disk only** | The video goes to the disk as it arrives; only the part playing now stays in RAM. | Computers with little memory |
 
-A video that fits in the RAM you gave it is never written to the disk. With the disk off and 0 RAM, nothing is kept ahead, so a video may stop to load. Private windows never write the buffer to the disk. Your watch progress and the videos you save are not the buffer: these settings do not touch them.
+In the two RAM modes, **RAM for buffered video (all tabs)** sets the amount, for all FastStream tabs together (default 1 GB). Pick **this computer's memory** above it, and FastStream puts in the recommended amount (an eighth of the memory, at most 4 GB), and warns when the field asks for more than the computer can spare. "No limit" is offered only with RAM only, with a warning: a long video can then fill the memory and freeze the computer.
 
-Reloading the page doesn't throw the buffer away. FastStream keeps what it had downloaded, in RAM and on the disk, for 20 seconds, and the player of the reloaded page plays on with it, also when the site gives the video a new signed link at every load. Whatever no player takes back within those 20 seconds is let go of, and its files are deleted.
+Measured with a 1080p video at 16 Mbit/s on an SSD, on Windows and Linux, the disk modes played as smoothly as RAM, with no more dropped frames, and a seek took at most about 15 ms longer; the disk took the video faster than any internet line delivers it. More RAM saves SSD writes and nothing else. RAM only has a cost: what does not fit is downloaded again, so seeking back waits for the network.
+
+Private windows never write the buffer to the disk: they keep it in RAM (with Disk only, 64 MB). Your watch progress and the videos you save are not the buffer: these settings do not touch them.
+
+Reloading or closing the page doesn't throw the buffer away at once. FastStream keeps what it had downloaded for the time set under **How long the downloaded video is kept after a reload or a closed tab** (Off, 20 seconds by default, 1, 5, 15 or 30 minutes, or 1 hour; past 20 seconds on the disk, and never past the moment Firefox closes: what a closed Firefox leaves behind is deleted a minute after it starts again). The player of the page opened again plays on with it, also when the site gives the video a new signed link at every load. Whatever no player takes back in that time is let go of, and its files are deleted. To start from scratch instead, click the "Reusing ... already downloaded" notice the player shows, or **Download the video again** in the player's menu.
 
 ## Your settings on several computers
 

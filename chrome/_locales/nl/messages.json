@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Ingesteld: FastStream bewaart tot $1 video in het RAM, de rest op schijf. Je kunt dit wijzigen in de opties, onder \"Algemene opties\"."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Ingesteld: FastStream bewaart maximaal $1 aan video in het RAM; wat niet past, wordt opnieuw gedownload indien nodig. Dit kunt u wijzigen in de opties, onder \"Algemene opties\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Standaard toetsenbordbediening"
     },
@@ -588,10 +591,10 @@
         "message": "De video wacht op data omdat \"Gewenste downloadsnelheid voor het voorladen\" ($1 Mbit/s) lager is dan wat deze video nodig heeft (ongeveer $2 Mbit/s): er wordt weinig vooruit gedownload. Verhoog die instelling of laat haar leeg voor geen limiet."
     },
     "player_wait_ahead_zero": {
-        "message": "De video wacht op data omdat \"Seconden die vanaf de afspeelpositie vooruit gebufferd blijven\" op 0 staat: er wordt niets vooruit bewaard. Verhoog die instelling of laat haar leeg voor geen limiet."
+        "message": "De video wacht op data потому \"Seconden die vanaf de afspeelpositie vooruit gebufferd blijven\" op 0 staat: er wordt niets vooruit bewaard. Verhoog die instelling."
     },
     "player_wait_ram_zero": {
-        "message": "De video wacht op data omdat \"RAM voor gebufferde video\" op 0 staat en hier niets op de schijf wordt bewaard: er wordt niets vooruit gedownload. Verhoog die instelling of laat haar leeg voor geen limiet."
+        "message": "De video wacht op data: hier wordt niets op de schijf bewaard, en \"Alleen schijf\" bewaart slechts 64 MB in het RAM. Kies onder \"Waar gedownloade video wordt bewaard\" een andere modus om meer vooruit te bewaren."
     },
     "player_fragment_failed_singular": {
         "message": "$1 deel van de video kon niet worden gedownload. Klik om opnieuw te proberen."
@@ -699,7 +702,7 @@
         "message": "In een privévenster bewaart FastStream video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van 'RAM voor gebufferde video' dat FastStream ervoor mag gebruiken ($2), dus wordt hij niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden."
     },
     "player_buffer_ram_warning": {
-        "message": "'Video op schijf bewaren' staat uit, dus FastStream bewaart video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van 'RAM voor gebufferde video' dat FastStream ervoor mag gebruiken ($2). Hij wordt niet volledig vooraf gedownload, maar speelt gewoon af en blijft tot $3 vooruit laden. Zet 'Video op schijf bewaren' aan om hem volledig vooraf te downloaden."
+        "message": "\"Waar gedownloade video wordt bewaard\" staat op \"Alleen RAM\", dus FastStream bewaart video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van \"RAM voor gebufferde video\" dat FastStream ervoor mag gebruiken ($2). Hij wordt niet volledig vooraf gedownload, maar speelt gewoon af en blijft tot $3 vooruit laden. Kies daar \"RAM, daarna schijf\" om hem volledig vooraf te downloaden."
     },
     "player_buffer_disk_warning": {
         "message": "Deze video (ongeveer $1) is groter dan de schijfruimte die Firefox aan FastStream geeft ($2 vrij) en wordt daarom niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden. Schijfruimte vrijmaken helpt."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "RAM voor gebufferde video (alle tabbladen)"
     },
-    "options_general_buffertodisk": {
-        "message": "Video op schijf bewaren als deze RAM vol is (uit: weggooien en opnieuw downloaden indien nodig, zodat er niets op de schijf wordt geschreven)"
-    },
     "options_general_nolimit": {
         "message": "Geen limiet"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: er wordt niets vooraf gedownload; alleen de seconden die hieronder zijn ingesteld, blijven vooruit gebufferd. Laat het veld leeg voor geen limiet."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: gedownloade video wordt niet in RAM bewaard maar op schijf, op de eerstvolgende seconden na. In een privévenster, dat niets op schijf bewaart, wordt niets vooruit gedownload. Laat het veld leeg voor geen limiet."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: gedownloade video wordt niet bewaard en als \"Video op schijf bewaren\" uitstaat, wordt er niets vooruit gedownload, waardoor video's kunnen stoppen met laden. Laat het veld leeg voor geen limiet."
+    "options_general_maxsize_none": {
+        "message": "Geen limiet: zoveel als in het RAM past en in de ruimte die Firefox FastStream op de schijf geeft."
     },
     "options_general_rambudget_none": {
-        "message": "Geen limiet: alle gedownloade video blijft in het RAM, niets gaat naar de schijf. Een lange video kan meer geheugen innemen dan de computer heeft en hem laten vastlopen: stel een limiet in, tenzij hij ruim geheugen heeft."
+        "message": "Geen limiet: alle gedownloade video blijft in het RAM. Een lange video kan meer geheugen innemen dan de computer heeft en hem laten vastlopen."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Aanbevolen voor $1: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Kies hierboven het geheugen van deze computer om de aanbevolen hoeveelheid te zien."
+    },
+    "options_general_rambudget_use": {
+        "message": "$1 gebruiken"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Niet overgenomen: kies hierboven \"Alleen schijf\" om geen video in het RAM te bewaren; \"Geen limiet\" is alleen voor \"Alleen RAM\"."
     },
     "options_general_rambudget_high": {
-        "message": "Zoveel video in het RAM kan een computer laten vastlopen: Windows en Firefox hebben het grootste deel van het geheugen nodig. Met \"Video op schijf bewaren als deze RAM vol is\" aan wordt de rest van de video op schijf bewaard en speelt hij net zo af."
+        "message": "Zoveel video in het RAM kan een computer laten vastlopen: het besturingssysteem en Firefox hebben het grootste deel van het geheugen nodig. Een kleinere hoeveelheid speelt net zo af, omdat de rest van de video naar de schijf gaat of opnieuw wordt gedownload indien nodig."
     },
     "options_general_ramsize": {
-        "message": "Geheugen van deze computer (RAM): stelt het RAM voor gebufferde video daarop af"
+        "message": "Geheugen van deze computer (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Het kiezen van een grootte zet de aanbevolen hoeveelheid in het RAM-veld hieronder."
     },
     "options_general_ramsize_unknown": {
         "message": "Niet ingesteld"
@@ -894,13 +906,10 @@
         "message": "Overgeslagen, geen geldige regel: regel $1"
     },
     "options_general_bufferahead": {
-        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven wanneer vooraf downloaden uit staat, is gestopt of de ruimte op is"
+        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven wanneer de volledige video niet vooraf is gedownload (0 tot 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: er blijft niets vooruit gebufferd, dus de video stopt vaak om te laden. Laat het veld leeg voor geen limiet."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Geen limiet: de hele video wordt vooruit gedownload, ook als vooraf downloaden uit staat: eerst in RAM, daarna op schijf zodra de RAM-limiet hierboven vol is. Is de downloadsnelheid hierboven 0, dan wordt er niets vooruit gedownload."
+        "message": "0: er blijft niets vooruit gebufferd, dus de video stopt vaak om te laden."
     },
     "options_general_bufferbehind": {
         "message": "Seconden die achter de afspeelpositie gebufferd blijven voordat ze worden verwijderd"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Uit"
     },
+    "options_general_storage": {
+        "message": "Waar gedownloade video wordt bewaard"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM, daarna schijf"
+    },
+    "options_general_storage_ramonly": {
+        "message": "Alleen RAM"
+    },
+    "options_general_storage_disk": {
+        "message": "Alleen schijf"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Aanbevolen. Video blijft in het RAM tot de hoeveelheid hieronder; wat niet past, gaat naar de schijf en speelt net zo af. Privévensters schrijven nooit naar de schijf: daar is het alleen RAM."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Er wordt niets op de schijf geschreven. Wat niet in het RAM hieronder past, wordt weggegooid en opnieuw gedownload indien nodig."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Voor computers met weinig geheugen: de video gaat naar de schijf zodra deze binnenkomt, en alleen het deel dat nu afspeelt blijft in het RAM. Privévensters, die niets naar de schijf schrijven, bewaren 64 MB in het RAM."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: afgespeelde video wordt meteen weggegooid; terugspoelen laadt hem opnieuw. Laat het veld leeg voor geen limiet."
     },
     "options_general_bufferbehind_none": {
-        "message": "Geen limiet: alles wat al is afgespeeld blijft bewaard, eerst in RAM en daarna op schijf zodra de RAM-limiet hierboven vol is."
+        "message": "Geen limiet: alles wat al is afgespeeld blijft bewaard, in RAM of op schijf, zoals hieronder gekozen."
     },
     "options_general_blockpopups": {
         "message": "Popups/popunders blokkeren die direct na het klikken op de speler worden geopend"

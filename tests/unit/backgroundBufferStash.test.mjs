@@ -84,6 +84,15 @@ describe('a player\'s buffer handed over as it goes', () => {
     expect(put.mock.calls.map(([, , ms, where]) => [ms, where])).toEqual([[3600000, {ramOnly: false}], [20000, {ramOnly: true}]]);
     bg.unload();
 
+    // "RAM only" writes nothing to the disk: its buffer stays in RAM too, 20 s at most.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], options: {bufferKeep: 3600, bufferToDisk: false}});
+    const {BufferStash: RamOnlyStash} = await import('../../chrome/background/BufferStash.mjs');
+    const ramOnlyPut = vi.spyOn(RamOnlyStash.prototype, 'put');
+    await bg.message(handOff, await playerOn(1, PAGE));
+    await vi.waitFor(() => expect(ramOnlyPut).toHaveBeenCalledTimes(1));
+    expect(ramOnlyPut.mock.calls.map(([, , ms, where]) => [ms, where])).toEqual([[20000, {ramOnly: true}]]);
+    bg.unload();
+
     // "Off" deletes its files at once: no OPFS here.
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}], options: {bufferKeep: 0}});

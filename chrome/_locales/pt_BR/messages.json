@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Pronto: o FastStream guarda até $1 de vídeo na RAM, o resto no disco. Você pode mudar isso nas opções, em \"Opções gerais\"."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Definido: o FastStream mantém até $1 de vídeo na RAM; o que não couber é baixado novamente quando necessário. É possível alterar isso nas opções, na seção \"Opções gerais\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Controles padrão do teclado"
     },
@@ -588,10 +591,10 @@
         "message": "O vídeo está esperando dados porque \"Velocidade alvo de download do pré-downloader\" ($1 Mbit/s) está abaixo do que este vídeo precisa (cerca de $2 Mbit/s): pouco é baixado com antecedência. Aumente essa configuração ou deixe-a vazia para não ter limite."
     },
     "player_wait_ahead_zero": {
-        "message": "O vídeo está esperando dados porque \"Segundos a manter em buffer à frente da reprodução\" está em 0: nada é mantido com antecedência. Aumente essa configuração ou deixe-a vazia para não ter limite."
+        "message": "O vídeo está esperando dados porque \"Segundos a manter em buffer à frente da reprodução\" está em 0: nada é mantido com antecedência. Aumente essa configuração."
     },
     "player_wait_ram_zero": {
-        "message": "O vídeo está esperando dados porque \"RAM para o vídeo em buffer\" está em 0 e aqui nada é mantido no disco: nada é baixado com antecedência. Aumente essa configuração ou deixe-a vazia para não ter limite."
+        "message": "O vídeo está esperando dados: nada é mantido no disco aqui, e \"Somente disco\" mantém apenas 64 MB na RAM. Escolha outro modo em \"Onde manter o vídeo baixado\" para manter mais à frente."
     },
     "player_fragment_failed_singular": {
         "message": "$1 parte do vídeo não foi baixada. Clique para tentar novamente."
@@ -699,7 +702,7 @@
         "message": "Em uma janela privativa, o FastStream mantém o vídeo apenas na RAM, e este vídeo (cerca de $1) é maior que a parte de \"RAM para o vídeo em buffer\" que o FastStream pode usar para ele ($2), por isso não é pré-baixado por inteiro. Ele ainda é reproduzido normalmente e continua carregando até $3 à frente."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Manter o vídeo no disco\" está desativado, então o FastStream mantém o vídeo apenas na RAM, e este vídeo (cerca de $1) é maior que a parte de \"RAM para o vídeo em buffer\" que o FastStream pode usar para ele ($2). Ele não é pré-baixado por inteiro, mas ainda é reproduzido normalmente e continua carregando até $3 à frente. Para pré-baixá-lo por inteiro, ative \"Manter o vídeo no disco\"."
+        "message": "\"Onde manter o vídeo baixado\" está defindo como \"Somente RAM\", então o FastStream mantém o vídeo apenas na RAM, e este vídeo (cerca de $1) é maior que a parte de \"RAM para o vídeo em buffer\" que o FastStream pode usar para ele ($2). Ele não é pré-baixado por inteiro, mas ainda é reproduzido normalmente e continua carregando até $3 à frente. Para pré-baixá-lo por inteiro, escolha \"RAM, depois disco\" ali."
     },
     "player_buffer_disk_warning": {
         "message": "Este vídeo (cerca de $1) é maior que o espaço em disco que o Firefox dá ao FastStream ($2 livres), por isso não é pré-baixado por inteiro. Ele ainda é reproduzido normalmente e continua carregando até $3 à frente. Liberar espaço em disco ajuda."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "RAM para o vídeo em buffer (todas as abas)"
     },
-    "options_general_buffertodisk": {
-        "message": "Manter o vídeo no disco quando esta RAM estiver cheia (desativado: descartar e baixar novamente quando necessário, para que nada seja escrito no disco)"
-    },
     "options_general_nolimit": {
         "message": "Sem limite"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: nada é pré-baixado; apenas os segundos definidos abaixo são mantidos em buffer à frente da reprodução. Deixe o campo vazio para não haver limite."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: o vídeo baixado não fica na RAM, mas no disco, exceto os próximos segundos. Em uma janela privativa, que não guarda nada no disco, nada é baixado antes da reprodução. Deixe o campo vazio para não haver limite."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: nenhum vídeo baixado é mantido e, com \"Manter o vídeo no disco\" desativado, nada é baixado antes da reprodução, então os vídeos podem parar de carregar. Deixe o campo vazio para não haver limite."
+    "options_general_maxsize_none": {
+        "message": "Sem limite: tudo o que couber na RAM e no espaço que o Firefox dá ao FastStream no disco."
     },
     "options_general_rambudget_none": {
-        "message": "Sem limite: todo o vídeo baixado fica na RAM, nada vai para o disco. Um vídeo longo pode ocupar mais memória do que o computador tem e travá-lo: defina um limite, a menos que ele tenha bastante."
+        "message": "Sem limite: todo o vídeo baixado fica na RAM. Um vídeo longo pode ocupar mais memória do que o computador tem e travá-lo."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Recomendado para $1: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Selecione acima a memória deste computador para ver a quantidade recomendada."
+    },
+    "options_general_rambudget_use": {
+        "message": "Usar $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Não aplicado: para não manter vídeo na RAM, escolha \"Somente disco\" acima; \"Sem limite\" é apenas para \"Somente RAM\"."
     },
     "options_general_rambudget_high": {
-        "message": "Tanto vídeo na RAM pode travar um computador: o Windows e o Firefox precisam da maior parte da memória. Com \"Manter o vídeo no disco quando esta RAM estiver cheia\" ativado, o resto do vídeo fica no disco e é reproduzido do mesmo jeito."
+        "message": "Tanto vídeo na RAM pode travar um computador: o sistema e o Firefox precisam da maior parte da memória. Uma quantidade menor é reproduzida do mesmo jeito, porque o resto do vídeo vai para o disco ou é baixado novamente quando necessário."
     },
     "options_general_ramsize": {
-        "message": "Memória deste computador (RAM): ajusta a RAM para o vídeo em buffer de acordo"
+        "message": "Memória deste computador (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Escolher um tamanho coloca a quantidade recomendada no campo de RAM abaixo."
     },
     "options_general_ramsize_unknown": {
         "message": "Não definida"
@@ -894,13 +906,10 @@
         "message": "Ignorada, não é uma entrada válida: linha $1"
     },
     "options_general_bufferahead": {
-        "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download está desativado, parou ou ficou sem espaço)"
+        "message": "Segundos a manter em buffer à frente da reprodução quando o vídeo inteiro não é pré-baixado (0 a 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: nada é mantido em buffer à frente, então o vídeo para com frequência para carregar. Deixe o campo vazio para não haver limite."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Sem limite: o vídeo inteiro é baixado antecipadamente, mesmo com o pré-download desativado: na RAM, e depois no disco, quando o limite de RAM acima for atingido. Se a velocidade de download acima for 0, nada é baixado antecipadamente."
+        "message": "0: nada é mantido em buffer à frente, então o vídeo para com frequência para carregar."
     },
     "options_general_bufferbehind": {
         "message": "Segundos a manter em buffer atrás da reprodução antes de serem descartados"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Desativado"
     },
+    "options_general_storage": {
+        "message": "Onde manter o vídeo baixado"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM, depois disco"
+    },
+    "options_general_storage_ramonly": {
+        "message": "Somente RAM"
+    },
+    "options_general_storage_disk": {
+        "message": "Somente disco"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Recomendado. O vídeo fica na RAM até a quantidade definida abaixo; o que não couber vai para o disco e é reproduzido do mesmo jeito. Janelas privativas nunca escrevem no disco: ali é somente RAM."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Nada é escrito no disco. O que não couber na RAM definida abaixo é descartado e baixado novamente quando necessário."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Para computadores com pouca memória: o vídeo vai para o disco assim que chega, e apenas a parte em reprodução fica na RAM. As janelas privativas, que não escrevem nada no disco, mantêm 64 MB na RAM."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: o vídeo já reproduzido é descartado na hora; voltar para trás recarrega o vídeo. Deixe o campo vazio para não haver limite."
     },
     "options_general_bufferbehind_none": {
-        "message": "Sem limite: tudo o que já foi reproduzido é mantido, na RAM e depois no disco, quando o limite de RAM acima for atingido."
+        "message": "Sem limite: tudo o que já foi reproduzido é mantido, na RAM ou no disco, conforme escolhido abaixo."
     },
     "options_general_blockpopups": {
         "message": "Bloquear pop-ups/popunders abertos logo após clicar no reprodutor"

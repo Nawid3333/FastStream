@@ -285,9 +285,43 @@ describe('Options page size fields, typed by hand', function() {
    * @param {string} key
    * @return {Promise<string>}
    */
-  const message = (key) => browser.execute((key) => new Promise((done) => {
-    import('/player/modules/Localize.mjs').then(({Localize}) => done(Localize.getMessage(key)));
-  }), key);
+  const message = (key, subs) => browser.execute((key, subs) => new Promise((done) => {
+    import('/player/modules/Localize.mjs').then(({Localize}) => done(Localize.getMessage(key, subs)));
+  }), key, subs || null);
+
+  /**
+   * What the hint under the RAM field says, without its button; null while it is hidden.
+   * @return {Promise<?string>}
+   */
+  const ramHint = () => browser.execute(() => {
+    const element = document.getElementById('rambudgethint');
+    return element.hidden ? null : document.getElementById('rambudgethinttext').textContent;
+  });
+
+  /**
+   * A size as the page writes it ("1 GB").
+   * @param {number} bytes
+   * @return {Promise<string>}
+   */
+  const size = (bytes) => browser.execute((bytes) => new Promise((done) => {
+    import('/player/utils/StringUtils.mjs').then(({StringUtils}) => done(StringUtils.formatSize(bytes)));
+  }), bytes);
+
+  /** @return {Promise<Object>} The storage mode's select, and whether the RAM rows and the RAM button show. */
+  const storage = () => browser.execute(() => ({
+    mode: document.getElementById('storagemode').value,
+    ramRows: !document.getElementById('ramoptions').hidden,
+    useButton: document.getElementById('ramrecommended').hidden ? null : document.getElementById('ramrecommended').textContent,
+  }));
+
+  /**
+   * Picks an entry of a menu as a person does.
+   * @param {string} id
+   * @param {string} value
+   */
+  async function pick(id, value) {
+    await (await browser.$(`#${id}`)).selectByAttribute('value', value);
+  }
 
   /**
    * Picks a unit as a person does.
@@ -302,7 +336,7 @@ describe('Options page size fields, typed by hand', function() {
   // a number, and the unit beside it.
   it('shows each size as a number and a unit, the speed in Mbit/s', async function() {
     expect(await shown('maxsize')).toEqual(['5', 'GB']);
-    expect(await shown('rambudget')).toEqual(['2', 'GB']);
+    expect(await shown('rambudget')).toEqual(['1', 'GB']);
     // No speed limit: an empty field that says so in words, not only "∞".
     expect(await browser.execute(() => [document.getElementById('maxspeed').value,
       document.getElementById('maxspeed').placeholder])).toEqual(['', await message('options_general_nolimit')]);
@@ -441,37 +475,71 @@ describe('Options page size fields, typed by hand', function() {
     await browser.keys(['Tab']);
     await savedAs('maxVideoSize', 0);
     expect(await shown('maxsize')).toEqual(['0', 'GB']);
+    await typeInto('maxsize', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('maxVideoSize', -1);
+    expect(await hint('maxsize')).toBe(await message('options_general_maxsize_none'));
+  });
 
-    await typeInto('rambudget', '0');
-    await browser.keys(['Tab']);
-    await savedAs('ramBudget', 0);
-    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero'));
+  // Where downloaded video is kept: three modes, where "No limit" with the disk on and 0 with it off contradicted
+  // themselves. The RAM rows say what is recommended, and go where the mode uses no RAM.
+  it('takes the storage modes, and only the RAM amounts each one uses', async function() {
+    expect(await storage()).toEqual({mode: 'ramdisk', ramRows: true, useButton: null});
+    expect(await ramHint()).toBe(await message('options_general_rambudget_unknown'));
+    // 0 is "Disk only", and no limit is for "RAM only": the field keeps its amount.
+    for (const text of ['0', '']) {
+      await typeInto('rambudget', text);
+      await browser.keys(['Backspace', 'Tab']);
+      expect(await shown('rambudget')).toEqual(['1', 'GB']);
+      expect(await ramHint()).toBe([await message('options_general_rambudget_refused'),
+        await message('options_general_rambudget_unknown')].join(' '));
+    }
+    await browser.pause(600);
+    expect(await browser.execute(() => JSON.parse(localStorage.getItem('options') || '{}').ramBudget)).not.toBe(0);
+
+    await pick('storagemode', 'ramonly');
+    await savedAs('bufferToDisk', false);
     await typeInto('rambudget', '');
     await browser.keys(['Backspace', 'Tab']);
     await savedAs('ramBudget', -1);
-    expect(await shown('rambudget')).toEqual(['', 'GB']);
-    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_none'));
-  });
+    expect(await ramHint()).toBe([await message('options_general_rambudget_none'),
+      await message('options_general_rambudget_unknown')].join(' '));
 
-  // with "Keep video on disk" off a budget of 0 is not straight to disk; the hint says so
-  it('saves "Keep video on disk", and says what a RAM budget of 0 means without it', async function() {
-    const toggle = () => browser.execute(() => document.getElementById('buffertodisk').click());
-    expect(await browser.execute(() => document.getElementById('buffertodisk').checked)).toBe(true);
-    await typeInto('rambudget', '0');
-    await browser.keys(['Tab']);
+    await pick('storagemode', 'disk');
     await savedAs('ramBudget', 0);
-    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero'));
-
-    await toggle();
-    await savedAs('bufferToDisk', false);
-    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero_nodisk'));
-    await toggle();
     await savedAs('bufferToDisk', true);
-    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero'));
+    expect((await storage()).ramRows).toBe(false);
+    expect(await hint('storagemode')).toBe(await message('options_general_storage_disk_hint'));
+
+    // Back to RAM, then disk: the recommended amount, not the 0 of disk only.
+    await pick('storagemode', 'ramdisk');
+    await savedAs('ramBudget', 1e9);
+    expect(await storage()).toEqual({mode: 'ramdisk', ramRows: true, useButton: null});
   });
 
-  // buffer ahead and behind: an emptied field is no limit, not 0
-  it('takes an empty buffer field as no limit and 0 as none, and says so under it', async function() {
+  it('recommends a RAM amount for the memory given, and puts it in at a click', async function() {
+    await pick('ramsize', '8');
+    await savedAs('ramBudget', 1e9);
+    await savedAs('computerMemory', 8);
+    const recommended = await message('options_general_rambudget_recommended',
+        [await browser.execute(() => document.getElementById('ramsize').selectedOptions[0].textContent), await size(1e9)]);
+    expect(await ramHint()).toBe(recommended);
+    expect((await storage()).useButton).toBe(null);
+
+    // More than a quarter of 8 GB: the warning, and the button.
+    await typeInto('rambudget', '3');
+    await browser.keys(['Tab']);
+    await savedAs('ramBudget', 3e9);
+    expect(await ramHint()).toBe([await message('options_general_rambudget_high'), recommended].join(' '));
+    expect((await storage()).useButton).toBe(await message('options_general_rambudget_use', [await size(1e9)]));
+    await (await browser.$('#ramrecommended')).click();
+    await savedAs('ramBudget', 1e9);
+    expect(await shown('rambudget')).toEqual(['1', 'GB']);
+    expect((await storage()).useButton).toBe(null);
+  });
+
+  // "Ahead" takes a number: the whole video is predownload's. "Behind" an emptied field is no limit, not 0.
+  it('takes seconds ahead from 0 to an hour, empty as its default, and seconds behind empty as no limit', async function() {
     for (const [id, option] of [['bufferahead', 'bufferAhead'], ['bufferbehind', 'bufferBehind']]) {
       await typeInto(id, '45');
       await browser.keys(['Tab']);
@@ -481,15 +549,26 @@ describe('Options page size fields, typed by hand', function() {
       await browser.keys(['Tab']);
       await savedAs(option, 0);
       expect(await hint(id)).toBe(await message(`options_general_${id}_zero`));
-      await typeInto(id, '');
-      await browser.keys(['Backspace', 'Tab']);
-      await savedAs(option, -1);
-      expect(await browser.execute((field) => document.getElementById(field).value, id)).toBe('');
-      expect(await hint(id)).toBe(await message(`options_general_${id}_none`));
-      // No number: the value set stays.
+    }
+    await typeInto('bufferahead', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('bufferAhead', 300);
+    expect(await browser.execute(() => document.getElementById('bufferahead').value)).toBe('300');
+    await typeInto('bufferahead', '99999');
+    await browser.keys(['Tab']);
+    await savedAs('bufferAhead', 3600);
+    expect(await browser.execute(() => document.getElementById('bufferahead').value)).toBe('3600');
+
+    await typeInto('bufferbehind', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('bufferBehind', -1);
+    expect(await browser.execute(() => document.getElementById('bufferbehind').value)).toBe('');
+    expect(await hint('bufferbehind')).toBe(await message('options_general_bufferbehind_none'));
+    // No number: the value set stays.
+    for (const [id, option, value] of [['bufferahead', 'bufferAhead', 3600], ['bufferbehind', 'bufferBehind', -1]]) {
       await typeInto(id, 'abc');
       await browser.keys(['Tab']);
-      await savedAs(option, -1);
+      await savedAs(option, value);
     }
   });
 

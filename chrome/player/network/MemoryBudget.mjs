@@ -1,6 +1,6 @@
 // @ts-check
 
-export const DEFAULT_BUDGET_BYTES = 2e9;
+export const DEFAULT_BUDGET_BYTES = 1e9;
 // Over HIGH of its share a player frees down to LOW; the gap keeps it from flapping.
 export const HIGH = 0.9;
 export const LOW = 0.75;

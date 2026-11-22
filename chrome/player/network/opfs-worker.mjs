@@ -1,14 +1,11 @@
 // @ts-check
-import {BufferKeepMaxMs, KeptRecordFile} from '../options/BufferKeep.mjs';
 import {OpQueue} from './OpQueue.mjs';
+import {META_FILE, pruneSessions} from './SessionPrune.mjs';
 
 // Owns one OPFS session directory. One OpQueue runs its file operations: two sync access handles on one file throw.
 
-// A page in the back-forward cache, or a computer asleep, writes no heartbeat for a while.
-const STALE_MS = 60000;
 // A hidden tab's timers run up to 15 s late: a beat is at most about 20 s old.
 const HEARTBEAT_MS = 5000;
-const META_FILE = '_meta.json';
 
 const queue = new OpQueue();
 /** @type {FileSystemDirectoryHandle|null} */
@@ -27,83 +24,6 @@ const saveStreams = new Map();
 async function getFsBlobRoot() {
   const root = await navigator.storage.getDirectory();
   return root.getDirectoryHandle('fsblob', {create: true});
-}
-
-/**
- * @return {Promise<{time: ?number, unreadable?: boolean}>} Null: none or a broken one (dead). Unreadable: its owner writes it (alive).
- * @param {string} name
- */
-async function readHeartbeat(name) {
-  let fileHandle;
-  try {
-    const dir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(name);
-    fileHandle = await dir.getFileHandle(META_FILE);
-  } catch (e) {
-    return {time: null};
-  }
-  let text;
-  try {
-    text = await (await fileHandle.getFile()).text();
-  } catch (e) {
-    return {time: null, unreadable: true};
-  }
-  try {
-    return {time: JSON.parse(text).updated_time ?? null};
-  } catch (e) {
-    // Its owner never leaves it half written (it holds the lock while writing): a crash did.
-    return {time: null};
-  }
-}
-
-/**
- * @param {string} name
- * @return {?number}
- */
-function sessionCreatedTime(name) {
-  const match = /^fsblob-(\d+)-/.exec(name);
-  return match ? Number(match[1]) : null;
-}
-
-/**
- * Until when the background keeps a gone player's session for the next player of its video (BufferStash); 0 for
- * none, a broken record, or a time past BufferKeepMaxMs from now.
- * @param {string} name
- * @return {Promise<number>}
- */
-async function keptUntil(name) {
-  try {
-    const dir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(name);
-    const until = JSON.parse(await (await (await dir.getFileHandle(KeptRecordFile)).getFile()).text())?.until;
-    return Number.isFinite(until) && until <= Date.now() + BufferKeepMaxMs ? until : 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-/**
- * Deletes sessions whose heartbeat is stale or missing; one younger than STALE_MS has none yet, and one the
- * background keeps stays until its time is up.
- * @param {string} ownName
- */
-async function prune(ownName) {
-  const stale = [];
-  for await (const name of /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).keys()) {
-    if (name === ownName) continue;
-    const created = sessionCreatedTime(name);
-    if (created !== null && Date.now() - created <= STALE_MS) continue;
-    const heartbeat = await readHeartbeat(name);
-    if (heartbeat.unreadable) continue;
-    if ((!heartbeat.time || Date.now() - heartbeat.time > STALE_MS) && await keptUntil(name) <= Date.now()) {
-      stale.push(name);
-    }
-  }
-  await Promise.all(stale.map(async (name) => {
-    try {
-      await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).removeEntry(name, {recursive: true});
-    } catch (e) {
-      // Another tab may be pruning or closing it: the next prune takes it.
-    }
-  }));
 }
 
 /**
@@ -152,12 +72,12 @@ async function init() {
   sessionName = 'fsblob-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
 
   // Before this session's own directory exists, so prune never takes it.
-  await prune(sessionName);
+  await pruneSessions(/** @type {FileSystemDirectoryHandle} */ (fsBlobRoot), sessionName);
 
   sessionDir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(sessionName, {create: true});
   await writeHeartbeat();
   heartbeatInterval = setInterval(() => {
-    // Not queued, so long writes cannot starve it past STALE_MS: it touches no file another op does.
+    // Not queued, so long writes cannot starve it past SessionPrune's STALE_MS: it touches no file another op does.
     if (heartbeatInFlight) return;
     heartbeatInFlight = true;
     writeHeartbeat().catch(() => {}).finally(() => {

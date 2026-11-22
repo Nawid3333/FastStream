@@ -1987,8 +1987,9 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
     `TtmlSubtitles.test.mjs` covers times, rates, detection and colours.
 
 - **A wait a setting causes is named** (2026-11-21, `ui/WaitNotice.mjs`). With "Target download
-  speed" 0 or below the video's rate, "Seconds to keep buffered ahead" 0 (and none kept ahead), or
-  "RAM for buffered video" 0 where nothing goes to disk, the client downloads nothing ahead; only
+  speed" 0 or below the video's rate, or "Seconds to keep buffered ahead" 0 (and none kept ahead),
+  the client downloads nothing ahead ("Disk only" where nothing goes to disk keeps 64 MB in RAM
+  since 2026-11-22, and its message says to pick another mode to keep more ahead); only
   the players' own 10-30 s are buffered, and a short slowdown of the line stops the video. After
   2 s of waiting while playing, once per video, an info for 12 s names the setting
   (`player_wait_*`). Nothing for a live stream, with no such limit (a slow line), or while the

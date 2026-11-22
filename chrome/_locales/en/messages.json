@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Set: FastStream keeps up to $1 of video in RAM, the rest on disk. You can change it in the options, under \"General Options\"."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Set: FastStream keeps up to $1 of video in RAM; what does not fit is downloaded again when needed. You can change it in the options, under \"General Options\"."
+    },
     "welcome_page_keybinds_header": {
         "message": "Default Keyboard Controls"
     },
@@ -588,10 +591,10 @@
         "message": "The video waits for data because \"Target download speed of predownloader\" ($1 Mbit/s) is below what this video needs (about $2 Mbit/s): little is downloaded ahead. Raise that setting, or leave it empty for no limit."
     },
     "player_wait_ahead_zero": {
-        "message": "The video waits for data because \"Seconds to keep buffered ahead\" is 0: nothing is kept ahead. Raise that setting, or leave it empty for no limit."
+        "message": "The video waits for data because \"Seconds to keep buffered ahead\" is 0: nothing is kept ahead. Raise that setting."
     },
     "player_wait_ram_zero": {
-        "message": "The video waits for data because \"RAM for buffered video\" is 0 and nothing is kept on disk here: nothing is downloaded ahead. Raise that setting, or leave it empty for no limit."
+        "message": "The video waits for data: nothing is kept on the disk here, and \"Disk only\" keeps only 64 MB in RAM. Choose another mode under \"Where to keep downloaded video\" to keep more ahead."
     },
     "player_fragment_failed_singular": {
         "message": "$1 part of the video failed to download. Click to try again."
@@ -699,7 +702,7 @@
         "message": "In a private window FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for buffered video\" FastStream may use for it ($2), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Keep video on disk\" is off, so FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for buffered video\" FastStream may use for it ($2). It is not predownloaded whole, but still plays normally and keeps loading up to $3 ahead. To predownload it whole, switch \"Keep video on disk\" on."
+        "message": "\"Where to keep downloaded video\" is \"RAM only\", so FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for buffered video\" FastStream may use for it ($2). It is not predownloaded whole, but still plays normally and keeps loading up to $3 ahead. To predownload it whole, choose \"RAM, then disk\" there."
     },
     "player_buffer_disk_warning": {
         "message": "This video (about $1) is larger than the disk space Firefox gives FastStream ($2 free), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead. Freeing disk space helps."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "RAM for buffered video (all tabs)"
     },
-    "options_general_buffertodisk": {
-        "message": "Keep video on disk when this RAM is full (off: let it go and download it again when needed, which writes nothing to the disk)"
-    },
     "options_general_nolimit": {
         "message": "No limit"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: nothing is predownloaded; only the seconds set below are kept ahead. Leave the field empty for no limit."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: downloaded video is not kept in RAM but on disk, all but the next seconds. In a private window, which keeps nothing on disk, nothing is downloaded ahead. Leave the field empty for no limit."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: no downloaded video is kept, and with \"Keep video on disk\" off nothing is downloaded ahead of playback, so videos may stop to load. Leave the field empty for no limit."
+    "options_general_maxsize_none": {
+        "message": "No limit: as much as fits in RAM and in the room Firefox gives FastStream on the disk."
     },
     "options_general_rambudget_none": {
-        "message": "No limit: all downloaded video stays in RAM, none goes to disk. A long video can take more memory than the computer has and freeze it: set a limit unless it has plenty."
+        "message": "No limit: all downloaded video stays in RAM. A long video can take more memory than the computer has and freeze it."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Recommended for $1: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Pick this computer's memory above to see the recommended amount."
+    },
+    "options_general_rambudget_use": {
+        "message": "Use $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Not taken: for no video in RAM choose \"Disk only\" above; \"No limit\" is only for \"RAM only\"."
     },
     "options_general_rambudget_high": {
-        "message": "This much video in RAM can freeze a computer: Windows and Firefox need most of its memory. With \"Keep video on disk when this RAM is full\" on, the rest of the video is kept on disk and plays the same."
+        "message": "This much video in RAM can freeze a computer: the system and Firefox need most of its memory. A smaller amount plays the same, because the rest of the video goes to the disk or is downloaded again when needed."
     },
     "options_general_ramsize": {
-        "message": "This computer's memory (RAM): sets the RAM for buffered video to suit it"
+        "message": "This computer's memory (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Picking a size puts the recommended amount into the RAM field below."
     },
     "options_general_ramsize_unknown": {
         "message": "Not set"
@@ -894,13 +906,10 @@
         "message": "Left out, not a valid entry: line $1"
     },
     "options_general_bufferahead": {
-        "message": "Seconds to keep buffered ahead of playback when predownload is off, has stopped, or has run out of space"
+        "message": "Seconds to keep buffered ahead of playback when the whole video is not predownloaded (0 to 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: nothing is kept buffered ahead, so the video stops to load often. Leave the field empty for no limit."
-    },
-    "options_general_bufferahead_none": {
-        "message": "No limit: the whole video is downloaded ahead, even with predownload off: in RAM, then on disk once the RAM limit above is full. If the download speed above is 0, nothing is downloaded ahead."
+        "message": "0: nothing is kept buffered ahead, so the video stops to load often."
     },
     "options_general_bufferbehind": {
         "message": "Seconds to keep buffered behind playback before trimming"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Off"
     },
+    "options_general_storage": {
+        "message": "Where to keep downloaded video"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM, then disk"
+    },
+    "options_general_storage_ramonly": {
+        "message": "RAM only"
+    },
+    "options_general_storage_disk": {
+        "message": "Disk only"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Recommended. Video stays in RAM up to the amount below; what does not fit goes to the disk and plays the same. Private windows never write to the disk: there it is RAM only."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Nothing is written to the disk. What does not fit in the RAM below is let go of and downloaded again when needed."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "For computers with little memory: the video goes to the disk as it arrives, and only the part playing now stays in RAM. Private windows, which write nothing to the disk, keep 64 MB in RAM."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: played video is dropped at once; seeking back loads it again. Leave the field empty for no limit."
     },
     "options_general_bufferbehind_none": {
-        "message": "No limit: everything already played is kept, in RAM and then on disk once the RAM limit above is full."
+        "message": "No limit: everything already played is kept, in RAM or on the disk as chosen below."
     },
     "options_general_blockpopups": {
         "message": "Block popups/popunders opened right after clicking the player"

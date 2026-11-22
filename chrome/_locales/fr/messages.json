@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "C'est réglé : FastStream garde jusqu'à $1 de vidéo en mémoire vive, le reste sur le disque. Vous pouvez le modifier dans les options, sous « Options générales »."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Défini : FastStream garde jusqu'à $1 de vidéo en mémoire vive ; ce qui n'y tient pas est téléchargé à nouveau si besoin. Vous pouvez le modifier dans les options, sous « Options générales »."
+    },
     "welcome_page_keybinds_header": {
         "message": "Raccourcis clavier par défaut"
     },
@@ -588,10 +591,10 @@
         "message": "La vidéo attend des données, car « Vitesse de téléchargement cible du préchargeur » ($1 Mbit/s) est inférieure à ce dont cette vidéo a besoin (environ $2 Mbit/s) : peu de données sont téléchargées à l'avance. Augmentez ce réglage ou laissez-le vide pour ne fixer aucune limite."
     },
     "player_wait_ahead_zero": {
-        "message": "La vidéo attend des données, car « Secondes à conserver en mémoire tampon devant la lecture » est à 0 : rien n'est conservé à l'avance. Augmentez ce réglage ou laissez-le vide pour ne fixer aucune limite."
+        "message": "La vidéo attend des données, car « Secondes à conserver en mémoire tampon devant la lecture » est à 0 : rien n'est conservé à l'avance. Augmentez ce réglage."
     },
     "player_wait_ram_zero": {
-        "message": "La vidéo attend des données, car « Mémoire vive pour la vidéo en mémoire tampon » est à 0 et rien n'est conservé sur le disque ici : rien n'est téléchargé à l'avance. Augmentez ce réglage ou laissez-le vide pour ne fixer aucune limite."
+        "message": "La vidéo attend des données : rien n'est conservé sur le disque ici, et « Disque uniquement » ne garde que 64 MB en mémoire vive. Choisissez un autre mode sous « Où conserver la vidéo téléchargée » pour en conserver davantage à l'avance."
     },
     "player_fragment_failed_singular": {
         "message": "$1 partie de la vidéo n'a pas pu être téléchargée. Cliquez pour réessayer."
@@ -699,7 +702,7 @@
         "message": "Dans une fenêtre de navigation privée, FastStream garde la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo en mémoire tampon » que FastStream peut lui consacrer ($2) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance."
     },
     "player_buffer_ram_warning": {
-        "message": "« Conserver la vidéo sur le disque » est désactivé : FastStream garde donc la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo en mémoire tampon » que FastStream peut lui consacrer ($2). Elle n'est pas préchargée en entier, mais se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la précharger en entier, activez « Conserver la vidéo sur le disque »."
+        "message": "« Où conserver la vidéo téléchargée » est réglé sur « RAM uniquement » : FastStream garde donc la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo en mémoire tampon » que FastStream peut lui consacrer ($2). Elle n'est pas préchargée en entier, mais se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la précharger en entier, choisissez « RAM puis disque » dans ce réglage."
     },
     "player_buffer_disk_warning": {
         "message": "Cette vidéo (environ $1) dépasse l'espace disque que Firefox accorde à FastStream ($2 libres) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Libérer de l'espace disque aide."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)"
     },
-    "options_general_buffertodisk": {
-        "message": "Conserver la vidéo sur le disque lorsque cette mémoire vive est pleine (désactivé : la supprimer et la télécharger à nouveau si besoin, pour ne rien écrire sur le disque)"
-    },
     "options_general_nolimit": {
         "message": "Pas de limite"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0 : rien n'est préchargé ; seules les secondes définies ci-dessous sont conservées en mémoire tampon. Laissez le champ vide pour supprimer la limite."
     },
-    "options_general_rambudget_zero": {
-        "message": "0 : la vidéo téléchargée n'est pas conservée en mémoire vive, mais sur le disque, à l'exception des prochaines secondes. Dans une fenêtre de navigation privée, qui ne conserve rien sur le disque, rien n'est téléchargé à l'avance. Laissez le champ vide pour supprimer la limite."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0 : aucune vidéo téléchargée n'est conservée et, avec « Conserver la vidéo sur le disque » désactivé, rien n'est téléchargé à l'avance, ce qui peut provoquer des interruptions de lecture. Laissez le champ vide pour supprimer la limite."
+    "options_general_maxsize_none": {
+        "message": "Aucune limite : autant que ce qui tient dans la mémoire vive et dans l'espace que Firefox accorde à FastStream sur le disque."
     },
     "options_general_rambudget_none": {
-        "message": "Aucune limite : toute la vidéo téléchargée reste en mémoire vive, rien ne va sur le disque. Une longue vidéo peut prendre plus de mémoire que l'ordinateur n'en a et le figer : fixez une limite, sauf s'il en a beaucoup."
+        "message": "Aucune limite : toute la vidéo téléchargée reste en mémoire vive. Une longue vidéo peut prendre plus de mémoire que l'ordinateur n'en a et le figer."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Recommandé pour $1 : $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Choisissez ci-dessus la mémoire de cet ordinateur pour voir la quantité recommandée."
+    },
+    "options_general_rambudget_use": {
+        "message": "Utiliser $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Non appliqué : pour ne garder aucune vidéo en mémoire vive, choisissez « Disque uniquement » ci-dessus ; « Pas de limite » ne vaut que pour « RAM uniquement »."
     },
     "options_general_rambudget_high": {
-        "message": "Autant de vidéo en mémoire vive peut figer un ordinateur : Windows et Firefox ont besoin de la plus grande partie de sa mémoire. Avec « Conserver la vidéo sur le disque lorsque cette mémoire vive est pleine » activé, le reste de la vidéo est conservé sur le disque et se lit de la même façon."
+        "message": "Autant de vidéo en mémoire vive peut figer un ordinateur : le système et Firefox ont besoin de la plus grande partie de sa mémoire. Une quantité moindre se lit de la même façon, car le reste de la vidéo va sur le disque ou est téléchargé à nouveau si besoin."
     },
     "options_general_ramsize": {
-        "message": "Mémoire de cet ordinateur (RAM) : règle la mémoire vive pour la vidéo en mémoire tampon en conséquence"
+        "message": "Mémoire de cet ordinateur (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Choisir une taille place la quantité recommandée dans le champ de mémoire vive ci-dessous."
     },
     "options_general_ramsize_unknown": {
         "message": "Non indiquée"
@@ -894,13 +906,10 @@
         "message": "Ignorée, entrée non valide : ligne $1"
     },
     "options_general_bufferahead": {
-        "message": "Secondes à conserver en mémoire tampon devant la lecture lorsque le pré-téléchargement est désactivé, arrêté ou à court d'espace"
+        "message": "Secondes à conserver en mémoire tampon devant la lecture lorsque la vidéo entière n'est pas préchargée (de 0 à 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0 : rien n'est conservé en mémoire tampon devant la lecture, la vidéo s'arrête donc souvent pour charger. Laissez le champ vide pour ne définir aucune limite."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Aucune limite : toute la vidéo est téléchargée à l'avance, même si le pré-téléchargement est désactivé : dans la mémoire vive, puis sur le disque une fois la limite de mémoire vive ci-dessus atteinte. Si la vitesse de téléchargement ci-dessus est de 0, rien n'est téléchargé à l'avance."
+        "message": "0 : rien n'est conservé en mémoire tampon devant la lecture, la vidéo s'arrête donc souvent pour charger."
     },
     "options_general_bufferbehind": {
         "message": "Secondes à conserver en mémoire tampon derrière la lecture avant leur suppression"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Désactivé"
     },
+    "options_general_storage": {
+        "message": "Où conserver la vidéo téléchargée"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM puis disque"
+    },
+    "options_general_storage_ramonly": {
+        "message": "RAM uniquement"
+    },
+    "options_general_storage_disk": {
+        "message": "Disque uniquement"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Recommandé. La vidéo reste en mémoire vive jusqu'à la quantité ci-dessous ; ce qui n'y tient pas va sur le disque et se lit de la même façon. Les fenêtres privées n'écrivent jamais sur le disque : là, la vidéo reste uniquement en mémoire vive."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Rien n'est écrit sur le disque. Ce qui ne tient pas dans la mémoire vive indiquée ci-dessous est supprimé et téléchargé à nouveau si besoin."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Pour les ordinateurs avec peu de mémoire : la vidéo va sur le disque dès qu'elle arrive et seule la partie en cours de lecture reste en mémoire vive. Les fenêtres privées, qui n'écrivent rien sur le disque, conservent 64 MB en mémoire vive."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0 : la vidéo déjà lue est immédiatement supprimée ; revenir en arrière la recharge. Laissez le champ vide pour ne définir aucune limite."
     },
     "options_general_bufferbehind_none": {
-        "message": "Aucune limite : tout ce qui a déjà été lu est conservé dans la mémoire vive, puis sur le disque une fois la limite de mémoire vive ci-dessus atteinte."
+        "message": "Aucune limite : tout ce qui a déjà été lu est conservé dans la mémoire vive ou sur le disque, selon ce qui est choisi ci-dessous."
     },
     "options_general_blockpopups": {
         "message": "Bloquer les popups/popunders ouverts juste après avoir cliqué sur le lecteur"
