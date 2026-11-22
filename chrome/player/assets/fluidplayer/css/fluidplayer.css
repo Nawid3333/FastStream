@@ -1034,6 +1034,41 @@ body {
     outline: 1px solid var(--status-warning-color);
 }
 
+/* StatusManager.updateFullText: a status message the bar cuts short, whole and wrapped above the bar. */
+.status_full_text {
+    position: absolute;
+    left: 15px;
+    bottom: 100%;
+    margin-bottom: 4px;
+    width: max-content;
+    max-width: calc(100% - 30px);
+    max-height: calc(100vh - 65px);
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: var(--menu-border);
+    background-color: var(--menu-background-color);
+    color: var(--menu-text-color);
+    font-size: 15px;
+    line-height: 20px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+}
+
+.status_full_text.success {
+    color: var(--status-success-color);
+}
+
+.status_full_text.error {
+    color: var(--status-error-color);
+}
+
+.status_full_text.warning {
+    color: var(--status-warning-color);
+}
+
 .reset_failed {
     color: var(--status-error-color);
     display: inline-block;
@@ -2316,8 +2351,13 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     }
 
     .status_message,
+    .status_full_text,
     .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_control_duration {
         font-size: 13px;
+    }
+
+    .status_full_text {
+        line-height: 18px;
     }
 
     .popwindow {

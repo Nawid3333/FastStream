@@ -24,9 +24,54 @@ export const StatusTypes = {
   AUDIO_OUTPUT: 'audio-output',
 };
 
+// How long the whole text of a new message cut short shows by itself: about its reading time.
+const FullTextMsPerChar = 60;
+const FullTextMinMs = 4000;
+const FullTextMaxMs = 15000;
+
+/**
+ * @param {string} message
+ * @return {number}
+ */
+function readingMs(message) {
+  return Math.min(FullTextMaxMs, Math.max(FullTextMinMs, message.length * FullTextMsPerChar));
+}
+
+/**
+ * A message with its numbers left out: a progress or a countdown that moves on is the same message.
+ * @param {string} message
+ * @return {string}
+ */
+function messageShape(message) {
+  return message.replace(/\d[\d.,]*/g, '#');
+}
+
+/**
+ * @param {HTMLElement} element
+ * @return {boolean}
+ */
+function isCutShort(element) {
+  return element.scrollWidth > element.clientWidth;
+}
+
 export class StatusManager {
   constructor() {
     this.statusMessages = new Map();
+    /** @type {?{level: *, until: number}} A new message the bar cuts short, shown whole for its reading time. */
+    this.fullText = null;
+    /** @type {?{index: number, until: number}} The status message the pointer is on. */
+    this.pointedAt = null;
+    DOMElements.statusMessages.forEach((element, index) => {
+      element.onpointerenter = () => {
+        this.pointedAt = {index, until: Infinity};
+        this.updateStatusMessage();
+      };
+      element.onpointerleave = (/** @type {PointerEvent} */ e) => {
+        // A finger leaves as it lifts: the text stays for its reading time.
+        this.pointedAt = e.pointerType === 'touch' ? {index, until: Date.now() + readingMs(element.textContent || '')} : null;
+        this.updateStatusMessage();
+      };
+    });
 
     this.registerStatusLevel(StatusTypes.WELCOME);
     this.registerStatusLevel(StatusTypes.DOWNLOAD);
@@ -63,6 +108,8 @@ export class StatusManager {
       maxWidth: 0,
       /** @type {?(() => void)} */
       onClick: null,
+      // Not shown yet: whole above the bar if the bar cuts it short.
+      fresh: false,
     };
     this.statusMessages.set(key, level);
   }
@@ -81,6 +128,10 @@ export class StatusManager {
       throw new Error(`Unknown status level ${key}`);
     }
 
+    const shown = level.expiry && Date.now() > level.expiry ? '' : level.message;
+    // The download line changes all the time.
+    level.fresh = Boolean(message) && key !== StatusTypes.DOWNLOAD &&
+      (level.fresh || !shown || messageShape(shown) !== messageShape(message || '') || level.type !== (type || 'info'));
     level.message = message;
     level.type = type || 'info';
     level.expiry = expiry ? (Date.now() + expiry) : 0;
@@ -113,7 +164,6 @@ export class StatusManager {
       element.style.width = '';
       element.style.display = '';
       element.textContent = toDisplay.message;
-      element.title = toDisplay.message;
       element.className = `status_message ${toDisplay.type}${toDisplay.onClick ? ' clickable' : ''}`;
       const onClick = toDisplay.onClick;
       element.onclick = onClick ? (e) => {
@@ -147,5 +197,46 @@ export class StatusManager {
         level.maxWidth = 0;
       });
     }
+
+    this.updateFullText(toDisplayList, elements);
+  }
+
+  /**
+   * The whole text of a status message the bar cuts short (a narrow player, a long text), wrapped above the bar:
+   * for its reading time when it is new, and while the pointer is on it. Its title shows late, and never on touch.
+   * @param {Array<*>} toDisplayList - The level shown in each status message, or null.
+   * @param {NodeListOf<HTMLElement>|Array<HTMLElement>} elements
+   */
+  updateFullText(toDisplayList, elements) {
+    const bubble = DOMElements.statusFullText;
+    const now = Date.now();
+    toDisplayList.forEach((level, index) => {
+      if (!level?.fresh) return;
+      level.fresh = false;
+      if (isCutShort(elements[index])) {
+        const until = now + readingMs(level.message);
+        this.fullText = {level, until: level.expiry ? Math.min(level.expiry, until) : until};
+      }
+    });
+    if (this.fullText && (now > this.fullText.until || !toDisplayList.includes(this.fullText.level))) {
+      this.fullText = null;
+    }
+    if (this.pointedAt && now > this.pointedAt.until) {
+      this.pointedAt = null;
+    }
+    // Measured only while something may show: each measure lays the page out.
+    let index = this.pointedAt && toDisplayList[this.pointedAt.index] ? this.pointedAt.index : -1;
+    if (index === -1 || !isCutShort(elements[index])) {
+      index = this.fullText ? toDisplayList.indexOf(this.fullText.level) : -1;
+    }
+    const level = index === -1 || !isCutShort(elements[index]) ? null : toDisplayList[index];
+    if (!bubble) return;
+    if (!level) {
+      bubble.style.display = 'none';
+      return;
+    }
+    bubble.style.display = '';
+    bubble.textContent = level.message;
+    bubble.className = `status_full_text ${level.type}`;
   }
 }

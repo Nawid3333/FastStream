@@ -61,6 +61,7 @@ export const DOMElements = {
   subtitlesOptionsTestButton: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .subtitles_test_button')),
 
   statusMessages: /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.mainplayer .status_message')),
+  statusFullText: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .status_full_text')),
   resetFailed: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .reset_failed')),
 
   vpnButton: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .vpn_button')),
