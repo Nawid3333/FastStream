@@ -1099,7 +1099,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }).then((downloadId) => {
         sendResponse(downloadId);
       }).catch((e) => {
-        sendResponse(null);
+        // false: the user cancelled the Save As dialog Firefox showed ("Download canceled by
+        // the user"); null: Firefox refused the download.
+        sendResponse(/cancell?ed by the user/i.test(String(e?.message)) ? false : null);
       });
     }
     return true;
