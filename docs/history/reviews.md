@@ -1444,3 +1444,51 @@ glm-5.3-flash's pass over that (2026-11-21): the subtitles notice was the one `r
 the last video's "subtitles available" stood over the next for up to 8 s; it goes with the others
 now (the next video's own notice comes later, with its subtitles). Its test harness matched tracks
 by label; it uses `SubtitleTrack.equals`, as the player does.
+
+## The flash models' area reviews and their checks (2026-11-21/22)
+
+glm-5.3-flash and deepseek-v4.1-flash read areas of the background, the players, the save, the
+subtitles and the options. A second model, told to refute it, checked each finding.
+
+Fixed:
+
+- **Subtitles fetched for one video came over the next** (`main.mjs`): a SOURCES message's subtitle
+  files are fetched and sorted by language before they are added. When the list was cleared
+  meanwhile (the next video set, or the user's "clear"), they went to the new video. They are
+  dropped now (`FastStreamClient.subtitlesGeneration`, the counter the URL and OpenSubtitles
+  downloads already went by).
+- The same round's other confirmed findings went into #803 (a queued hand-off sent after MPV was
+  turned off, the countdown after another file was loaded, a YouTube link ending in a slash),
+  #805 (a stale adoption deleting a newer download's data) and #809 (a cancelled Save As).
+
+Rejected:
+
+- **The options page stops in about:addons** (`parent.document` of a cross-origin parent): Firefox
+  shows inline options in a `<browser type="content">`, a top-level browsing context of its own,
+  where `parent` is the page itself.
+- **A partial MP4 save pads its last fragment to 1 MB**: the save ends at the last complete
+  fragment. **It keeps savers when it stops at a dropped fragment**: only `endsAt` drops one, and
+  it frees them.
+- **The settings export revokes its URL too early**: an `<a download>` click reads it at once; the
+  delay is for `downloads.download()` (storage.md, "A download's `blob:` URL must outlive the
+  download").
+- **The Sources window's Play redraws the list and loses its loading mark** (#807): `updateSources`
+  changes the rows in place and leaves a loading source alone.
+
+Left as it is: **the toolbar cannot be reordered on Android.** A hold starts the reordering only
+with a mouse (a touch's mouse events come after the finger lifts) and Sortable is off on phones;
+touch controls are among what is not done yet for touchscreens (build-and-release.md).
+
+## Codex's and glm-5.3-flash's reviews of #810 (2026-11-22)
+
+Rejected: **a helper put back by hand while Firefox runs gets one hand-off** (Codex). The helper's
+version is known from its last answer. The first stream after an older helper was installed over a
+current one is therefore sent: that helper plays it, and the player says to update the helper while
+the page goes on playing. `streamResult` answers it with the update text ("an older helper put
+back"), and the next send pings first. Only an old helper installed by hand during a session gets
+there: "Update mpv" installs the release's helper, and an add-on update restarts the background. A
+ping before every hand-off would start the helper twice per send.
+
+glm-5.3-flash found nothing: every message the extension still sends (`ping`, `play`, `ipc`,
+`raise`, the relay port's) has its handler in helper 32 with the fields the extension reads, a helper
+below 32 is sent nothing but a ping, and no removed name is used.

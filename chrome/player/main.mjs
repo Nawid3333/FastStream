@@ -217,8 +217,11 @@ async function recieveSources(request, sendResponse) {
 
   // Subtitles last: the steps above are the ones the user waits for.
   if (subs) {
+    // Cleared while they were fetched (the next video set, or the user's "clear"): they are the video before's.
+    const generation = /** @type {FastStreamWindow} */ (window).fastStream.subtitlesGeneration;
     subs = await loadSubtitles(subs);
-    subs = await sortSubtitles(/** @type {SubtitleData[]} */ (subs));
+    const sorted = await sortSubtitles(/** @type {SubtitleData[]} */ (subs));
+    subs = generation === /** @type {FastStreamWindow} */ (window).fastStream.subtitlesGeneration ? sorted : /** @type {SubtitleData[]} */ ([]);
 
     let loaded = 0;
     try {

@@ -245,4 +245,27 @@ describe('the player page\'s messages', () => {
     await vi.waitFor(() => expect(detected).not.toBe(null));
     expect(client.interfaceController.carryFullscreen).toHaveBeenCalledTimes(1);
   });
+
+  it('drops the subtitles of a video the list was cleared for while they were fetched', async () => {
+    // A slow subtitle host: the next video was set meanwhile, and the file came over it.
+    const {listener, client} = await withListener();
+    client.subtitlesGeneration = 4;
+    let detected = null;
+    chrome.i18n = {detectLanguage: (text, callback) => {
+      detected = callback;
+    }};
+    const sendResponse = vi.fn();
+    listener({
+      type: 'SOURCES',
+      sources: [{url: 'https://cdn.test/ep2.m3u8', mode: 'hls', headers: {}, duration: 1400}],
+      autoSetSource: true,
+      subtitles: [{label: 'English', language: null, data: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello'}],
+    }, {}, sendResponse);
+    await vi.waitFor(() => expect(detected).not.toBe(null));
+    client.subtitlesGeneration = 5;
+    detected(undefined);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith('sources_recieved'));
+    expect(client.loadSubtitleTrack).not.toHaveBeenCalled();
+    expect(client.interfaceController.setStatusMessage.mock.calls.filter((call) => call[0] === 'subtitles-hint')).toEqual([]);
+  });
 });
