@@ -13,6 +13,7 @@ import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {bufferKey, BufferStash} from './BufferStash.mjs';
 import {BufferKeepAlarm, keptBufferDisk} from './KeptBufferDisk.mjs';
 import {bufferKeepMs} from '../player/options/BufferKeep.mjs';
+import {pruneSessions, STALE_MS} from '../player/network/SessionPrune.mjs';
 import {isLocalAddress} from './LocalAddress.mjs';
 import {createMenus, linkTarget, MenuIds, updateMenus} from './ContextMenu.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
@@ -993,10 +994,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         session: typeof msg.session === 'string' && /^[\w-]+$/.test(msg.session) ? msg.session : null,
         entries: msg.entries,
       };
-      // A private window's stays in RAM (BufferKeep.mjs).
-      const ramOnly = !!senderTab?.incognito;
-      ensureOptions().then(() => bufferStash.put(key, handOff, bufferKeepMs(Options.bufferKeep, ramOnly), {ramOnly}))
-          .catch((e) => console.warn('Could not keep a handed-over buffer', e));
+      // A private window's and "RAM only"'s stay in RAM (BufferKeep.mjs): nothing of them reaches the disk.
+      ensureOptions().then(() => {
+        const ramOnly = !!senderTab?.incognito || Options.bufferToDisk === false;
+        bufferStash.put(key, handOff, bufferKeepMs(Options.bufferKeep, ramOnly), {ramOnly});
+      }).catch((e) => console.warn('Could not keep a handed-over buffer', e));
     }
   } else if (msg.type === MessageTypes.BUFFER_TAKE) {
     const page = (frame.parent || frame).url;
@@ -1557,11 +1559,40 @@ async function getPageFrame(frame) {
 
 const bufferStash = new BufferStash({dropSession: dropBufferSession,
   disk: typeof navigator.storage?.getDirectory === 'function' ? keptBufferDisk() : null});
-// A buffer kept on the disk past the event page's life goes at its time (KeptBufferDisk).
+// What players open as Firefox closed (or FastStream updated) left on the disk; a player's own start prunes too,
+// but only once a video opens. Their heartbeats are past STALE_MS by then, and every live player's is not.
+const SessionPruneAlarm = 'fsblob-prune';
+const pruneSessionsLater = () => {
+  Promise.resolve().then(() => chrome.alarms?.create(SessionPruneAlarm, {when: Date.now() + STALE_MS + 5000}))
+      .catch((e) => console.warn('Could not schedule the clean-up of the disk', e));
+};
+chrome.runtime.onStartup?.addListener(pruneSessionsLater);
+chrome.runtime.onInstalled.addListener(pruneSessionsLater);
+
+/** @return {Promise<void>} */
+async function pruneLeftSessions() {
+  if (typeof navigator.storage?.getDirectory !== 'function') return;
+  let fsblob;
+  try {
+    fsblob = await (await navigator.storage.getDirectory()).getDirectoryHandle('fsblob');
+  } catch (e) {
+    // No player ever wrote to the disk.
+    if (/** @type {DOMException} */ (e)?.name === 'NotFoundError') return;
+    throw e;
+  }
+  await pruneSessions(fsblob);
+}
+
+// A buffer kept on the disk past the event page's life goes at its time (KeptBufferDisk). The work is returned:
+// Firefox keeps the event page up while a listener's promise is pending.
 chrome.alarms?.onAlarm.addListener((alarm) => {
   if (alarm.name === BufferKeepAlarm) {
-    bufferStash.ready.then(() => bufferStash.expire()).catch((e) => console.warn('Could not let kept buffers go', e));
+    return bufferStash.ready.then(() => bufferStash.expire()).catch((e) => console.warn('Could not let kept buffers go', e));
   }
+  if (alarm.name === SessionPruneAlarm) {
+    return bufferStash.ready.then(pruneLeftSessions).catch((e) => console.warn('Could not clean up the disk', e));
+  }
+  return undefined;
 });
 
 /**

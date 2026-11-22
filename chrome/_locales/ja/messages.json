@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "設定しました：FastStreamはRAMに最大$1の動画を保持し、残りはディスクに保存します。オプションの「一般設定」で変更できます。"
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "設定済み：FastStream は動画を最大 $1 まで RAM に保持します。収まらない分は必要に応じて再ダウンロードされます。オプションの「一般設定」で変更できます。"
+    },
     "welcome_page_keybinds_header": {
         "message": "デフォルトのキーボードコントロール"
     },
@@ -588,10 +591,10 @@
         "message": "「プリダウンローダーのターゲット速度」（$1 Mbit/s）がこの動画に必要な速度（約 $2 Mbit/s）を下回っているため、動画はデータを待っています。先読みはわずかしか行われません。この設定を上げるか、空欄にして制限をなくしてください。"
     },
     "player_wait_ahead_zero": {
-        "message": "「再生位置より先をバッファーに保持する秒数」が 0 のため、動画はデータを待っています。先の分は何も保持されません。この設定を上げるか、空欄にして制限をなくしてください。"
+        "message": "「再生位置より先をバッファーに保持する秒数」が 0 のため、動画はデータを待っています。先の分は何も保持されません。この設定を上げてください。"
     },
     "player_wait_ram_zero": {
-        "message": "「バッファした動画に使うRAM」が 0 で、ここではディスクにも何も保持されないため、動画はデータを待っています。先読みのダウンロードは行われません。この設定を上げるか、空欄にして制限をなくしてください。"
+        "message": "動画はデータを待っています。ここではディスクに何も保持されず、「ディスクのみ」では RAM に 64 MB しか保持されません。より多く先読みするには、「ダウンロードした動画の保存先」で別のモードを選んでください。"
     },
     "player_fragment_failed_singular": {
         "message": "動画の部分が $1 個ダウンロードに失敗しました。クリックして再試行してください。"
@@ -699,7 +702,7 @@
         "message": "プライベートウィンドウでは FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。"
     },
     "player_buffer_ram_warning": {
-        "message": "「このRAMがいっぱいになった時に動画をディスクに保存する」がオフのため、FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を事前ダウンロードするには、この設定をオンにしてください。"
+        "message": "「ダウンロードした動画の保存先」が「RAMのみ」のため、FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を事前ダウンロードするには、そこで「RAM、次にディスク」を選択してください。"
     },
     "player_buffer_disk_warning": {
         "message": "この動画（約 $1）は、Firefox が FastStream に割り当てるディスク容量（空き $2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。ディスクの空き容量を増やすと改善します。"
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "バッファした動画に使うRAM（全タブ合計）"
     },
-    "options_general_buffertodisk": {
-        "message": "このRAMがいっぱいになった時に動画をディスクに保存する（オフ：破棄して必要に応じて再ダウンロードし、ディスクに何も書き込まないようにする）"
-    },
     "options_general_nolimit": {
         "message": "制限なし"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: 事前ダウンロードは行われず、以下に設定された秒数分だけがバッファーに保持されます。制限を設けたくない場合は、この欄を空欄にしてください。"
     },
-    "options_general_rambudget_zero": {
-        "message": "0: ダウンロードした動画は、次の数秒を除いて RAM に置かれず、ディスクに保存されます。ディスクに何も保存しないプライベートウィンドウでは、再生位置より先には何もダウンロードされません。制限を設けたくない場合は、この欄を空欄にしてください。"
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: ダウンロードした動画は保持されず、「このRAMがいっぱいになった時に動画をディスクに保存する」がオフの場合、再生位置より先には何もダウンロードされないため、動画の読み込みが停止することがあります。制限を設けたくない場合は、この欄を空欄にしてください。"
+    "options_general_maxsize_none": {
+        "message": "上限なし: RAM と、Firefox が FastStream にディスク上で与えるスペースに収まる分すべて。"
     },
     "options_general_rambudget_none": {
-        "message": "制限なし：ダウンロードした動画はすべてRAMに残り、ディスクには保存されません。長い動画はコンピューターのメモリ以上を使い、フリーズさせることがあります。メモリに十分な余裕がない限り、制限を設定してください。"
+        "message": "制限なし：ダウンロードした動画はすべてRAMに残ります。長い動画はコンピューターのメモリ以上を使い、フリーズさせることがあります。"
+    },
+    "options_general_rambudget_recommended": {
+        "message": "$1 の場合の推奨量：$2。"
+    },
+    "options_general_rambudget_unknown": {
+        "message": "推奨量を見るには、上でこのコンピューターのメモリを選択してください。"
+    },
+    "options_general_rambudget_use": {
+        "message": "$1 を使用"
+    },
+    "options_general_rambudget_refused": {
+        "message": "受け付けられません：RAM に動画を残さない場合は、上で「ディスクのみ」を選んでください。「制限なし」は「RAMのみ」の場合にのみ使えます。"
     },
     "options_general_rambudget_high": {
-        "message": "これほど多くの動画をRAMに置くとコンピューターがフリーズすることがあります。WindowsとFirefoxがメモリの大部分を必要とするためです。「このRAMがいっぱいになった時に動画をディスクに保存する」をオンにすると、残りはディスクに保存され、再生は変わりません。"
+        "message": "これほど多くの動画をRAMに置くとコンピューターがフリーズすることがあります。システムとFirefoxがメモリの大部分を必要とするためです。少なめにしても再生は変わりません。残りの動画はディスクに保存されるか、必要に応じて再ダウンロードされるためです。"
     },
     "options_general_ramsize": {
-        "message": "このコンピューターのメモリ（RAM）：バッファした動画に使うRAMをそれに合わせて設定します"
+        "message": "このコンピューターのメモリ（RAM）"
+    },
+    "options_general_ramsize_note": {
+        "message": "サイズを選ぶと、推奨量が下の RAM の欄に入力されます。"
     },
     "options_general_ramsize_unknown": {
         "message": "未設定"
@@ -894,13 +906,10 @@
         "message": "無効な項目のため無視しました：$1 行目"
     },
     "options_general_bufferahead": {
-        "message": "再生位置より先をバッファーに保持する秒数（事前ダウンロードがオフ、停止、または容量不足のときに使用）"
+        "message": "再生位置より先をバッファーに保持する秒数（動画全体が事前ダウンロードされていないとき。0～3600）"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: 再生位置より先をバッファーに保持しないため、動画が頻繁に止まって読み込みます。上限をなくすには、フィールドを空のままにしてください。"
-    },
-    "options_general_bufferahead_none": {
-        "message": "上限なし: 事前ダウンロードがオフでも、動画全体が先にダウンロードされます。まず RAM に保存され、上で設定した RAM の上限に達すると、続いてディスクに保存されます。上のダウンロード速度が 0 の場合は、先には何もダウンロードされません。"
+        "message": "0: 再生位置より先をバッファーに保持しないため、動画が頻繁に止まって読み込みます。"
     },
     "options_general_bufferbehind": {
         "message": "再生位置より後ろを切り詰める前にバッファーに保持する秒数"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "オフ"
     },
+    "options_general_storage": {
+        "message": "ダウンロードした動画の保存先"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM、次にディスク"
+    },
+    "options_general_storage_ramonly": {
+        "message": "RAMのみ"
+    },
+    "options_general_storage_disk": {
+        "message": "ディスクのみ"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "推奨。動画は下で設定した量まで RAM に保持され、収まらない分はディスクに保存されても再生は変わりません。プライベートウィンドウはディスクに書き込まないため、そこでは RAM のみに保持されます。"
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "ディスクには何も書き込みません。下の RAM に収まらない分は破棄され、必要に応じて再ダウンロードされます。"
+    },
+    "options_general_storage_disk_hint": {
+        "message": "メモリの少ないコンピューター向け：動画は届き次第ディスクに保存され、今再生している部分だけが RAM に残ります。ディスクには何も書き込まないプライベートウィンドウは、RAM に 64 MB を保持します。"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: 再生済みの部分はすぐに破棄され、シークして戻るともう一度読み込みます。上限をなくすには、フィールドを空のままにしてください。"
     },
     "options_general_bufferbehind_none": {
-        "message": "上限なし: 再生済みの部分はすべて保持されます。まず RAM に保存され、上で設定した RAM の上限に達すると、続いてディスクに保存されます。"
+        "message": "上限なし: 再生済みの部分はすべて保持されます。下で選んだ設定に従い、RAM またはディスクに保存されます。"
     },
     "options_general_blockpopups": {
         "message": "プレーヤーをクリックした直後に開かれるポップアップ/ポップアンダーをブロックする"

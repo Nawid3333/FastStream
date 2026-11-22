@@ -1,14 +1,11 @@
 // @ts-check
-import {BufferKeepMaxMs, KeptRecordFile} from '../options/BufferKeep.mjs';
 import {OpQueue} from './OpQueue.mjs';
+import {META_FILE, pruneSessions} from './SessionPrune.mjs';
 
 // Owns one OPFS session directory. One OpQueue runs its file operations: two sync access handles on one file throw.
 
-// A page in the back-forward cache, or a computer asleep, writes no heartbeat for a while.
-const STALE_MS = 60000;
 // A hidden tab's timers run up to 15 s late: a beat is at most about 20 s old.
 const HEARTBEAT_MS = 5000;
-const META_FILE = '_meta.json';
 
 const queue = new OpQueue();
 /** @type {FileSystemDirectoryHandle|null} */
@@ -27,83 +24,6 @@ const saveStreams = new Map();
 async function getFsBlobRoot() {
   const root = await navigator.storage.getDirectory();
   return root.getDirectoryHandle('fsblob', {create: true});
-}
-
-/**
- * @return {Promise<{time: ?number, unreadable?: boolean}>} Null: none or a broken one (dead). Unreadable: its owner writes it (alive).
- * @param {string} name
- */
-async function readHeartbeat(name) {
-  let fileHandle;
-  try {
-    const dir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(name);
-    fileHandle = await dir.getFileHandle(META_FILE);
-  } catch (e) {
-    return {time: null};
-  }
-  let text;
-  try {
-    text = await (await fileHandle.getFile()).text();
-  } catch (e) {
-    return {time: null, unreadable: true};
-  }
-  try {
-    return {time: JSON.parse(text).updated_time ?? null};
-  } catch (e) {
-    // Its owner never leaves it half written (it holds the lock while writing): a crash did.
-    return {time: null};
-  }
-}
-
-/**
- * @param {string} name
- * @return {?number}
- */
-function sessionCreatedTime(name) {
-  const match = /^fsblob-(\d+)-/.exec(name);
-  return match ? Number(match[1]) : null;
-}
-
-/**
- * Until when the background keeps a gone player's session for the next player of its video (BufferStash); 0 for
- * none, a broken record, or a time past BufferKeepMaxMs from now.
- * @param {string} name
- * @return {Promise<number>}
- */
-async function keptUntil(name) {
-  try {
-    const dir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(name);
-    const until = JSON.parse(await (await (await dir.getFileHandle(KeptRecordFile)).getFile()).text())?.until;
-    return Number.isFinite(until) && until <= Date.now() + BufferKeepMaxMs ? until : 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-/**
- * Deletes sessions whose heartbeat is stale or missing; one younger than STALE_MS has none yet, and one the
- * background keeps stays until its time is up.
- * @param {string} ownName
- */
-async function prune(ownName) {
-  const stale = [];
-  for await (const name of /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).keys()) {
-    if (name === ownName) continue;
-    const created = sessionCreatedTime(name);
-    if (created !== null && Date.now() - created <= STALE_MS) continue;
-    const heartbeat = await readHeartbeat(name);
-    if (heartbeat.unreadable) continue;
-    if ((!heartbeat.time || Date.now() - heartbeat.time > STALE_MS) && await keptUntil(name) <= Date.now()) {
-      stale.push(name);
-    }
-  }
-  await Promise.all(stale.map(async (name) => {
-    try {
-      await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).removeEntry(name, {recursive: true});
-    } catch (e) {
-      // Another tab may be pruning or closing it: the next prune takes it.
-    }
-  }));
 }
 
 /**
@@ -147,17 +67,22 @@ async function writeHeartbeat() {
   }
 }
 
+/** @return {string} Its time first: a session younger than STALE_MS is no prune's, its heartbeat or none. */
+function newSessionName() {
+  return 'fsblob-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+}
+
 async function init() {
   fsBlobRoot = await getFsBlobRoot();
-  sessionName = 'fsblob-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+  sessionName = newSessionName();
 
   // Before this session's own directory exists, so prune never takes it.
-  await prune(sessionName);
+  await pruneSessions(/** @type {FileSystemDirectoryHandle} */ (fsBlobRoot), sessionName);
 
   sessionDir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(sessionName, {create: true});
   await writeHeartbeat();
   heartbeatInterval = setInterval(() => {
-    // Not queued, so long writes cannot starve it past STALE_MS: it touches no file another op does.
+    // Not queued, so long writes cannot starve it past SessionPrune's STALE_MS: it touches no file another op does.
     if (heartbeatInFlight) return;
     heartbeatInFlight = true;
     writeHeartbeat().catch(() => {}).finally(() => {
@@ -208,12 +133,32 @@ async function deleteFile(identifier) {
   }
 }
 
+/**
+ * The session's directory goes in one call, which Firefox finishes as the page goes: one file at a time, a tab
+ * closing beside three other players left most of them (storage.md, "Players in many tabs"). The player goes on in
+ * a new one, young: made again under the same name, another player's prune could take it before its next heartbeat.
+ * @return {Promise<string>} The new session's name.
+ */
 async function clearStorage() {
-  const names = [];
-  for await (const name of /** @type {FileSystemDirectoryHandle} */ (sessionDir).keys()) {
-    if (name !== META_FILE) names.push(name);
+  const root = /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot);
+  const old = /** @type {string} */ (sessionName);
+  const oldDir = /** @type {FileSystemDirectoryHandle} */ (sessionDir);
+  sessionName = newSessionName();
+  try {
+    await root.removeEntry(old, {recursive: true});
+  } catch (e) {
+    // A file held open (a heartbeat or save being written), or a prune took it: what can go, one at a time; the
+    // rest is pruned once its heartbeat is stale.
+    const names = [];
+    try {
+      for await (const name of oldDir.keys()) names.push(name);
+    } catch (err) {
+      // Gone already.
+    }
+    await Promise.all(names.map((name) => oldDir.removeEntry(name).catch(() => {})));
   }
-  await Promise.all(names.map((name) => /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(name).catch(() => {})));
+  sessionDir = await root.getDirectoryHandle(sessionName, {create: true});
+  return sessionName;
 }
 
 async function destroy() {
@@ -305,7 +250,7 @@ self.addEventListener('message', async (event) => {
         await queue.push(() => deleteFile(identifier));
         break;
       case 'clear':
-        await queue.push(() => clearStorage());
+        result = {sessionName: await queue.push(() => clearStorage())};
         break;
       case 'destroy':
         await queue.push(() => destroy());

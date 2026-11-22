@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Ayarlandı: FastStream RAM'de en fazla $1 video tutar, kalanını diskte. Bunu seçeneklerde, \"Genel Seçenekler\" altında değiştirebilirsiniz."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Ayarlandı: FastStream RAM'de en fazla $1 video tutar; sığmayan gerektiğinde tekrar indirilir. Bunu seçeneklerde, \"Genel Seçenekler\" altında değiştirebilirsiniz."
+    },
     "welcome_page_keybinds_header": {
         "message": "Varsayılan Klavye Kontrolleri"
     },
@@ -588,10 +591,10 @@
         "message": "Video veri bekliyor, çünkü \"Ön indiricinin hedef indirme hızı\" ($1 Mbit/s) bu videonun ihtiyacının (yaklaşık $2 Mbit/s) altında: önceden çok az şey indiriliyor. Bu ayarı yükseltin veya sınır olmaması için boş bırakın."
     },
     "player_wait_ahead_zero": {
-        "message": "Video veri bekliyor, çünkü \"Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı\" 0: önceden hiçbir şey tutulmuyor. Bu ayarı yükseltin veya sınır olmaması için boş bırakın."
+        "message": "Video veri bekliyor, çünkü \"Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı\" 0: önceden hiçbir şey tutulmuyor. Bu ayarı yükseltin."
     },
     "player_wait_ram_zero": {
-        "message": "Video veri bekliyor, çünkü \"Arabelleğe alınan video için RAM\" 0 ve burada diskte hiçbir şey tutulmuyor: önceden hiçbir şey indirilmiyor. Bu ayarı yükseltin veya sınır olmaması için boş bırakın."
+        "message": "Video veri bekliyor: burada diskte hiçbir şey tutulmuyor ve \"Yalnızca disk\" RAM'de yalnızca 64 MB tutuyor. Daha fazlasını önceden tutmak için \"İndirilen videonun tutulacağı yer\" altında başka bir mod seçin."
     },
     "player_fragment_failed_singular": {
         "message": "Videonun $1 parçası indirilemedi. Tekrar denemek için tıklayın."
@@ -699,7 +702,7 @@
         "message": "Gizli pencerede FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Bu RAM dolduğunda videoyu diskte tut\" kapalı olduğu için FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyüktür. Tamamen önceden indirilmez, ancak yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını önceden indirmek için bu ayarı açın."
+        "message": "\"İndirilen videonun tutulacağı yer\" ayarı \"Yalnızca RAM\" olduğu için FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyüktür. Tamamen önceden indirilmez, ancak yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını önceden indirmek için orada \"RAM, sonra disk\" seçin."
     },
     "player_buffer_disk_warning": {
         "message": "Bu video (yaklaşık $1), Firefox'un FastStream'e verdiği disk alanından ($2 boş) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Diskte yer açmak yardımcı olur."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"
     },
-    "options_general_buffertodisk": {
-        "message": "Bu RAM dolduğunda videoyu diskte tut (kapalı: sil ve gerektiğinde tekrar indir, böylece diske hiçbir şey yazılmaz)"
-    },
     "options_general_nolimit": {
         "message": "Sınırsız"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: hiçbir şey önceden indirilmez; yalnızca aşağıda ayarlanan saniye sayısı oynatma noktasının ilerisinde tutulur. Sınırsız olması için alanı boş bırakın."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: indirilen video RAM'de tutulmaz, diskte tutulur; yalnızca önümüzdeki birkaç saniye RAM'de kalır. Hiçbir şeyi diskte tutmayan gizli pencerede oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: indirilen hiçbir video tutulmaz ve \"Bu RAM dolduğunda videoyu diskte tut\" kapalıyken oynatma noktasının ilerisinde hiçbir şey indirilmez, bu nedenle videolar yüklenirken durabilir. Sınırsız olması için alanı boş bırakın."
+    "options_general_maxsize_none": {
+        "message": "Sınırsız: RAM'e ve Firefox'un FastStream'e diskte ayırdığı yere sığan kadar."
     },
     "options_general_rambudget_none": {
-        "message": "Sınır yok: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey gitmez. Uzun bir video bilgisayardaki bellekten fazlasını kaplayıp onu dondurabilir: belleği bol değilse bir sınır belirleyin."
+        "message": "Sınır yok: indirilen videonun tamamı RAM'de kalır. Uzun bir video bilgisayardaki bellekten fazlasını kaplayıp onu dondurabilir."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "$1 için önerilen: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Önerilen miktarı görmek için yukarıdan bu bilgisayarın belleğini seçin."
+    },
+    "options_general_rambudget_use": {
+        "message": "$1 kullan"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Kabul edilmedi: RAM'de video olmaması için yukarıdan \"Yalnızca disk\" seçin; \"Sınırsız\" yalnızca \"Yalnızca RAM\" içindir."
     },
     "options_general_rambudget_high": {
-        "message": "RAM'de bu kadar video bir bilgisayarı dondurabilir: Windows ve Firefox belleğin büyük kısmına ihtiyaç duyar. \"Bu RAM dolduğunda videoyu diskte tut\" açıkken videonun geri kalanı diskte tutulur ve aynı şekilde oynatılır."
+        "message": "RAM'de bu kadar video bir bilgisayarı dondurabilir: sistem ve Firefox belleğin büyük kısmına ihtiyaç duyar. Daha küçük bir miktar aynı şekilde oynatılır, çünkü videonun geri kalanı diske gider veya gerektiğinde tekrar indirilir."
     },
     "options_general_ramsize": {
-        "message": "Bu bilgisayarın belleği (RAM): arabelleğe alınan video için RAM'i buna göre ayarlar"
+        "message": "Bu bilgisayarın belleği (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Bir boyut seçildiğinde önerilen miktar aşağıdaki RAM alanına yazılır."
     },
     "options_general_ramsize_unknown": {
         "message": "Belirtilmedi"
@@ -894,13 +906,10 @@
         "message": "Atlandı, geçerli bir girdi değil: $1. satır"
     },
     "options_general_bufferahead": {
-        "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (ön indirme kapalıysa, durduysa veya yer kalmadıysa kullanılır)"
+        "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (tüm video önceden indirilmediğinde, 0–3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: oynatma noktasının ilerisinde hiçbir şey arabellekte tutulmaz, bu yüzden video sık sık yükleme için durur. Sınırsız olması için alanı boş bırakın."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Sınırsız: ön indirme kapalıyken bile videonun tamamı önceden indirilir; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur. Yukarıdaki indirme hızı 0 ise, hiçbir şey önceden indirilmez."
+        "message": "0: oynatma noktasının ilerisinde hiçbir şey arabellekte tutulmaz, bu yüzden video sık sık yükleme için durur."
     },
     "options_general_bufferbehind": {
         "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Kapalı"
     },
+    "options_general_storage": {
+        "message": "İndirilen videonun tutulacağı yer"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM, sonra disk"
+    },
+    "options_general_storage_ramonly": {
+        "message": "Yalnızca RAM"
+    },
+    "options_general_storage_disk": {
+        "message": "Yalnızca disk"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Önerilir. Video aşağıdaki miktara kadar RAM'de kalır; sığmayanlar diske gider ve aynı şekilde oynatılır. Gizli pencereler hiçbir zaman diske yazmaz: orada yalnızca RAM kullanılır."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Diske hiçbir şey yazılmaz. Aşağıdaki RAM'e sığmayanlar silinir ve gerektiğinde tekrar indirilir."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Belleği az olan bilgisayarlar için: video geldikçe diske yazılır ve RAM'de yalnızca şu anda oynatılan bölüm kalır. Diske hiçbir şey yazmayan gizli pencereler RAM'de 64 MB tutar."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: oynatılmış kısım hemen atılır; geriye sarmak onu yeniden yükler. Sınırsız olması için alanı boş bırakın."
     },
     "options_general_bufferbehind_none": {
-        "message": "Sınırsız: oynatılmış her şey tutulur; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur."
+        "message": "Sınırsız: oynatılmış her şey tutulur; aşağıda seçildiği şekilde RAM'de veya diskte tutulur."
     },
     "options_general_blockpopups": {
         "message": "Oynatıcıya tıkladıktan hemen sonra açılan açılır pencereleri/popunder'ları engelle"

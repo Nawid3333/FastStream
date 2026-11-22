@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "已設定：FastStream 最多在記憶體中保留 $1 的影片，其餘放在磁碟上。你可以在選項的「一般選項」中變更。"
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "已設定：FastStream 最多在記憶體中保留 $1 的影片；裝不下的部分會在需要時重新下載。如需更改，請前往選項中的「一般選項」。"
+    },
     "welcome_page_keybinds_header": {
         "message": "預設鍵盤操作"
     },
@@ -588,10 +591,10 @@
         "message": "影片正在等待資料，因為「預先下載器目標下載速度」（$1 Mbit/s）低於此影片所需（約 $2 Mbit/s）：預先下載的內容很少。請調高該設定，或將其留空以不設限制。"
     },
     "player_wait_ahead_zero": {
-        "message": "影片正在等待資料，因為「在播放位置前方保留緩衝的秒數」為 0：前方不保留任何內容。請調高該設定，或將其留空以不設限制。"
+        "message": "影片正在等待資料，因為「在播放位置前方保留緩衝的秒數」為 0：前方不保留任何內容。請調高該設定。"
     },
     "player_wait_ram_zero": {
-        "message": "影片正在等待資料，因為「緩衝影片所用記憶體」為 0，且此處不會在磁碟上保留任何內容：不會預先下載任何內容。請調高該設定，或將其留空以不設限制。"
+        "message": "影片正在等待資料：此處不會在磁碟上保留任何內容，而「僅磁碟」在記憶體中只保留 64 MB。請在「已下載影片的儲存位置」下選擇其他模式，以便在前方保留更多。"
     },
     "player_fragment_failed_singular": {
         "message": "影片的 $1 個片段下載失敗。點擊以重試。"
@@ -699,7 +702,7 @@
         "message": "在隱私視窗中，FastStream 只會將影片保存在記憶體中，而此影片（約 $1）超過 FastStream 可為其使用的「緩衝影片所用記憶體」份額（$2），因此不會完整預先下載。它仍會正常播放，並持續往前載入最多 $3。"
     },
     "player_buffer_ram_warning": {
-        "message": "「當此記憶體滿時將影片儲存在磁碟上」已關閉，因此 FastStream 只會將影片保存在記憶體中，而此影片（約 $1）超過 FastStream 可為其使用的「緩衝影片所用記憶體」份額（$2）。它不會完整預先下載，但仍會正常播放，並持續往前載入最多 $3。若要完整預先下載，請開啟此設定。"
+        "message": "「已下載影片的儲存位置」為「僅記憶體」，因此 FastStream 只會將影片保存在記憶體中，而此影片（約 $1）超過 FastStream 可為其使用的「緩衝影片所用記憶體」份額（$2）。它不會完整預先下載，但仍會正常播放，並持續往前載入最多 $3。若要完整預先下載，請在此處選擇「先記憶體，後磁碟」。"
     },
     "player_buffer_disk_warning": {
         "message": "此影片（約 $1）超過 Firefox 分配給 FastStream 的磁碟空間（剩餘 $2），因此不會完整預先下載。它仍會正常播放，並持續往前載入最多 $3。釋放磁碟空間會有幫助。"
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "緩衝影片所用記憶體（所有分頁合計）"
     },
-    "options_general_buffertodisk": {
-        "message": "當此記憶體滿時將影片儲存在磁碟上（關閉：捨棄並在需要時重新下載，因此不會向磁碟寫入任何內容）"
-    },
     "options_general_nolimit": {
         "message": "無限制"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0：不會預先下載任何內容，只會在播放位置前方保留下方設定的秒數。留空表示無限制。"
     },
-    "options_general_rambudget_zero": {
-        "message": "0：已下載的影片不保存在記憶體中，而是儲存到磁碟上，只有接下來幾秒會留在記憶體中。隱私視窗不會在磁碟上儲存任何內容，因此不會在播放位置前方下載任何內容。留空表示無限制。"
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0：不會保留任何已下載的影片，且在「當此記憶體滿時將影片儲存在磁碟上」關閉時，不會在播放位置前方下載任何內容，因此影片可能會停止載入。留空表示無限制。"
+    "options_general_maxsize_none": {
+        "message": "無限制：以能裝進記憶體及 Firefox 分配給 FastStream 的磁碟空間為限。"
     },
     "options_general_rambudget_none": {
-        "message": "無限制：下載的影片全部留在記憶體中，不會寫入磁碟。長影片佔用的記憶體可能超過電腦的記憶體並讓電腦當機：除非記憶體充裕，否則請設定限制。"
+        "message": "無限制：下載的影片全部留在記憶體中。長影片佔用的記憶體可能超過電腦的記憶體並讓電腦當機。"
+    },
+    "options_general_rambudget_recommended": {
+        "message": "$1 的建議值：$2。"
+    },
+    "options_general_rambudget_unknown": {
+        "message": "請在上方選擇這台電腦的記憶體，以查看建議數值。"
+    },
+    "options_general_rambudget_use": {
+        "message": "使用 $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "未採用：若不想在記憶體中保留影片，請在上方選擇「僅磁碟」；「無限制」僅適用於「僅記憶體」。"
     },
     "options_general_rambudget_high": {
-        "message": "在記憶體中放這麼多影片可能會讓電腦當機：Windows 和 Firefox 需要大部分記憶體。開啟「當此記憶體滿時將影片儲存在磁碟上」後，影片的其餘部分會保存在磁碟上，播放效果相同。"
+        "message": "在記憶體中放這麼多影片可能會讓電腦當機：系統和 Firefox 需要大部分記憶體。較少的量播放效果相同，因為影片的其餘部分會存到磁碟上，或在需要時重新下載。"
     },
     "options_general_ramsize": {
-        "message": "這台電腦的記憶體（RAM）：據此設定緩衝影片所用記憶體"
+        "message": "這台電腦的記憶體（RAM）"
+    },
+    "options_general_ramsize_note": {
+        "message": "選擇某個大小後，建議的數值會填入下方的記憶體輸入框。"
     },
     "options_general_ramsize_unknown": {
         "message": "未設定"
@@ -894,13 +906,10 @@
         "message": "已略過，不是有效的項目：第 $1 行"
     },
     "options_general_bufferahead": {
-        "message": "在播放位置前方保留緩衝的秒數（預先下載關閉、停止或空間用完時使用）"
+        "message": "在播放位置前方保留緩衝的秒數（整個影片未預先下載時，0 到 3600）"
     },
     "options_general_bufferahead_zero": {
-        "message": "0：在播放位置前方不保留任何緩衝，影片會經常停下來載入。留空表示無限制。"
-    },
-    "options_general_bufferahead_none": {
-        "message": "無限制：即使預先下載關閉，也會提前下載整部影片。先存在記憶體中，上方的記憶體限制用滿後再存到磁碟。如果上方的下載速度為 0，則不會提前下載任何內容。"
+        "message": "0：在播放位置前方不保留任何緩衝，影片會經常停下來載入。"
     },
     "options_general_bufferbehind": {
         "message": "在播放位置後方、修剪前保留緩衝的秒數"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "關閉"
     },
+    "options_general_storage": {
+        "message": "已下載影片的儲存位置"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "先記憶體，後磁碟"
+    },
+    "options_general_storage_ramonly": {
+        "message": "僅記憶體"
+    },
+    "options_general_storage_disk": {
+        "message": "僅磁碟"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "建議。影片在記憶體中最多保留下方設定的數量；裝不下的部分會存到磁碟上，播放效果相同。隱私視窗從不向磁碟寫入任何內容：在其中僅使用記憶體。"
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "不會向磁碟寫入任何內容。下方記憶體裝不下的內容會被捨棄，並在需要時重新下載。"
+    },
+    "options_general_storage_disk_hint": {
+        "message": "適用於記憶體較少的電腦：影片到達時即存入磁碟，只有正在播放的部分留在記憶體中。不向磁碟寫入任何內容的隱私視窗會在記憶體中保留 64 MB。"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0：已播放的部分會立即釋放；往回跳轉時會重新載入。留空表示無限制。"
     },
     "options_general_bufferbehind_none": {
-        "message": "無限制：已播放的內容全部保留。先存在記憶體中，上方的記憶體限制用滿後再存到磁碟。"
+        "message": "無限制：已播放的內容全部保留，在記憶體或磁碟上，依下方的選擇而定。"
     },
     "options_general_blockpopups": {
         "message": "封鎖點擊播放器後立即開啟的彈出視窗/底層彈出視窗"

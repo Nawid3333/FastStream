@@ -705,10 +705,18 @@ export class FastStreamClient extends EventEmitter {
    * The RAM budget for all players, and this player's share of it (MemoryBudget.shareOf).
    * @return {{budget: number, share: number}} Bytes; Infinity for no limit.
    */
+  /** @return {boolean} A private window, "RAM only", or no disk backend (FSBlob.diskGone). */
+  keepsNothingOnDisk() {
+    return EnvUtils.isIncognito() || this.options.bufferToDisk === false || this.downloadManager?.blobStore?.diskGone === true;
+  }
+
   memoryShare() {
-    // -1 (an empty field) is no limit, and 0 none; anything else unreadable is the default.
+    // -1 (an empty field) is no limit, and 0 none ("Disk only"); anything else unreadable is the default.
     const setting = this.options.ramBudget;
-    const budget = setting < 0 ? Infinity : Number.isFinite(setting) ? setting : DEFAULT_BUDGET_BYTES;
+    let budget = setting < 0 ? Infinity : Number.isFinite(setting) ? setting : DEFAULT_BUDGET_BYTES;
+    // "Disk only" where nothing goes to the disk (a private window, the disk gone): the RAM it keeps anyway, what is on
+    // its way to the disk. With none, nothing was downloaded ahead and the video waited for each part.
+    if (budget === 0 && this.keepsNothingOnDisk()) budget = DISK_ONLY_ROOM_BYTES;
     if (!this.peers) return {budget, share: budget};
     const watched = this.peers.visible() && !!this.state.playing;
     const others = this.peers.livePeers().map((peer) => ({
@@ -751,7 +759,7 @@ export class FastStreamClient extends EventEmitter {
       this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_outofstorage'), 'warning', 10000);
     }
     const incognito = EnvUtils.isIncognito();
-    const ramOnly = incognito || this.options.bufferToDisk === false || diskGone;
+    const ramOnly = this.keepsNothingOnDisk();
     // Bits: RAM is filled first, and the disk takes only what goes beyond this player's share.
     const ramShare = this.memoryShare().share * 8 * LOW;
     const ramRoom = ramOnly ? ramShare : Infinity;

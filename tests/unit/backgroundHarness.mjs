@@ -259,6 +259,7 @@ export async function loadBackground({
     removedTabs: [],
     createdTabs: [],
     callbackErrors: [],
+    alarms: new Map(),
   };
 
   const onMessage = event();
@@ -306,6 +307,7 @@ export async function loadBackground({
       getManifest: () => ({version: '1.0.0'}),
       getPlatformInfo: async () => ({os, arch: 'x86-64'}),
       onInstalled: event(),
+      onStartup: event(),
       onMessage,
       // A player's port to its page (PageFetchRelay.mjs).
       onConnect: event(),
@@ -432,6 +434,22 @@ export async function loadBackground({
       getSessionRules: async () => [],
     },
     downloads: {download: async () => 1},
+    // Each goes off at its time on the fake clock; bg.alarms has those set.
+    alarms: {
+      create: (name, {when}) => {
+        clearTimeout(bg.alarms.get(name)?.timer);
+        const timer = setTimeout(() => {
+          bg.alarms.delete(name);
+          for (const listener of chrome.alarms.onAlarm.listeners.slice()) listener({name, scheduledTime: when});
+        }, Math.max(0, when - Date.now()));
+        bg.alarms.set(name, {when, timer});
+      },
+      clear: async (name) => {
+        clearTimeout(bg.alarms.get(name)?.timer);
+        return bg.alarms.delete(name);
+      },
+      onAlarm: event(),
+    },
   };
 
   globalThis.chrome = chrome;
@@ -634,6 +652,15 @@ export async function loadBackground({
   bg.closed = async (tabId, removeInfo = {}) => {
     bg.tabs = bg.tabs.filter((t) => t.id !== tabId);
     for (const listener of tabEvents.onRemoved.listeners) listener(tabId, {windowId: 1, isWindowClosing: false, ...removeInfo});
+    await settle();
+  };
+
+  /**
+   * Firefox starts (runtime.onStartup).
+   * @return {Promise<void>}
+   */
+  bg.startup = async () => {
+    for (const listener of chrome.runtime.onStartup.listeners) listener();
     await settle();
   };
 

@@ -278,7 +278,9 @@ export class OPFSManager {
 
   async clearStorage() {
     this.fileNames.clear();
-    await this.call('clear');
+    // The worker goes on in a new session directory (opfs-worker.mjs clearStorage).
+    const cleared = await this.call('clear');
+    if (typeof cleared?.sessionName === 'string') this.sessionName = cleared.sessionName;
   }
 
   /**

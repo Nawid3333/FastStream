@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Eingestellt: FastStream behält bis zu $1 Video im Arbeitsspeicher, den Rest auf der Festplatte. Du kannst das in den Einstellungen unter „Allgemeine Einstellungen“ ändern."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Festgelegt: FastStream behält bis zu $1 des Videos im Arbeitsspeicher; was nicht hineinpasst, wird bei Bedarf erneut heruntergeladen. Du kannst das in den Optionen unter „Allgemeine Einstellungen“ ändern."
+    },
     "welcome_page_keybinds_header": {
         "message": "Standard-Tastatursteuerung"
     },
@@ -588,10 +591,10 @@
         "message": "Das Video wartet auf Daten, weil „Zielgeschwindigkeit fürs Vorladen“ ($1 Mbit/s) unter dem liegt, was dieses Video braucht (etwa $2 Mbit/s): Es wird wenig im Voraus geladen. Erhöhe die Einstellung oder lass das Feld leer, um keine Grenze zu setzen."
     },
     "player_wait_ahead_zero": {
-        "message": "Das Video wartet auf Daten, weil „Sekunden, die im Voraus gepuffert bleiben“ auf 0 steht: Es wird nichts im Voraus gehalten. Erhöhe die Einstellung oder lass das Feld leer, um keine Grenze zu setzen."
+        "message": "Das Video wartet auf Daten, weil „Sekunden, die im Voraus gepuffert bleiben“ auf 0 steht: Es wird nichts im Voraus gehalten. Erhöhe die Einstellung."
     },
     "player_wait_ram_zero": {
-        "message": "Das Video wartet auf Daten, weil „Arbeitsspeicher für gepuffertes Video“ auf 0 steht und hier nichts auf der Festplatte gehalten wird: Es wird nichts im Voraus geladen. Erhöhe die Einstellung oder lass das Feld leer, um keine Grenze zu setzen."
+        "message": "Das Video wartet auf Daten: Hier wird nichts auf der Festplatte gehalten, und „Nur Festplatte“ behält nur 64 MB im Arbeitsspeicher. Wähle unter „Wo das heruntergeladene Video gespeichert wird“ einen anderen Modus, um mehr im Voraus zu halten."
     },
     "player_fragment_failed_singular": {
         "message": "$1 Teil des Videos konnte nicht heruntergeladen werden. Klicke, um es erneut zu versuchen."
@@ -699,7 +702,7 @@
         "message": "In einem privaten Fenster hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für gepuffertes Video“, den FastStream dafür nutzen darf ($2). Daher wird es nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus."
     },
     "player_buffer_ram_warning": {
-        "message": "„Video auf der Festplatte speichern“ ist aus, daher hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für gepuffertes Video“, den FastStream dafür nutzen darf ($2). Es wird nicht vollständig vorgeladen, spielt aber trotzdem normal ab und lädt bis zu $3 im Voraus. Um es vollständig vorzuladen, schalte „Video auf der Festplatte speichern“ ein."
+        "message": "„Wo das heruntergeladene Video gespeichert wird“ steht auf „Nur Arbeitsspeicher“, daher hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für gepuffertes Video“, den FastStream dafür nutzen darf ($2). Es wird nicht vollständig vorgeladen, spielt aber trotzdem normal ab und lädt bis zu $3 im Voraus. Um es vollständig vorzuladen, wähle dort „Arbeitsspeicher, dann Festplatte“."
     },
     "player_buffer_disk_warning": {
         "message": "Dieses Video (etwa $1) ist größer als der Speicherplatz, den Firefox FastStream auf der Festplatte gibt ($2 frei), und wird daher nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus. Speicherplatz freizugeben hilft."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
     },
-    "options_general_buffertodisk": {
-        "message": "Video auf der Festplatte speichern, wenn dieser Arbeitsspeicher voll ist (aus: verwerfen und bei Bedarf erneut herunterladen, sodass nichts auf die Festplatte geschrieben wird)"
-    },
     "options_general_nolimit": {
         "message": "Keine Begrenzung"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: Es wird nichts vorab geladen; nur die unten eingestellte Anzahl von Sekunden wird im Voraus zwischengespeichert. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: Heruntergeladenes Video wird nicht im Arbeitsspeicher, sondern auf der Festplatte gespeichert – nur die nächsten Sekunden bleiben im Arbeitsspeicher. In einem privaten Fenster, das nichts auf der Festplatte speichert, wird nichts vor der Wiedergabe heruntergeladen. Lass das Feld leer, um keine Begrenzung festzulegen."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: Heruntergeladenes Video wird nicht beibehalten, und wenn „Video auf der Festplatte speichern“ deaktiviert ist, wird nichts vor der Wiedergabe heruntergeladen, sodass Videos stoppen könnten. Lass das Feld leer, um keine Begrenzung festzulegen."
+    "options_general_maxsize_none": {
+        "message": "Keine Begrenzung: So viel, wie in den Arbeitsspeicher und in den Platz passt, den Firefox FastStream auf der Festplatte gibt."
     },
     "options_general_rambudget_none": {
-        "message": "Kein Limit: Das gesamte heruntergeladene Video bleibt im Arbeitsspeicher, nichts kommt auf die Festplatte. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren: Lege ein Limit fest, außer er hat reichlich davon."
+        "message": "Keine Begrenzung: Das gesamte heruntergeladene Video bleibt im Arbeitsspeicher. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Empfohlen für $1: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Wähle oben den Arbeitsspeicher dieses Computers, um die empfohlene Menge zu sehen."
+    },
+    "options_general_rambudget_use": {
+        "message": "$1 verwenden"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Nicht übernommen: Wähle oben „Nur Festplatte“, damit kein Video im Arbeitsspeicher bleibt; „Keine Begrenzung“ gibt es nur bei „Nur Arbeitsspeicher“."
     },
     "options_general_rambudget_high": {
-        "message": "So viel Video im Arbeitsspeicher kann einen Computer einfrieren: Windows und Firefox brauchen den Großteil davon. Mit „Video auf der Festplatte speichern, wenn dieser Arbeitsspeicher voll ist“ bleibt der Rest des Videos auf der Festplatte und spielt genauso."
+        "message": "So viel Video im Arbeitsspeicher kann einen Computer einfrieren: Das System und Firefox brauchen den Großteil des Arbeitsspeichers. Eine kleinere Menge spielt genauso, weil der Rest des Videos auf die Festplatte geht oder bei Bedarf erneut heruntergeladen wird."
     },
     "options_general_ramsize": {
-        "message": "Arbeitsspeicher dieses Computers (RAM): stellt den Arbeitsspeicher für gepuffertes Video passend ein"
+        "message": "Arbeitsspeicher dieses Computers (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Beim Auswählen einer Größe wird die empfohlene Menge in das Arbeitsspeicher-Feld unten eingetragen."
     },
     "options_general_ramsize_unknown": {
         "message": "Nicht angegeben"
@@ -894,13 +906,10 @@
         "message": "Ausgelassen, kein gültiger Eintrag: Zeile $1"
     },
     "options_general_bufferahead": {
-        "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, wenn Vorab-Laden deaktiviert ist, gestoppt wurde oder der Speicherplatz ausgeht)"
+        "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben, wenn das Video nicht vollständig vorgeladen ist (0 bis 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: Nichts wird im Voraus gepuffert, daher bleibt das Video oft zum Laden stehen. Lass das Feld leer, um keine Begrenzung festzulegen."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Keine Begrenzung: Das gesamte Video wird vorgeladen, auch wenn Vorab-Laden deaktiviert ist – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist. Ist die obige Download-Geschwindigkeit 0, wird nichts vorgeladen."
+        "message": "0: Nichts wird im Voraus gepuffert, daher bleibt das Video oft zum Laden stehen."
     },
     "options_general_bufferbehind": {
         "message": "Sekunden, die hinter der Wiedergabeposition gepuffert bleiben, bevor sie verworfen werden"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Aus"
     },
+    "options_general_storage": {
+        "message": "Wo das heruntergeladene Video gespeichert wird"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "Arbeitsspeicher, dann Festplatte"
+    },
+    "options_general_storage_ramonly": {
+        "message": "Nur Arbeitsspeicher"
+    },
+    "options_general_storage_disk": {
+        "message": "Nur Festplatte"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Empfohlen. Das Video bleibt bis zur unten angegebenen Menge im Arbeitsspeicher; was nicht hineinpasst, geht auf die Festplatte und spielt genauso. Private Fenster schreiben nie auf die Festplatte: dort bleibt das Video nur im Arbeitsspeicher."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Auf die Festplatte wird nichts geschrieben. Was nicht in den unten angegebenen Arbeitsspeicher passt, wird verworfen und bei Bedarf erneut heruntergeladen."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Für Computer mit wenig Arbeitsspeicher: Das Video geht beim Eintreffen auf die Festplatte, und nur der gerade abgespielte Teil bleibt im Arbeitsspeicher. Private Fenster, die nichts auf die Festplatte schreiben, behalten 64 MB im Arbeitsspeicher."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: Bereits abgespieltes Video wird sofort verworfen; beim Zurückspulen wird es neu geladen. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_bufferbehind_none": {
-        "message": "Keine Begrenzung: Alles, was bereits abgespielt wurde, bleibt erhalten – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist."
+        "message": "Keine Begrenzung: Alles, was bereits abgespielt wurde, bleibt erhalten – im Arbeitsspeicher oder auf der Festplatte, wie unten ausgewählt."
     },
     "options_general_blockpopups": {
         "message": "Popups/Pop-unders blockieren, die direkt nach dem Klick auf den Player geöffnet werden"

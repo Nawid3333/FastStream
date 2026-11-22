@@ -106,36 +106,9 @@
                     <div class="limit-hint" id="maxsizehint" hidden></div>
                 </div>
 
-                <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
-                    <div class="label search-target-text" data-i18n="options_general_ramsize"></div>
-                    <div class="amount">
-                        <select id="ramsize" data-i18n-label="options_general_ramsize">
-                            <option value="0" data-i18n="options_general_ramsize_unknown"></option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
-                    <div class="label search-target-text" data-i18n="options_general_rambudget"></div>
-                    <div class="amount">
-                        <input class="number" type="text" inputmode="decimal" id="rambudget" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
-                            data-i18n-label="options_general_rambudget"></input>
-                        <select id="rambudgetunit" data-i18n-label="options_general_rambudget">
-                            <option value="1000000">MB</option>
-                            <option value="1000000000">GB</option>
-                        </select>
-                    </div>
-                    <div class="limit-hint" id="rambudgethint" hidden></div>
-                </div>
-
-                <div class="option search-target-remove grid1" style="margin-left: 25px; margin-top: 3px">
-                    <input type="checkbox" id="buffertodisk" data-i18n-label="options_general_buffertodisk">
-                    <div class="label search-target-text" data-i18n="options_general_buffertodisk"></div>
-                </div>
-
                 <div class="option search-target-remove grid2" style="margin-top: 5px">
                     <div class="label search-target-text" data-i18n="options_general_bufferahead"></div>
-                    <input class="number" type="text" inputmode="numeric" id="bufferahead" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
+                    <input class="number" type="text" inputmode="numeric" id="bufferahead"
                         data-i18n-label="options_general_bufferahead"></input>
                     <div class="limit-hint" id="bufferaheadhint" hidden></div>
                 </div>
@@ -145,6 +118,44 @@
                     <input class="number" type="text" inputmode="numeric" id="bufferbehind" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
                         data-i18n-label="options_general_bufferbehind"></input>
                     <div class="limit-hint" id="bufferbehindhint" hidden></div>
+                </div>
+
+                <div class="option search-target-remove grid2" style="margin-top: 5px">
+                    <div class="label search-target-text" data-i18n="options_general_storage"></div>
+                    <select id="storagemode" data-i18n-label="options_general_storage">
+                        <option value="ramdisk" data-i18n="options_general_storage_ramdisk"></option>
+                        <option value="ramonly" data-i18n="options_general_storage_ramonly"></option>
+                        <option value="disk" data-i18n="options_general_storage_disk"></option>
+                    </select>
+                    <div class="limit-hint" id="storagemodehint"></div>
+                </div>
+
+                <div id="ramoptions">
+                    <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
+                        <div class="label search-target-text" data-i18n="options_general_ramsize"></div>
+                        <div class="amount">
+                            <select id="ramsize" data-i18n-label="options_general_ramsize">
+                                <option value="0" data-i18n="options_general_ramsize_unknown"></option>
+                            </select>
+                        </div>
+                        <div class="limit-hint" data-i18n="options_general_ramsize_note"></div>
+                    </div>
+
+                    <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
+                        <div class="label search-target-text" data-i18n="options_general_rambudget"></div>
+                        <div class="amount">
+                            <input class="number" type="text" inputmode="decimal" id="rambudget"
+                                data-i18n-label="options_general_rambudget"></input>
+                            <select id="rambudgetunit" data-i18n-label="options_general_rambudget">
+                                <option value="1000000">MB</option>
+                                <option value="1000000000">GB</option>
+                            </select>
+                        </div>
+                        <div class="limit-hint" id="rambudgethint" hidden>
+                            <span id="rambudgethinttext"></span>
+                            <button type="button" id="ramrecommended" class="ram-recommended" hidden></button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-top: 3px">

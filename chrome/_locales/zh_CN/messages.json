@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "已设置：FastStream 最多在内存中保留 $1 的视频，其余放在磁盘上。你可以在选项的“常规选项”中更改。"
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "已设置：FastStream 最多在内存中保留 $1 的视频；装不下的部分会在需要时重新下载。如需更改，请前往选项中的“常规选项”。"
+    },
     "welcome_page_keybinds_header": {
         "message": "默认键盘控制"
     },
@@ -588,10 +591,10 @@
         "message": "视频正在等待数据，因为“预下载器的目标下载速度”（$1 Mbit/s）低于该视频所需（约 $2 Mbit/s）：预先下载的内容很少。请调高该设置，或将其留空以不设限制。"
     },
     "player_wait_ahead_zero": {
-        "message": "视频正在等待数据，因为“在播放位置前方保留缓冲的秒数”为 0：前方不保留任何内容。请调高该设置，或将其留空以不设限制。"
+        "message": "视频正在等待数据，因为“在播放位置前方保留缓冲的秒数”为 0：前方不保留任何内容。请调高该设置。"
     },
     "player_wait_ram_zero": {
-        "message": "视频正在等待数据，因为“缓冲视频所用内存”为 0，且此处不会在磁盘上保留任何内容：不会预先下载任何内容。请调高该设置，或将其留空以不设限制。"
+        "message": "视频正在等待数据：此处不会在磁盘上保留任何内容，而“仅磁盘”在内存中只保留 64 MB。请在“已下载视频的保存位置”下选择其他模式，以便在前方保留更多。"
     },
     "player_fragment_failed_singular": {
         "message": "$1 个视频分片下载失败。点击重试。"
@@ -699,7 +702,7 @@
         "message": "在隐私窗口中，FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。"
     },
     "player_buffer_ram_warning": {
-        "message": "“当此内存满时将视频保存在磁盘上”已关闭，因此 FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2）。它不会完整预下载，但仍会正常播放，并持续向前加载最多 $3。如需完整预下载，请开启此设置。"
+        "message": "“已下载视频的保存位置”为“仅内存”，因此 FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2）。它不会完整预下载，但仍会正常播放，并持续向前加载最多 $3。如需完整预下载，请在此处选择“先内存，后磁盘”。"
     },
     "player_buffer_disk_warning": {
         "message": "此视频（约 $1）超过了 Firefox 分配给 FastStream 的磁盘空间（剩余 $2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。清理磁盘空间会有帮助。"
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "缓冲视频所用内存（所有标签页合计）"
     },
-    "options_general_buffertodisk": {
-        "message": "当此内存满时将视频保存在磁盘上（关闭：丢弃并在需要时重新下载，从而不会向磁盘写入任何内容）"
-    },
     "options_general_nolimit": {
         "message": "无限制"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0：不进行任何预下载；只在播放位置前方保留下方设置的缓冲秒数。将输入框留空即为无限制。"
     },
-    "options_general_rambudget_zero": {
-        "message": "0：已下载的视频不保存在内存中，而是保存到磁盘上，只有接下来几秒会留在内存中。隐私窗口不会在磁盘上保存任何内容，因此播放位置前方不会下载任何内容。将输入框留空即为无限制。"
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0：不保存任何已下载的视频，且在“当此内存满时将视频保存在磁盘上”关闭时，不会在播放位置前方下载任何内容，因此视频可能会停止加载。将输入框留空即为无限制。"
+    "options_general_maxsize_none": {
+        "message": "无限制：以能装进内存及 Firefox 分配给 FastStream 的磁盘空间为限。"
     },
     "options_general_rambudget_none": {
-        "message": "无限制：下载的视频全部留在内存中，不会写入磁盘。长视频占用的内存可能超过电脑的内存并让电脑卡死：除非内存充裕，否则请设置限制。"
+        "message": "无限制：下载的视频全部留在内存中。长视频占用的内存可能超过电脑的内存并让电脑卡死。"
+    },
+    "options_general_rambudget_recommended": {
+        "message": "$1 的推荐值：$2。"
+    },
+    "options_general_rambudget_unknown": {
+        "message": "请在上方选择此电脑的内存，以查看推荐数值。"
+    },
+    "options_general_rambudget_use": {
+        "message": "使用 $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "未采纳：若不想在内存中保留视频，请在上方选择“仅磁盘”；“无限制”仅适用于“仅内存”。"
     },
     "options_general_rambudget_high": {
-        "message": "在内存中放这么多视频可能会让电脑卡死：Windows 和 Firefox 需要大部分内存。开启“当此内存满时将视频保存在磁盘上”后，视频的其余部分会保存在磁盘上，播放效果相同。"
+        "message": "在内存中放这么多视频可能会让电脑卡死：系统和 Firefox 需要大部分内存。较少的量播放效果相同，因为视频的其余部分会转到磁盘上，或在需要时重新下载。"
     },
     "options_general_ramsize": {
-        "message": "此电脑的内存（RAM）：据此设置缓冲视频所用内存"
+        "message": "此电脑的内存（RAM）"
+    },
+    "options_general_ramsize_note": {
+        "message": "选择某个大小后，推荐的数值会填入下方的内存输入框。"
     },
     "options_general_ramsize_unknown": {
         "message": "未设置"
@@ -894,13 +906,10 @@
         "message": "已忽略，不是有效的条目：第 $1 行"
     },
     "options_general_bufferahead": {
-        "message": "在播放位置前方保留缓冲的秒数（预下载关闭、停止或空间用尽时使用）"
+        "message": "在播放位置前方保留缓冲的秒数（整段视频未预下载时，0 到 3600）"
     },
     "options_general_bufferahead_zero": {
-        "message": "0：播放位置前方不保留任何缓冲，因此视频会经常停下来等待加载。将输入框留空即为无限制。"
-    },
-    "options_general_bufferahead_none": {
-        "message": "无限制：即使预下载关闭，也会提前下载整个视频：先保存在内存（RAM）中，达到上方的内存限制后再转存到磁盘。如果上方的下载速度为 0，则不会提前下载任何内容。"
+        "message": "0：播放位置前方不保留任何缓冲，因此视频会经常停下来等待加载。"
     },
     "options_general_bufferbehind": {
         "message": "在播放位置后方、裁剪前保留缓冲的秒数"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "关闭"
     },
+    "options_general_storage": {
+        "message": "已下载视频的保存位置"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "先内存，后磁盘"
+    },
+    "options_general_storage_ramonly": {
+        "message": "仅内存"
+    },
+    "options_general_storage_disk": {
+        "message": "仅磁盘"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "推荐。视频在内存中最多保留下方设置的数量；装不下的部分会转存到磁盘上，播放效果相同。隐私窗口从不向磁盘写入内容：在其中仅使用内存。"
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "不会向磁盘写入任何内容。下方内存中装不下的内容会被丢弃，并在需要时重新下载。"
+    },
+    "options_general_storage_disk_hint": {
+        "message": "适用于内存较少的电脑：视频到达时即写入磁盘，只有正在播放的部分留在内存中。不向磁盘写入任何内容的隐私窗口会在内存中保留 64 MB。"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0：已播放的内容会立即丢弃；往回跳转时会重新加载。将输入框留空即为无限制。"
     },
     "options_general_bufferbehind_none": {
-        "message": "无限制：已播放的内容会全部保留，先保存在内存（RAM）中，达到上方的内存限制后再转存到磁盘。"
+        "message": "无限制：已播放的内容会全部保留，在内存（RAM）或磁盘中，取决于下方的选择。"
     },
     "options_general_blockpopups": {
         "message": "屏蔽点击播放器后立即打开的弹出窗口/底层弹窗"

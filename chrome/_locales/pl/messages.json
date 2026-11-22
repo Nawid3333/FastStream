@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "Ustawiono: FastStream trzyma do $1 wideo w RAM, resztę na dysku. Możesz to zmienić w opcjach, w sekcji „Opcje ogólne”."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "Ustawiono: FastStream trzyma do $1 wideo w RAM; to, co się nie mieści, jest pobierane ponownie w razie potrzeby. Można to zmienić w opcjach, w sekcji „Opcje ogólne”."
+    },
     "welcome_page_keybinds_header": {
         "message": "Domyślne skróty klawiaturowe"
     },
@@ -588,10 +591,10 @@
         "message": "Wideo czeka na dane, ponieważ „Docelowa prędkość wstępnego pobierania” ($1 Mbit/s) jest niższa niż potrzeby tego wideo (około $2 Mbit/s): z wyprzedzeniem pobiera się niewiele. Zwiększ to ustawienie lub zostaw je puste, aby nie było limitu."
     },
     "player_wait_ahead_zero": {
-        "message": "Wideo czeka na dane, ponieważ „Sekundy jeszcze nieodtworzonego wideo trzymane w buforze” wynoszą 0: nic nie jest trzymane z wyprzedzeniem. Zwiększ to ustawienie lub zostaw je puste, aby nie było limitu."
+        "message": "Wideo czeka na dane, ponieważ „Sekundy jeszcze nieodtworzonego wideo trzymane w buforze” wynoszą 0: nic nie jest trzymane z wyprzedzeniem. Zwiększ to ustawienie."
     },
     "player_wait_ram_zero": {
-        "message": "Wideo czeka na dane, ponieważ „RAM na buforowane wideo” wynosi 0, a tutaj nic nie jest trzymane na dysku: nic nie jest pobierane z wyprzedzeniem. Zwiększ to ustawienie lub zostaw je puste, aby nie było limitu."
+        "message": "Wideo czeka na dane: nic nie jest tu trzymane na dysku, a „Tylko dysk” utrzymuje w RAM tylko 64 MB. Wybierz inny tryb w „Gdzie przechowywać pobrane wideo”, aby trzymać więcej z wyprzedzeniem."
     },
     "player_fragment_failed_singular": {
         "message": "$1 fragment wideo nie został pobrany. Kliknij, aby spróbować ponownie."
@@ -699,7 +702,7 @@
         "message": "W oknie prywatnym FastStream trzyma wideo tylko w RAM, a to wideo (około $1) jest większe niż część „RAM na buforowane wideo”, której FastStream może dla niego użyć ($2), więc nie jest wstępnie pobierane w całości. Mimo to odtwarza się normalnie i ładuje się do $3 do przodu."
     },
     "player_buffer_ram_warning": {
-        "message": "„Przechowuj wideo na dysku” jest wyłączone, więc FastStream trzyma wideo tylko w RAM, a to wideo (około $1) jest większe niż część „RAM na buforowane wideo”, której FastStream może dla niego użyć ($2). Nie jest wstępnie pobierane w całości, ale mimo to odtwarza się normalnie i ładuje się do $3 do przodu. Aby pobrać je wstępnie w całości, włącz „Przechowuj wideo na dysku”."
+        "message": "„Gdzie przechowywać pobrane wideo” jest ustawione na „Tylko RAM”, więc FastStream trzyma wideo tylko w RAM, a to wideo (około $1) jest większe niż część „RAM na buforowane wideo”, której FastStream może dla niego użyć ($2). Nie jest wstępnie pobierane w całości, ale mimo to odtwarza się normalnie i ładuje się do $3 do przodu. Aby pobrać je wstępnie w całości, wybierz tam „RAM, potem dysk”."
     },
     "player_buffer_disk_warning": {
         "message": "To wideo (około $1) jest większe niż miejsce na dysku, które Firefox daje FastStream (wolne: $2), więc nie jest wstępnie pobierane w całości. Mimo to odtwarza się normalnie i ładuje się do $3 do przodu. Pomaga zwolnienie miejsca na dysku."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "RAM na buforowane wideo (wszystkie karty)"
     },
-    "options_general_buffertodisk": {
-        "message": "Przechowuj wideo na dysku, gdy ten RAM zostanie zapełniony (wyłączone: odrzucaj i pobieraj ponownie w razie potrzeby, więc nic nie trafia na dysk)"
-    },
     "options_general_nolimit": {
         "message": "Brak limitu"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: nic nie jest wstępnie pobierane; w buforze trzymane są tylko sekundy ustawione poniżej. Zostaw pole puste, aby nie było limitu."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: pobrane wideo nie jest trzymane w RAM, lecz na dysku – z wyjątkiem kolejnych sekund. W oknie prywatnym, które niczego nie zapisuje na dysku, nic nie jest pobierane z wyprzedzeniem. Zostaw pole puste, aby nie było limitu."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: pobrane wideo nie jest trzymane, a przy wyłączonej opcji „Przechowuj wideo na dysku” nic nie jest pobierane z wyprzedzeniem, więc wideo może przestać się ładować. Zostaw pole puste, aby nie było limitu."
+    "options_general_maxsize_none": {
+        "message": "Brak limitu: tyle, ile zmieści się w RAM oraz w miejscu, które Firefox daje FastStream na dysku."
     },
     "options_general_rambudget_none": {
-        "message": "Bez limitu: całe pobrane wideo zostaje w RAM, nic nie trafia na dysk. Długie wideo może zająć więcej pamięci, niż ma komputer, i go zawiesić: ustaw limit, chyba że ma jej dużo."
+        "message": "Bez limitu: całe pobrane wideo zostaje w RAM. Długie wideo może zająć więcej pamięci, niż ma komputer, i go zawiesić."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "Zalecane dla $1: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "Wybierz powyżej pamięć tego komputera, aby zobaczyć zalecaną ilość."
+    },
+    "options_general_rambudget_use": {
+        "message": "Użyj $1"
+    },
+    "options_general_rambudget_refused": {
+        "message": "Nie przyjęto: aby wideo nie było trzymane w RAM, wybierz powyżej „Tylko dysk”; „Brak limitu” jest tylko dla „Tylko RAM”."
     },
     "options_general_rambudget_high": {
-        "message": "Tyle wideo w RAM może zawiesić komputer: Windows i Firefox potrzebują większości jego pamięci. Gdy opcja „Przechowuj wideo na dysku, gdy ten RAM zostanie zapełniony” jest włączona, reszta wideo jest przechowywana na dysku i odtwarza się tak samo."
+        "message": "Tyle wideo w RAM może zawiesić komputer: system i Firefox potrzebują większości jego pamięci. Mniejsza ilość odtwarza się tak samo, ponieważ reszta wideo trafia na dysk lub jest pobierana ponownie w razie potrzeby."
     },
     "options_general_ramsize": {
-        "message": "Pamięć tego komputera (RAM): dostosowuje do niej RAM na buforowane wideo"
+        "message": "Pamięć tego komputera (RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "Wybranie rozmiaru wstawia zalecaną ilość do znajdującego się poniżej pola RAM."
     },
     "options_general_ramsize_unknown": {
         "message": "Nie ustawiono"
@@ -894,13 +906,10 @@
         "message": "Pominięto, nieprawidłowy wpis: wiersz $1"
     },
     "options_general_bufferahead": {
-        "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze (używane, gdy wstępne pobieranie jest wyłączone, zatrzymane lub skończyło się miejsce)"
+        "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze, gdy całe wideo nie jest wstępnie pobierane (od 0 do 3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: nic nie jest trzymane w buforze z wyprzedzeniem, więc wideo często zatrzymuje się, żeby się wczytać. Zostaw pole puste, aby nie było limitu."
-    },
-    "options_general_bufferahead_none": {
-        "message": "Brak limitu: całe wideo jest pobierane z wyprzedzeniem, nawet gdy wstępne pobieranie jest wyłączone: najpierw w RAM, a gdy wyczerpie się powyższy limit RAM, na dysku. Jeśli powyższa szybkość pobierania wynosi 0, nic nie jest pobierane z wyprzedzeniem."
+        "message": "0: nic nie jest trzymane w buforze z wyprzedzeniem, więc wideo często zatrzymuje się, żeby się wczytać."
     },
     "options_general_bufferbehind": {
         "message": "Sekundy już odtworzonego wideo trzymane w buforze, zanim zostaną usunięte"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "Wyłączone"
     },
+    "options_general_storage": {
+        "message": "Gdzie przechowywać pobrane wideo"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM, potem dysk"
+    },
+    "options_general_storage_ramonly": {
+        "message": "Tylko RAM"
+    },
+    "options_general_storage_disk": {
+        "message": "Tylko dysk"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "Zalecane. Wideo pozostaje w RAM do ilości określonej poniżej; to, co się nie mieści, trafia na dysk i odtwarza się tak samo. Okna prywatne nigdy niczego nie zapisują na dysku: tam jest tylko RAM."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "Nic nie jest zapisywane na dysku. To, co nie mieści się w RAM ustawionym poniżej, jest odrzucane i pobierane ponownie w razie potrzeby."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "Dla komputerów z małą ilością pamięci: wideo trafia na dysk od razu po przybyciu, a w RAM zostaje tylko aktualnie odtwarzana część. Okna prywatne, które niczego nie zapisują na dysku, trzymają 64 MB w RAM."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: odtworzone wideo jest od razu usuwane; przewinięcie w tył wczytuje je ponownie. Zostaw pole puste, aby nie było limitu."
     },
     "options_general_bufferbehind_none": {
-        "message": "Brak limitu: wszystko, co już odtworzono, jest trzymane najpierw w RAM, a gdy wyczerpie się powyższy limit RAM, na dysku."
+        "message": "Brak limitu: wszystko, co już odtworzono, jest trzymane w RAM lub na dysku, według wyboru poniżej."
     },
     "options_general_blockpopups": {
         "message": "Blokuj pop-upy/pop-undery otwierane od razu po kliknięciu odtwarzacza"

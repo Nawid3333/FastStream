@@ -2,6 +2,7 @@
 import {Localize} from './player/modules/Localize.mjs';
 import {OptionsStore} from './player/options/OptionsStore.mjs';
 import {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory} from './player/options/RamGuard.mjs';
+import {StorageModes, storageModeOf} from './player/options/StorageMode.mjs';
 import {StringUtils} from './player/utils/StringUtils.mjs';
 
 const sizes = /** @type {HTMLElement} */ (document.getElementById('ramsizes'));
@@ -15,8 +16,11 @@ function showAnswer(options) {
   for (const button of sizes.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(Number(button.dataset.gb) === options.computerMemory));
   }
-  const set = options.computerMemory > 0 && options.ramBudget >= 0;
-  answer.textContent = set ? Localize.getMessage('welcome_page_ram_set', [StringUtils.formatSize(options.ramBudget)]) : '';
+  const set = options.computerMemory > 0 && options.ramBudget > 0;
+  // What happens beyond it is the storage mode's: the disk, or downloaded again.
+  const mode = storageModeOf({ramBudget: options.ramBudget, bufferToDisk: options.bufferToDisk});
+  const key = mode === StorageModes.RAM_ONLY ? 'welcome_page_ram_set_ramonly' : 'welcome_page_ram_set';
+  answer.textContent = set ? Localize.getMessage(key, [StringUtils.formatSize(options.ramBudget)]) : '';
   answer.hidden = !set;
 }
 

@@ -5,21 +5,15 @@ vi.mock('../../chrome/player/modules/Localize.mjs', () => ({
   Localize: {getMessage: (key, subs) => subs ? `${key}(${subs.join('|')})` : key},
 }));
 
-const {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory, ramBudgetFor, ramBudgetRisky} =
+const {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory, ramBudgetRisky} =
   await import('../../chrome/player/options/RamGuard.mjs');
+const {recommendedRamBudget} = await import('../../chrome/player/options/StorageMode.mjs');
 
 // Issue #798: an 8 GB laptop froze with the RAM for buffered video at 20 GB, and nothing on the
 // options page said that was too much for it. Firefox tells extensions nothing about the
 // computer's memory, so the user is asked.
 
 const GB = 1e9;
-
-describe('ramBudgetFor', () => {
-  it('is an eighth of the memory, at most 4 GB', () => {
-    expect(ComputerMemorySizes.map(ramBudgetFor)).toEqual([0.5 * GB, 1 * GB, 2 * GB, 4 * GB]);
-    expect(ramBudgetFor(64)).toBe(4 * GB);
-  });
-});
 
 describe('ramBudgetRisky', () => {
   it('warns of no limit, whatever the memory', () => {
@@ -43,13 +37,13 @@ describe('ramBudgetRisky', () => {
   });
 
   it('never warns of what the answer itself sets', () => {
-    for (const gigabytes of ComputerMemorySizes) expect(ramBudgetRisky(ramBudgetFor(gigabytes), gigabytes)).toBe(false);
+    for (const gigabytes of ComputerMemorySizes) expect(ramBudgetRisky(recommendedRamBudget(gigabytes), gigabytes)).toBe(false);
   });
 });
 
 describe('optionsForComputerMemory', () => {
-  it('sets the RAM to suit the answer, and keeps the rest of the video on disk', () => {
-    expect(optionsForComputerMemory(8)).toEqual({computerMemory: 8, ramBudget: 1 * GB, bufferToDisk: true});
+  it('sets the RAM to suit the answer, and leaves where the rest goes to the storage mode the user chose', () => {
+    expect(optionsForComputerMemory(8)).toEqual({computerMemory: 8, ramBudget: recommendedRamBudget(8)});
   });
 
   it('leaves the RAM as it is when the answer is taken back', () => {
@@ -69,8 +63,9 @@ describe('the options page', () => {
   const page = fs.readFileSync(new URL('../../chrome/player/options/options.mjs', import.meta.url), 'utf8');
   const html = fs.readFileSync(new URL('../../chrome/player/options/index.html', import.meta.url), 'utf8');
 
-  it('warns under the RAM field when it is risky for the memory given', () => {
-    expect(page).toMatch(/if \(input === ramBudget && !key && ramBudgetRisky\(value, Options\.computerMemory\)\) key = 'options_general_rambudget_high';/);
+  it('warns under the RAM field when it is risky for the memory given, and offers the recommended amount', () => {
+    expect(page).toMatch(/\} else if \(ramBudgetRisky\(bytes, gigabytes\)\) \{\n\s+parts\.push\(Localize\.getMessage\('options_general_rambudget_high'\)\);/);
+    expect(page).toMatch(/ramRecommended\.hidden = recommended === null \|\| bytes === recommended;/);
   });
 
   it('asks the memory right before the RAM field, and takes the answer like the welcome page', () => {
@@ -141,9 +136,10 @@ describe('the welcome page', () => {
     expect(elements.ramset.hidden).toBe(true);
 
     await buttons[1].listeners.click();
-    expect(replace).toHaveBeenCalledWith({ramBudget: 1 * GB, bufferToDisk: true, computerMemory: 8, mpvMode: true});
+    // "Keep video on disk" off stays off: RAM only, with the amount to suit the answer.
+    expect(replace).toHaveBeenCalledWith({ramBudget: 1 * GB, bufferToDisk: false, computerMemory: 8, mpvMode: true});
     expect(buttons.map((button) => button.attributes['aria-pressed'])).toEqual(['false', 'true', 'false', 'false']);
     expect(elements.ramset.hidden).toBe(false);
-    expect(elements.ramset.textContent).toMatch(/^welcome_page_ram_set\(1\D/);
+    expect(elements.ramset.textContent).toMatch(/^welcome_page_ram_set_ramonly\(1\D/);
   });
 });

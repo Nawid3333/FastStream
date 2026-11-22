@@ -50,6 +50,9 @@
     "welcome_page_ram_set": {
         "message": "설정됨: FastStream은 RAM에 동영상을 최대 $1까지 두고 나머지는 디스크에 보관합니다. 옵션의 \"일반 옵션\"에서 바꿀 수 있습니다."
     },
+    "welcome_page_ram_set_ramonly": {
+        "message": "설정됨: FastStream은 비디오를 최대 $1까지 RAM에 보관합니다. 들어가지 않는 부분은 필요할 때 다시 다운로드됩니다. 옵션의 \"일반 옵션\"에서 변경할 수 있습니다."
+    },
     "welcome_page_keybinds_header": {
         "message": "기본 키보드 단축키"
     },
@@ -588,10 +591,10 @@
         "message": "\"사전 다운로드의 목표 속도\"($1 Mbit/s)가 이 동영상에 필요한 속도(약 $2 Mbit/s)보다 낮아서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 양이 적습니다. 이 설정을 높이거나 비워 두어 제한을 없애세요."
     },
     "player_wait_ahead_zero": {
-        "message": "\"재생 지점 이후 구간을 버퍼에 유지할 초 수\"가 0이어서 동영상이 데이터를 기다리고 있습니다. 앞부분이 전혀 유지되지 않습니다. 이 설정을 높이거나 비워 두어 제한을 없애세요."
+        "message": "\"재생 지점 이후 구간을 버퍼에 유지할 초 수\"가 0이어서 동영상이 데이터를 기다리고 있습니다. 앞부분이 전혀 유지되지 않습니다. 이 설정을 높이세요."
     },
     "player_wait_ram_zero": {
-        "message": "\"버퍼링된 동영상에 쓰는 RAM\"이 0이고 여기서는 디스크에도 아무것도 보관하지 않아서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 것이 없습니다. 이 설정을 높이거나 비워 두어 제한을 없애세요."
+        "message": "동영상이 데이터를 기다리고 있습니다. 여기서는 디스크에 아무것도 보관하지 않고, \"디스크만\"은 RAM에 64 MB만 보관합니다. 더 많이 미리 유지하려면 \"다운로드한 비디오의 저장 위치\"에서 다른 모드를 선택하세요."
     },
     "player_fragment_failed_singular": {
         "message": "비디오 조각 $1개의 다운로드에 실패했습니다. 다시 시도하려면 클릭하세요."
@@ -699,7 +702,7 @@
         "message": "사생활 보호 창에서는 FastStream이 비디오를 RAM에만 보관하며, 이 비디오(약 $1)는 \"버퍼링된 동영상에 쓰는 RAM\" 중 FastStream이 쓸 수 있는 몫($2)보다 커서 전체가 사전 다운로드되지 않습니다. 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다."
     },
     "player_buffer_ram_warning": {
-        "message": "\"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"이 꺼져 있어 FastStream이 비디오를 RAM에만 보관하며, 이 비디오(약 $1)는 \"버퍼링된 동영상에 쓰는 RAM\" 중 FastStream이 쓸 수 있는 몫($2)보다 큽니다. 전체가 사전 다운로드되지는 않지만 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 전체를 사전 다운로드하려면 이 설정을 켜세요."
+        "message": "\"다운로드한 비디오의 저장 위치\"가 \"RAM만\"이어서 FastStream이 비디오를 RAM에만 보관하며, 이 비디오(약 $1)는 \"버퍼링된 동영상에 쓰는 RAM\" 중 FastStream이 쓸 수 있는 몫($2)보다 큽니다. 전체가 사전 다운로드되지는 않지만 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 전체를 사전 다운로드하려면 거기서 \"RAM 후 디스크\"를 선택하세요."
     },
     "player_buffer_disk_warning": {
         "message": "이 비디오(약 $1)는 Firefox가 FastStream에 주는 디스크 공간(남은 공간 $2)보다 커서 전체가 사전 다운로드되지 않습니다. 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 디스크 공간을 확보하면 도움이 됩니다."
@@ -857,9 +860,6 @@
     "options_general_rambudget": {
         "message": "버퍼링된 동영상에 쓰는 RAM (모든 탭 합계)"
     },
-    "options_general_buffertodisk": {
-        "message": "이 RAM이 가득 찼을 때 비디오를 디스크에 저장 (끔: 삭제하고 필요할 때 다시 다운로드하여 디스크에 아무것도 기록하지 않음)"
-    },
     "options_general_nolimit": {
         "message": "제한 없음"
     },
@@ -869,20 +869,32 @@
     "options_general_maxsize_zero": {
         "message": "0: 사전 다운로드는 하지 않고, 아래에서 설정한 초만큼만 재생 지점 이후 구간을 유지합니다. 제한 없음으로 하려면 칸을 비워 두세요."
     },
-    "options_general_rambudget_zero": {
-        "message": "0: 다운로드한 비디오는 RAM에 두지 않고 디스크에 저장하며, 다음 몇 초만 RAM에 남습니다. 아무것도 디스크에 저장하지 않는 사생활 보호 창에서는 재생보다 앞서 다운로드하는 내용이 없습니다. 제한 없음으로 하려면 칸을 비워 두세요."
-    },
-    "options_general_rambudget_zero_nodisk": {
-        "message": "0: 다운로드한 비디오가 유지되지 않으며, \"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"이 꺼져 있으면 재생보다 앞서 다운로드하는 내용이 없으므로 비디오 로딩이 중단될 수 있습니다. 제한 없음으로 하려면 칸을 비워 두세요."
+    "options_general_maxsize_none": {
+        "message": "제한 없음: RAM과 Firefox가 FastStream에게 디스크에서 주는 공간에 맞는 만큼 저장합니다."
     },
     "options_general_rambudget_none": {
-        "message": "제한 없음: 다운로드한 동영상이 모두 RAM에 남고 디스크로는 가지 않습니다. 긴 동영상은 컴퓨터의 메모리보다 많이 차지해 컴퓨터를 멈추게 할 수 있습니다. 메모리가 넉넉하지 않다면 제한을 설정하세요."
+        "message": "제한 없음: 다운로드한 동영상이 모두 RAM에 남습니다. 긴 동영상은 컴퓨터의 메모리보다 많이 차지해 컴퓨터를 멈추게 할 수 있습니다."
+    },
+    "options_general_rambudget_recommended": {
+        "message": "$1 기준 권장량: $2."
+    },
+    "options_general_rambudget_unknown": {
+        "message": "권장 용량을 보려면 위에서 이 컴퓨터의 메모리를 선택하세요."
+    },
+    "options_general_rambudget_use": {
+        "message": "$1 사용"
+    },
+    "options_general_rambudget_refused": {
+        "message": "적용되지 않음: RAM에 동영상을 남기지 않으려면 위에서 \"디스크만\"을 선택하세요. \"제한 없음\"은 \"RAM만\"일 때만 쓸 수 있습니다."
     },
     "options_general_rambudget_high": {
-        "message": "이만큼의 동영상을 RAM에 두면 컴퓨터가 멈출 수 있습니다. Windows와 Firefox가 메모리의 대부분을 필요로 하기 때문입니다. \"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"을 켜 두면 나머지는 디스크에 보관되며 재생은 똑같습니다."
+        "message": "이만큼의 동영상을 RAM에 두면 컴퓨터가 멈출 수 있습니다. 시스템과 Firefox가 메모리의 대부분을 필요로 하기 때문입니다. 더 적게 설정해도 재생은 똑같습니다. 나머지 동영상은 디스크에 가거나 필요할 때 다시 다운로드되기 때문입니다."
     },
     "options_general_ramsize": {
-        "message": "이 컴퓨터의 메모리(RAM): 버퍼링된 동영상에 쓰는 RAM을 이에 맞게 설정합니다"
+        "message": "이 컴퓨터의 메모리(RAM)"
+    },
+    "options_general_ramsize_note": {
+        "message": "크기를 선택하면 권장 용량이 아래의 RAM 칸에 채워집니다."
     },
     "options_general_ramsize_unknown": {
         "message": "설정 안 함"
@@ -894,13 +906,10 @@
         "message": "올바른 항목이 아니어서 제외됨: $1번째 줄"
     },
     "options_general_bufferahead": {
-        "message": "재생 지점 이후 구간을 버퍼에 유지할 초 수(사전 다운로드가 꺼져 있거나 중지되었거나 공간이 부족할 때 사용)"
+        "message": "재생 지점 이후 구간을 버퍼에 유지할 초 수(전체 비디오가 사전 다운로드되지 않은 경우, 0~3600)"
     },
     "options_general_bufferahead_zero": {
-        "message": "0: 재생 지점 이후를 버퍼에 유지하지 않아 비디오가 로드를 기다리느라 자주 멈춥니다. 제한 없음으로 하려면 칸을 비워 두세요."
-    },
-    "options_general_bufferahead_none": {
-        "message": "제한 없음: 사전 다운로드가 꺼져 있어도 비디오 전체를 미리 다운로드합니다. 먼저 RAM에 저장하고, 위의 RAM 제한이 가득 차면 디스크에 저장합니다. 위의 다운로드 속도가 0이면 미리 다운로드하는 내용이 없습니다."
+        "message": "0: 재생 지점 이후를 버퍼에 유지하지 않아 비디오가 로드를 기다리느라 자주 멈춥니다."
     },
     "options_general_bufferbehind": {
         "message": "트리밍 전까지 재생 지점 이전 구간을 버퍼에 유지할 초 수"
@@ -911,11 +920,32 @@
     "options_general_bufferkeep_off": {
         "message": "끄기"
     },
+    "options_general_storage": {
+        "message": "다운로드한 비디오의 저장 위치"
+    },
+    "options_general_storage_ramdisk": {
+        "message": "RAM 후 디스크"
+    },
+    "options_general_storage_ramonly": {
+        "message": "RAM만"
+    },
+    "options_general_storage_disk": {
+        "message": "디스크만"
+    },
+    "options_general_storage_ramdisk_hint": {
+        "message": "권장. 비디오는 아래에서 설정한 양까지 RAM에 유지되고, 들어가지 않는 부분은 디스크에 저장되지만 재생은 똑같습니다. 비공개 창은 디스크에 아무것도 기록하지 않으므로 거기서는 RAM에만 유지됩니다."
+    },
+    "options_general_storage_ramonly_hint": {
+        "message": "디스크에는 아무것도 기록되지 않습니다. 아래 RAM에 들어가지 않는 부분은 삭제되고 필요할 때 다시 다운로드됩니다."
+    },
+    "options_general_storage_disk_hint": {
+        "message": "메모리가 적은 컴퓨터용: 비디오는 도착하는 대로 디스크에 가고, 지금 재생 중인 부분만 RAM에 남습니다. 디스크에 아무것도 기록하지 않는 비공개 창은 RAM에 64 MB를 보관합니다."
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: 재생한 부분은 곧바로 버려지고, 뒤로 이동하면 다시 로드합니다. 제한 없음으로 하려면 칸을 비워 두세요."
     },
     "options_general_bufferbehind_none": {
-        "message": "제한 없음: 이미 재생한 부분을 모두 유지합니다. 먼저 RAM에 저장하고, 위의 RAM 제한이 가득 차면 디스크에 저장합니다."
+        "message": "제한 없음: 이미 재생한 부분을 모두 유지합니다. 아래에서 선택한 대로 RAM 또는 디스크에 저장합니다."
     },
     "options_general_blockpopups": {
         "message": "플레이어를 클릭한 직후 열리는 팝업/팝언더 차단"

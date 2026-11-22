@@ -1,21 +1,12 @@
 // @ts-check
 import {Localize} from '../modules/Localize.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
+import {recommendedRamBudget} from './StorageMode.mjs';
 
 const GB = 1e9;
 
 /** The memory sizes offered, in GB; the last one stands for that or more. */
 export const ComputerMemorySizes = [4, 8, 16, 32];
-
-/**
- * RAM for buffered video on a computer with this much memory: an eighth of it, at most 4 GB.
- * Windows and Firefox need most of the rest; the video beyond it goes to disk.
- * @param {number} gigabytes
- * @return {number} Bytes.
- */
-export function ramBudgetFor(gigabytes) {
-  return Math.min(gigabytes, 32) / 8 * GB;
-}
 
 /**
  * Whether this much RAM for buffered video can freeze the computer: no limit, more than 4 GB, or
@@ -31,14 +22,14 @@ export function ramBudgetRisky(bytes, gigabytes) {
 }
 
 /**
- * What an answer to "how much memory does this computer have" sets: the RAM for buffered video
- * to suit it, and the rest of the video on disk.
+ * What an answer to "how much memory does this computer have" sets: the RAM for buffered video to suit it
+ * (recommendedRamBudget). Where the video goes beyond it is the storage mode's, the user's own choice.
  * @param {number} gigabytes - 0: no answer, and the RAM for buffered video stays as it is.
- * @return {{computerMemory: number, ramBudget?: number, bufferToDisk?: boolean}}
+ * @return {{computerMemory: number, ramBudget?: number}}
  */
 export function optionsForComputerMemory(gigabytes) {
   if (!(gigabytes > 0)) return {computerMemory: 0};
-  return {computerMemory: gigabytes, ramBudget: ramBudgetFor(gigabytes), bufferToDisk: true};
+  return {computerMemory: gigabytes, ramBudget: recommendedRamBudget(gigabytes)};
 }
 
 /**
