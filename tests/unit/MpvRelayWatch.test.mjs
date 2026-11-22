@@ -1,15 +1,14 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, MaxNoticeSeconds as HostMaxNoticeSeconds,
-  ReadableProperties, checkRelayMessage, ipcCommandRefusal, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxNoticeSeconds as HostMaxNoticeSeconds, MinHeartbeatMs, ReadableProperties, checkRelayMessage, ipcCommandRefusal}
+  from '../../native-host/faststream-mpv-host.mjs';
 import {DecoderProperties, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {EofSlackSeconds, EofSlackShare, EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, brokeOff, noticeSeconds,
   relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
 
-// MPV autoplay over the thin helper: the helper only relays mpv's lines
-// and writes the allowlisted commands sent to it; what counts as a file's end is the
-// extension's now (MpvRelayWatch.mjs), so a better end detection needs no helper reinstall.
-// These are the helper's watchMpv cases (tests/unit/mpvWatch.test.mjs) over a fake port: mpv's
+// MPV autoplay over the helper: the helper only relays mpv's lines and writes the allowlisted
+// commands sent to it; what counts as a file's end is the extension's (MpvRelayWatch.mjs), so a
+// better end detection needs no helper reinstall. Over a fake port: mpv's
 // JSON IPC as measured with the pinned mpv (headless, keep-open): observe_property sends the
 // current value at once; at a file's end eof-reached goes false -> true; a loadfile replace
 // sends end-file "stop", eof-reached and path unavailable, the new path, then eof-reached
@@ -46,7 +45,7 @@ function fakePort() {
   return port;
 }
 
-// A window the helper names by its id (helper 30): newWindow's, beside the one on its own pipe ('').
+// A window the helper names by its id: newWindow's, beside the one on its own pipe ('').
 const WindowB = '0123456789abcdef';
 
 const RELAY = {
@@ -67,7 +66,7 @@ function relaying() {
   const port = fakePort();
   const events = [];
   const watch = relayWatch(port, (event) => events.push(event));
-  port.emit({type: 'relaying', hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']});
+  port.emit({type: 'relaying', hostVersion: RequiredHostVersion});
   return {
     port, events, watch,
     mpv: (data) => port.emit({type: 'mpv', data}),
@@ -105,15 +104,15 @@ describe('the relay watch', () => {
     }
   });
 
-  it('keeps the helper\'s constants', () => {
-    // Plus Space's message, which only the relay maps: a helper's own watch, before
-    // host 15, never had a countdown key, and adding it there would move the host's version.
-    expect(EpisodeMessages).toEqual({...HostEpisodeMessages, 'faststream-pause': 'pause'});
-    expect(HeartbeatMs).toBe(HostHeartbeatMs);
+  it('keeps within the helper\'s limits', () => {
+    // mpv-config's keys and buttons send these script messages (input.conf: "n script-message faststream-next").
+    expect(EpisodeMessages).toEqual({'faststream-next': 'next', 'faststream-previous': 'previous',
+      'faststream-autoplay': 'autoplay', 'faststream-pause': 'pause'});
+    expect(HeartbeatMs).toBeGreaterThanOrEqual(MinHeartbeatMs);
     expect(MaxNoticeSeconds).toBe(HostMaxNoticeSeconds);
-    for (const seconds of [5, 99, 6.04, 0, -1, NaN, Infinity, '5', null, 0.01, 0.06, 2.25, 60]) {
-      expect(noticeSeconds(seconds)).toBe(hostNoticeSeconds(seconds));
-    }
+    // Above 0, at most MaxNoticeSeconds, to a tenth; undefined otherwise (notify.lua's own 2 s).
+    expect([5, 99, 6.04, 0, -1, NaN, Infinity, '5', null, 0.01, 0.06, 2.25, 60].map(noticeSeconds))
+        .toEqual([5, 60, 6, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 0.1, 2.3, 60]);
   });
 
   it('asks the helper to relay, with the heartbeat and what to write when the extension lets go', () => {
@@ -124,7 +123,7 @@ describe('the relay watch', () => {
     expect(events).toEqual([]);
   });
 
-  it('names the mpv window it follows (helper 30), and none for the one on the helper\'s own pipe', () => {
+  it('names the mpv window it follows, and none for the one on the helper\'s own pipe', () => {
     const port = fakePort();
     relayWatch(port, () => {}, {window: WindowB});
     expect(port.sent).toEqual([{...RELAY, window: WindowB}]);
@@ -352,7 +351,7 @@ describe('the relay watch', () => {
       expect(keepOpenSent(port).map((m) => m.command)).toEqual([['get_property', 'keep-open']]);
     });
 
-    it('goes on as before with a helper that refuses it (before host 24)', () => {
+    it('goes on without it when the helper refuses it', () => {
       const {port, events, watch, mpv} = relaying();
       watch.state({autoplay: true});
       mpv(pathEvent('https://cdn.test/ep1.mp4'));
@@ -509,7 +508,7 @@ describe('the relay watch', () => {
     const watch = relayWatch(port, () => {});
     watch.command(['script-message', 'faststream-offer-cancel', 'a1-1']);
     expect(commands(port)).toEqual([]);
-    port.emit({type: 'relaying', hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']});
+    port.emit({type: 'relaying', hostVersion: RequiredHostVersion});
     expect(commands(port).at(-1)).toEqual({type: 'mpv', command: ['script-message', 'faststream-offer-cancel', 'a1-1']});
   });
 
@@ -532,7 +531,7 @@ describe('the relay watch', () => {
   });
 
   it('says how long a notice stays, in whole seconds, and takes it down early', () => {
-    // Before host 11, every notice went after notify.lua's 2 s: "next episode in 5 s" was gone
+    // Without a time every notice went after notify.lua's 2 s: "next episode in 5 s" was gone
     // 3 s before the episode came. The helper takes a string of digits.
     const {port, watch, reply} = relaying();
     watch.notify('Autoplay', 'next episode in 5 s', 5);
@@ -640,31 +639,21 @@ describe('the relay watch', () => {
     expect(events.at(-1)).toEqual({type: 'closed', reason: 'the mpv host went'});
   });
 
-  it('hands an older helper back to the caller, which follows mpv the old way', () => {
-    const port = fakePort();
-    const events = [];
-    let legacy = 0;
-    relayWatch(port, (event) => events.push(event), {onLegacy: () => legacy++});
-    port.emit({ok: false, error: 'unknown message', hostVersion: 14});
-    port.drop();
-    expect(legacy).toBe(1);
-    expect(port.disconnected).toBe(true);
-    expect(events).toEqual([]);
-  });
-
-  it('ends with the helper\'s reason for any other refusal', () => {
-    const port = fakePort();
-    const events = [];
-    let legacy = 0;
-    relayWatch(port, (event) => events.push(event), {onLegacy: () => legacy++});
-    port.emit({ok: false, error: 'heartbeat refused', hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']});
-    expect(legacy).toBe(0);
-    expect(events).toEqual([{type: 'closed', reason: 'heartbeat refused'}]);
+  it('ends with the helper\'s reason for a refusal, "unknown message" of a helper put back meanwhile too', () => {
+    for (const refusal of [{ok: false, error: 'heartbeat refused', hostVersion: RequiredHostVersion},
+      {ok: false, error: 'unknown message', hostVersion: 14}]) {
+      const port = fakePort();
+      const events = [];
+      relayWatch(port, (event) => events.push(event));
+      port.emit(refusal);
+      expect(events).toEqual([{type: 'closed', reason: refusal.error}]);
+      // Nothing more is sent on it.
+      expect(port.sent).toHaveLength(1);
+    }
   });
 });
 
-// MpvBackend.watch keeps its events and interface (background.mjs did not change): over the
-// relay when the helper has it, with the watch message for an older one.
+// MpvBackend.watch: the relay's events, and the decoder read from mpv's replies.
 describe('the backend\'s watch', () => {
   let ports;
 
@@ -685,10 +674,9 @@ describe('the backend\'s watch', () => {
     }};
   };
 
-  it('follows mpv over the relay when the helper has it', () => {
+  it('follows mpv over the relay', () => {
     stubBrowser();
     const backend = new MpvBackend();
-    backend.capabilities = ['play', 'ipc', 'relay'];
     const events = [];
     const watch = backend.watch((event) => events.push(event));
     expect(ports).toHaveLength(1);
@@ -711,67 +699,9 @@ describe('the backend\'s watch', () => {
     expect(backend.watchers.get('')).toBe(undefined);
   });
 
-  it('follows it with the watch message for a helper before host 15', () => {
-    stubBrowser();
-    const backend = new MpvBackend();
-    backend.capabilities = [];
-    const events = [];
-    const watch = backend.watch((event) => events.push(event));
-    expect(ports[0].sent).toEqual([{type: 'watch'}]);
-    ports[0].emit({type: 'watching'});
-    ports[0].emit({type: 'ended', path: 'https://cdn.test/a.m3u8'});
-    watch.notify('Autoplay', 'next episode in 5 s', 5);
-    watch.hide();
-    watch.state({autoplay: false});
-    expect(ports[0].sent.slice(1)).toEqual([{type: 'notify', title: 'Autoplay', detail: 'next episode in 5 s', seconds: 5},
-      {type: 'hide'}, {type: 'state', autoplay: false}]);
-    expect(events).toEqual([{type: 'watching'}, {type: 'ended', path: 'https://cdn.test/a.m3u8'}]);
-    // A host before 7 ("unknown message" to watch too): the watch ends, saying so.
-    stubBrowser();
-    backend.watch((event) => events.push(event));
-    ports[0].emit({ok: false, error: 'unknown message'});
-    expect(events.at(-1)).toEqual({type: 'closed', reason: 'unknown message'});
-  });
-
-  it('tries the relay while nothing is known, and goes the old way for an older helper', () => {
-    stubBrowser();
-    const backend = new MpvBackend();
-    expect(backend.capabilities).toBe(null);
-    const events = [];
-    const watch = backend.watch((event) => events.push(event));
-    expect(ports[0].sent).toEqual([RELAY]);
-    ports[0].emit({ok: false, error: 'unknown message', hostVersion: 14});
-    ports[0].drop();
-    expect(backend.capabilities).toEqual([]);
-    expect(ports).toHaveLength(2);
-    expect(ports[1].sent).toEqual([{type: 'watch'}]);
-    ports[1].emit({type: 'watching'});
-    watch.notify('Next video', 'loading', 6);
-    expect(ports[1].sent.at(-1)).toEqual({type: 'notify', title: 'Next video', detail: 'loading', seconds: 6});
-    expect(events).toEqual([{type: 'watching'}]);
-    watch.stop();
-    expect(ports[1].disconnected).toBe(true);
-    expect(backend.watchers.get('')).toBe(undefined);
-    // And the next watch goes the old way at once.
-    backend.watch(() => {});
-    expect(ports).toHaveLength(3);
-    expect(ports[2].sent).toEqual([{type: 'watch'}]);
-  });
-
-  it('starts no second port for a watch stopped before the older helper answered', () => {
-    stubBrowser();
-    const backend = new MpvBackend();
-    const watch = backend.watch(() => {});
-    watch.stop();
-    expect(ports[0].disconnected).toBe(true);
-    ports[0].emit({ok: false, error: 'unknown message'});
-    expect(ports).toHaveLength(1);
-  });
-
   it('follows each mpv window once: a second watch of a window ends its first, not another window\'s', () => {
     stubBrowser();
     const backend = new MpvBackend();
-    backend.capabilities = ['relay', 'windows'];
     const first = [];
     backend.watch((event) => first.push(event));
     const other = [];

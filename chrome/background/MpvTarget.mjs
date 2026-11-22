@@ -1,6 +1,9 @@
 // @ts-check
 
-/** Ports of the thin helper's functions, same output byte for byte (tests/unit/MpvTarget.test.mjs). */
+/**
+ * What mpv is given for a stream: its target with the fs-* tags mpv's scripts read, its title, header fields and start.
+ * The helper built them until host 15; a change to the fs-id moves every saved resume position (tests/unit/MpvTarget.test.mjs).
+ */
 
 /**
  * As a reader counts characters: cut between code points, mpv drew a broken character.

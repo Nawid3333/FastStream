@@ -5,7 +5,7 @@ import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {ProblemKinds} from '../player/utils/ProblemLog.mjs';
 import {SHORT_S} from '../player/utils/StreamPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
-import {Capabilities, MpvBackend} from './MpvBackend.mjs';
+import {MpvBackend} from './MpvBackend.mjs';
 import {hlsPackage} from './MpvHlsPackage.mjs';
 import {MaxTitleChars, WindowAskMs, WindowQuestions, answerOffer, endOffer, offerStream, offerText, readWindow} from './MpvOffer.mjs';
 import {MAX_TRACKS} from './MpvSubtitles.mjs';
@@ -68,7 +68,6 @@ export async function startMpv(tab, onPlay = false) {
   tab.mpvError = null;
   tab.mpvHostOutdated = false;
   tab.mpvDecoder = null;
-  tab.mpvDecoderQuery = null;
   BackgroundUtils.updateTabIcon(tab);
 
   if (await tabHasPlayer(tab)) {
@@ -335,7 +334,8 @@ export function autoOpenInMpv(tab, url, headers) {
       return;
     }
     setMpvError(tab, result);
-    followMpvDecoder(tab, result);
+    // The relay tells the new stream's decoder as mpv loads it (watchMpvFor).
+    setMpvDecoder(tab, null);
     if (result.ok) {
       pauseAfterHandOff(tab, result);
     } else if (!('drm' in result)) {
@@ -430,7 +430,7 @@ const NoTab = -1;
 export const MpvNextEpisodeWaitMs = 60000;
 
 /**
- * Where a stream goes while FastStream follows mpv windows (helper 30): to the tab's own window, else the one that got
+ * Where a stream goes while FastStream follows mpv windows: to the tab's own window, else the one that got
  * the last stream. One idle or at its end takes it; one that plays asks first (MpvOffer.mjs), and the page waits paused.
  * @param {?TabHolder} tab
  * @param {string} url
@@ -442,8 +442,7 @@ export const MpvNextEpisodeWaitMs = 60000;
  */
 export async function placeStream(tab, url, rest, wanted, whileAsked) {
   const sentFrom = rest[0];
-  if (!Mpv.singleInstance || !Mpv.capabilities?.includes(Capabilities.WINDOWS) ||
-      sentFrom?.mpvSentUrls?.has(url) || sentFrom?.mpvSending?.has(url)) {
+  if (!Mpv.singleInstance || sentFrom?.mpvSentUrls?.has(url) || sentFrom?.mpvSending?.has(url)) {
     return {};
   }
   const target = mpvWindows.targetFor(tab?.mpvWindow);
@@ -585,8 +584,8 @@ export function syncAllMpvAutoplay() {
  * @param {TabHolder} tab
  * @param {string} url
  * @param {?Array<{url: string}>} [qualities]
- * @param {?string} [local] - The playlist file mpv plays the stream from (helper 27's hls), its path in mpv.
- * @param {string} [window] - The helper's id of the window it plays in (helper 30), '' for the one on its own pipe.
+ * @param {?string} [local] - The playlist file mpv plays the stream from (a stream's playlists), its path in mpv.
+ * @param {string} [window] - The helper's id of the window it plays in, '' for the one on its own pipe.
  */
 export function watchMpvFor(tab, url, qualities = null, local = null, window = '') {
   if (!tab || typeof tab.tabId !== 'number' || !isTabOpen(tab) || !Mpv.singleInstance) {
@@ -1104,7 +1103,7 @@ function handOffStillWanted(tab) {
 }
 
 /**
- * An outdated host shows in the tooltip only: an older helper still plays the stream.
+ * A send refused for an outdated helper shows its own tooltip, with what to run (updateTabIcon).
  * @param {TabHolder} tab
  * @param {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}} result
  */
@@ -1126,34 +1125,6 @@ export function setMpvError(tab, result) {
     BackgroundUtils.updateTabIcon(tab);
     Tabs.saveTabState(tab);
   }
-}
-
-// A slow stream takes seconds to open, and until then mpv has no decoder to name.
-export const MpvDecoderWaitMs = 20000;
-
-/**
- * Read-only: FastStream never overrides mpv.conf. Only an mpv started for single-instance use can be asked.
- * @param {TabHolder} tab
- * @param {{ok: boolean}} result
- */
-export function followMpvDecoder(tab, result) {
-  const query = {};
-  tab.mpvDecoderQuery = query;
-  setMpvDecoder(tab, null);
-  if (!result.ok || !Mpv.singleInstance) {
-    return;
-  }
-  // The relay tells the decoder as mpv loads it; asking each second started a helper process each time.
-  if (Mpv.mayUse(Capabilities.RELAY)) {
-    return;
-  }
-  Mpv.decoderStatus(MpvDecoderWaitMs).then((status) => {
-    // A later hand-off (or a new page) asks again: this answer is about an older stream.
-    if (tab.mpvDecoderQuery !== query) {
-      return;
-    }
-    setMpvDecoder(tab, status.ok && status.running ? status.decoder || null : null);
-  }).catch((e) => console.warn('Asking mpv for its decoder failed', e));
 }
 
 /**
@@ -1224,7 +1195,8 @@ export function sendPlayedToMpv(tab, source, video = null, pageUrl = tab.url) {
       return;
     }
     setMpvError(tab, result);
-    followMpvDecoder(tab, result);
+    // The relay tells the new stream's decoder as mpv loads it (watchMpvFor).
+    setMpvDecoder(tab, null);
     if (result.ok) {
       pauseAfterHandOff(tab, result);
     } else if (tab.mpvLastPlaySend && tab.mpvLastPlaySend.url === source.url) {
@@ -1366,16 +1338,6 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   const pack = await packing;
   if (pack) {
-    // Unknown (no helper answered): it goes, and the answer says why it did not play.
-    if (await Mpv.knows(Capabilities.HLS) === false) {
-      if (Logging) console.log('[MPV] not handed off, the helper is older than 27:', url);
-      return {
-        ok: false,
-        hostOutdated: true,
-        error: chrome.i18n.getMessage('player_mpv_needs_hls_helper') ||
-          'mpv can play this stream only with the newer mpv helper: run update-local.cmd in the mpv folder of FastStream, then send it again.',
-      };
-    }
     if (Logging) console.log('[MPV] its playlists go along:', pack.files.map((file) => file.name));
     // Its quality list's addresses lack the key the files are given here.
     rest[5] = {...(rest[5] || {}), hls: pack, qualities: undefined};
@@ -1434,10 +1396,9 @@ export async function openInMpv(tabId, url, ...rest) {
     // By the tab's id: the player's button and the MPV key's play pass no tab.
     if (result && result.ok && tabId !== undefined && tabId >= 0) {
       const tab = Tabs.getTab(tabId);
-      // A helper with windows names the one it played in; openStream's answer for a stream the tab sent already
-      // names none, and the tab keeps the window it follows.
-      const window = typeof result.window === 'string' ? result.window :
-        Mpv.capabilities?.includes(Capabilities.WINDOWS) ? tab?.mpvWindow : '';
+      // The helper names the window it played in; openStream's answer for a stream the tab sent already names none,
+      // and the tab keeps the window it follows.
+      const window = typeof result.window === 'string' ? result.window : tab?.mpvWindow;
       if (typeof window === 'string') {
         watchMpvFor(tab, url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null,
             window);

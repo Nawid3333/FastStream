@@ -5,7 +5,7 @@ import {withKeyOf} from '../player/network/StreamQuery.mjs';
 // ffmpeg reads a playlist as HLS only by a .m3u8/.m3u name or an HLS media type, and never adds the key a
 // server asks of every file (/pl/7?token=... listing /pl/7/a and page-0.html without it). FastStream's player
 // handles both (sniffing, StreamQuery); for mpv its playlists go to the helper with every address made whole,
-// and mpv plays them from files (helper 27, checkHlsPackage).
+// and mpv plays them from files (the helper's checkHlsPackage).
 
 const HLS_TYPES = ['application/vnd.apple.mpegurl', 'application/x-mpegurl', 'application/mpegurl', 'audio/mpegurl',
   'audio/x-mpegurl'];
@@ -13,7 +13,7 @@ const HLS_TYPES = ['application/vnd.apple.mpegurl', 'application/x-mpegurl', 'ap
 export const MAX_PACKAGE_BYTES = 12 * 1024 * 1024;
 const MAX_MEDIA_PLAYLISTS = 31;
 const PARALLEL_READS = 4;
-// Past it the stream goes as its address, as before helper 27.
+// Past it the stream goes as its address alone.
 export const PACKAGE_TIMEOUT_MS = 10000;
 const URI_ATTRIBUTE = /(URI=")([^"]*)(")/g;
 const LINE_BREAK = /\r\n|\r|\n/;

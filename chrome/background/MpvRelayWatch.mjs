@@ -3,8 +3,8 @@
 import {cutToLength} from './MpvTarget.mjs';
 
 /**
- * MPV autoplay's watch of mpv over the thin helper's `relay` port: watchMpv's logic, line for line, except that an end
- * mpv tells well before the length is no end (brokeOff). watchMpv serves only extensions from before the relay.
+ * MPV autoplay's watch of mpv over the helper's `relay` port: mpv's file, its end and its episode keys; an end mpv
+ * tells well before the length is no end (brokeOff).
  */
 
 // The helper allows only user-data/faststream/...; mpv's episode buttons show while `connected` holds and the heartbeat moves.
@@ -113,11 +113,11 @@ function noticeText(text) {
  * the end (brokeOff), an end-file "eof", or a pause or seek in the last EndSlackSeconds.
  * @param {*} port
  * @param {(event: import('./MpvBackend.mjs').RelayEvent) => void} onEvent
- * @param {{onLegacy?: () => void, decoderProperties?: Array<string>, window?: string}} [options] - window: the
- *   helper's id of the mpv to follow (helper 30), '' for the one on its own pipe.
+ * @param {{decoderProperties?: Array<string>, window?: string}} [options] - window: the helper's id of the mpv to
+ *   follow, '' for the one on its own pipe.
  * @return {MpvWatcher}
  */
-export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], window = ''} = {}) {
+export function relayWatch(port, onEvent, {decoderProperties = [], window = ''} = {}) {
   let ended = false;
   let relaying = false;
   /** @type {Array<MpvCommand>} */
@@ -207,7 +207,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
       send(['get_property', name], id);
     }
   };
-  // Keep-open "yes" while autoplay is on and the user's is "no"; a helper before 24 refuses both.
+  // Keep-open "yes" while autoplay is on and the user's is "no".
   const followKeepOpen = () => {
     if (!keepOpen) return;
     if (keepOpen.user === undefined) {
@@ -309,22 +309,11 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
 
   /**
    * What a field holds is tested before use: the relay only passes mpv's words on.
-   * @param {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *, capabilities?: Array<*>}} message
+   * @param {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *}} message
    */
-  port.onMessage.addListener((/** @type {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *, capabilities?: Array<*>}} */ message) => {
+  port.onMessage.addListener((/** @type {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *}} */ message) => {
     if (ended || !message || typeof message !== 'object') return;
     if (message.ok === false) {
-      if (message.error === 'unknown message' && !Array.isArray(message.capabilities) && onLegacy) {
-        // A helper from before host 15 exits after this answer.
-        ended = true;
-        try {
-          port.disconnect();
-        } catch (e) {
-          // Gone already.
-        }
-        onLegacy();
-        return;
-      }
       end(message.error || 'the mpv host cannot watch mpv');
       return;
     }
@@ -359,7 +348,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
     heartbeat: {property: HeartbeatProperty, everyMs: HeartbeatMs},
     // On the port's close, not mpv's: mpv runs on, and its episode buttons would send to no one.
     onStop: [['set_property', ConnectedProperty, false]],
-    // Only another window's: the one on the helper's own pipe needs none, as before helper 30.
+    // Only another window's: the one on the helper's own pipe needs none.
     ...(window ? {window} : {}),
   });
 

@@ -14,19 +14,11 @@
 //     extension sends {type: 'mpv', command, id?} -> {type: 'mpv-reply', id, error, data} |
 //     {type: 'mpv-refused', id, reason}; {type: 'closed', reason} last (relayMpv)
 //   {type: 'raise', window?} -> {ok, closed?, busy?, error?, focus?, foreground?} (raiseMpv)
-// window (host 30): which of the helper's mpv windows, by the id play's answer named; none or '' is the one on
+//   {type: 'ping', mpvPath?} -> {ok, mpv, path}
+// window: which of the helper's mpv windows, by the id play's answer named; none or '' is the one on
 //   the helper's own pipe. newWindow starts one with an id of its own (paused: it waits, paused and minimized,
 //   not raised); play into a window that is gone answers closed and starts none.
-// Older messages, still answered:
-//   {type: 'ping', mpvPath?} -> {ok, mpv, path}
-//   {type: 'open', url, headers?, mpvPath?, fullscreen?, singleInstance?, contentType?, pageUrl?,
-//     title?, start?, subtitles?, qualities?} -> as play (launchMpv)
-//   {type: 'status', waitMs?} -> {ok, running, decoder: {hardware, api, requested, format, width,
-//     height} | null}
-//   {type: 'watch'} on a kept-open port -> {type: 'watching'}, then {type: 'path', path},
-//     {type: 'ended', path}, {type: 'request', action}, {type: 'closed', reason} last; the
-//     extension sends {type: 'notify', title, detail, seconds?}, {type: 'hide'} and
-//     {type: 'state', autoplay} (watchMpv)
+// Any other message is answered {ok: false, error: 'unknown message'}.
 //
 // focus and foreground (Windows only): how raising mpv's window went at that moment (focusOutcome).
 //
@@ -44,12 +36,12 @@ import * as url from 'url';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
-// The extension compares it with RequiredHostVersion (chrome/background/MpvBackend.mjs). Raise it
-// with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
-export const HostVersion = 31;
+// The extension sends nothing but a ping to a helper below its RequiredHostVersion (chrome/background/MpvBackend.mjs).
+// Raise it with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
+export const HostVersion = 32;
 
-// The messages the extension may send; a host without this list gets the older ones. windows: play, ipc and
-// relay take a window, play newWindow and paused, and raise is there (host 30).
+// The messages the extension may send, named in every answer: an extension from before host 32 sends play, ipc and
+// relay only to a helper that names them.
 export const Capabilities = Object.freeze(['play', 'ipc', 'relay', 'hls', 'windows']);
 
 // No mpv path from the environment: an unchecked path would reach statSync (path injection).
@@ -526,214 +518,12 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
   });
 }
 
-// How often watchMpv tells mpv it still follows the window.
-export const HeartbeatMs = 30000;
-
-// The longest a notice stays in mpv, and how long mpv's own text stays without notify.lua.
+// The longest a notice stays in mpv.
 export const MaxNoticeSeconds = 60;
-const DefaultTextSeconds = 4;
-// How close to its end mpv may stop, paused or after a seek, and it is the end (watchMpv).
-const EndSlackSeconds = 0.5;
-
-/**
- * A notice's seconds: above 0, at most MaxNoticeSeconds, to a tenth; undefined otherwise.
- * @param {*} seconds - What the extension sent.
- * @return {number|undefined}
- */
-export function noticeSeconds(seconds) {
-  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return undefined;
-  return Math.round(Math.min(seconds, MaxNoticeSeconds) * 10) / 10 || undefined;
-}
-
-// The script messages mpv's keys, buttons and menu send (input.conf: "n script-message
-// faststream-next"); mpv gives them to every IPC client.
-export const EpisodeMessages = {
-  'faststream-next': 'next',
-  'faststream-previous': 'previous',
-  'faststream-autoplay': 'autoplay',
-};
-
-/**
- * Follows the mpv on our pipe over a port the extension keeps open: file ends and the
- * next/previous/autoplay keys go to the extension as they happen (MPV autoplay).
- * An end: eof-reached going false -> true (keep-open), an end-file "eof", or mpv paused or a seek
- * landing within EndSlackSeconds of the end (an HLS stream with discontinuities stops there
- * without eof-reached). The first observed values are mpv's state at the start, not events.
- * user-data/faststream/connected shows mpv's episode buttons; the heartbeat (a rising time every
- * HeartbeatMs) lets the mpv setup hide them after 90 s still, as a host killed hard clears nothing.
- * @param {(message: Object) => *} send - Sends a message to the extension.
- * @param {{pipe?: string, connect?: (pipe: string) => import('net').Socket,
- *   heartbeatMs?: number}} [io] - Tests.
- * @return {{notify: (title: string, detail?: string, seconds?: number) => void,
- *   hide: () => void, state: (state: Object) => void,
- *   stop: () => void, done: Promise<string>}} done resolves with why it ended.
- */
-export function watchMpv(send, io = {}) {
-  const socket = (io.connect || net.connect)(io.pipe || ipcPipeFor(readConfig()));
-  // Decoded as a stream: a path with a character split across two chunks still matches.
-  socket.setEncoding('utf8');
-  let buffer = '';
-  /** @type {boolean|undefined} */
-  let eof;
-  /** @type {?string} */
-  let path = null;
-  /** @type {?string} */
-  let endedPath = null;
-  let finished = false;
-  let requests = 0;
-  // endCheck's requests by id; whether the first pause value (mpv's state at the start) came.
-  const endChecks = new Set();
-  let pauseSeen = false;
-  // Notices by request id: one notify.lua refused (not installed) is shown with show-text.
-  /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
-  const notices = new Map();
-  /** @type {?ReturnType<typeof setInterval>} */
-  let heartbeat = null;
-  let lastBeat = 0;
-  /** @type {(reason: string) => void} */
-  let resolveDone = () => {};
-  /** @type {Promise<string>} */
-  const done = new Promise((resolve) => {
-    resolveDone = resolve;
-  });
-  /**
-   * @param {Array<*>} command
-   * @param {number} [requestId]
-   */
-  const write = (command, requestId) => {
-    if (finished) return;
-    socket.write(JSON.stringify(requestId === undefined ? {command} : {command, request_id: requestId}) +
-      String.fromCharCode(10));
-  };
-  const beat = () => {
-    // Strictly rising, even with two beats in one millisecond.
-    lastBeat = Math.max(Date.now(), lastBeat + 1);
-    write(['set_property', 'user-data/faststream/heartbeat', lastBeat]);
-  };
-  const finish = (/** @type {string} */ reason) => {
-    if (finished) return;
-    finished = true;
-    if (heartbeat) clearInterval(heartbeat);
-    try {
-      if (reason === 'stopped' && socket.writable) {
-        // The extension let go, mpv runs on: its episode buttons go. end() sends the line before
-        // it closes; destroy() could drop it.
-        socket.end(JSON.stringify({command: ['set_property', 'user-data/faststream/connected', false]}) +
-          String.fromCharCode(10));
-      } else {
-        socket.destroy();
-      }
-    } catch (e) {
-      // Already gone.
-    }
-    send({type: 'closed', reason});
-    resolveDone(reason);
-  };
-  const ended = () => {
-    if (path !== null && endedPath !== path) {
-      endedPath = path;
-      send({type: 'ended', path});
-    }
-  };
-  // Asks mpv how much of its file is left: within EndSlackSeconds is an end.
-  const endCheck = () => {
-    if (path === null || endedPath === path) return;
-    requests++;
-    const id = 1000 + requests;
-    endChecks.add(id);
-    write(['get_property', 'time-remaining'], id);
-  };
-  socket.on('error', () => finish('no mpv'));
-  socket.on('close', () => finish('mpv closed'));
-  socket.on('connect', () => {
-    write(['observe_property', 1, 'path']);
-    write(['observe_property', 2, 'eof-reached']);
-    write(['observe_property', 3, 'pause']);
-    write(['set_property', 'user-data/faststream/connected', true]);
-    beat();
-    heartbeat = setInterval(beat, io.heartbeatMs || HeartbeatMs);
-    // The beat alone keeps no host running: it ends when the extension or mpv does.
-    heartbeat.unref?.();
-    send({type: 'watching'});
-  });
-  socket.on('data', (chunk) => {
-    buffer += chunk;
-    const lines = buffer.split(String.fromCharCode(10));
-    buffer = lines.pop() || '';
-    for (const line of lines) {
-      let event;
-      try {
-        event = JSON.parse(line);
-      } catch (e) {
-        continue;
-      }
-      if (!event || typeof event !== 'object') continue;
-      if (event.event === 'property-change' && event.name === 'path') {
-        path = typeof event.data === 'string' ? event.data : null;
-        if (path !== null) {
-          send({type: 'path', path});
-        } else {
-          // Between two files (loadfile replace): the same file again ends again.
-          endedPath = null;
-        }
-      } else if (event.event === 'property-change' && event.name === 'eof-reached') {
-        if (eof === false && event.data === true) ended();
-        eof = typeof event.data === 'boolean' ? event.data : undefined;
-      } else if (event.event === 'end-file' && event.reason === 'eof') {
-        ended();
-      } else if (event.event === 'property-change' && event.name === 'pause') {
-        if (pauseSeen && event.data === true) endCheck();
-        pauseSeen = true;
-      } else if (event.event === 'playback-restart') {
-        endCheck();
-      } else if (endChecks.has(event.request_id)) {
-        endChecks.delete(event.request_id);
-        if (event.error === 'success' && typeof event.data === 'number' && event.data <= EndSlackSeconds) ended();
-      } else if (event.event === 'client-message' && Array.isArray(event.args)) {
-        const action = /** @type {'next'|'previous'|'autoplay'} */ (EpisodeMessages[/** @type {keyof typeof EpisodeMessages} */ (event.args[0])]);
-        if (action) send({type: 'request', action});
-      } else if (notices.has(event.request_id)) {
-        const notice = notices.get(event.request_id);
-        notices.delete(event.request_id);
-        if (event.error && event.error !== 'success' && notice) {
-          write(['show-text', notice.text, (notice.seconds || DefaultTextSeconds) * 1000]);
-        }
-      }
-    }
-  });
-  return {
-    notify(title, detail = '', seconds) {
-      // Plain text only: without notify.lua this is show-text, which expands ${...}.
-      if (!isPlainText(String(title), MaxNoticeText, true) || !isPlainText(String(detail), MaxNoticeText, true)) {
-        return;
-      }
-      requests++;
-      const id = 1000 + requests;
-      const time = noticeSeconds(seconds);
-      notices.set(id, {text: detail ? title + ': ' + detail : String(title), seconds: time});
-      const command = ['script-message-to', 'notify', 'show', 'faststream', String(title), String(detail)];
-      if (time !== undefined) command.push(String(time));
-      write(command, id);
-    },
-    hide() {
-      // No request id: an mpv without notify.lua refuses it, and there is nothing to take down.
-      write(['script-message-to', 'notify', 'hide', 'faststream']);
-    },
-    state(/** @type {{autoplay?: boolean}} */ state) {
-      if (state && typeof state.autoplay === 'boolean') {
-        write(['set_property', 'user-data/faststream/autoplay', state.autoplay]);
-      }
-    },
-    stop() {
-      finish('stopped');
-    },
-    done,
-  };
-}
 
 /**
  * Reads native-messaging frames as they come, for a port the extension keeps open
- * (watchMpv). A frame over MaxMessageBytes ends the reading: the extension never sends one.
+ * (relay). A frame over MaxMessageBytes ends the reading: the extension never sends one.
  * @param {import('stream').Readable} input - The stream; stdin.
  * @param {(message: Object) => void} onMessage - Gets each message.
  * @param {() => void} onEnd - Called once, when the stream ends.
@@ -779,66 +569,6 @@ export function readMessages(input, onMessage, onEnd) {
 }
 
 /**
- * Appends a key=value tag to a URL's fragment: never sent to the server, so a signed URL still
- * works, and mpv's scripts read it from the `path` property.
- * @param {string} streamUrl - The stream URL headed to mpv.
- * @param {string} tag - The tag, e.g. `fs-content=anime`.
- * @return {string} The URL with the tag appended.
- */
-function withFragmentTag(streamUrl, tag) {
-  const hashIndex = streamUrl.indexOf('#');
-  if (hashIndex === -1) {
-    return `${streamUrl}#${tag}`;
-  }
-
-  const existingFragment = streamUrl.slice(hashIndex + 1);
-  return existingFragment.length > 0 ? `${streamUrl}&${tag}` : `${streamUrl}${tag}`;
-}
-
-/**
- * Drops fs-* tags the stream URL already has: a page can choose the URL, and a forged fs-id= or
- * fs-page= would move another site's resume position or "Site page" link.
- * @param {string} streamUrl - The stream URL as the extension sent it.
- * @return {string} The URL without fs-* fragment tags.
- */
-export function withoutFsTags(streamUrl) {
-  const hashIndex = streamUrl.indexOf('#');
-  if (hashIndex === -1) {
-    return streamUrl;
-  }
-  const kept = streamUrl.slice(hashIndex + 1).split('&')
-      .filter((part) => !/^fs-/i.test(part));
-  return kept.some(Boolean) ?
-    streamUrl.slice(0, hashIndex + 1) + kept.join('&') :
-    streamUrl.slice(0, hashIndex);
-}
-
-// Checked again here, as anything that talks to the host gets this far.
-const RelayHeaderNames = /^(referer|origin|user-agent)$/i;
-
-// Printable ASCII only: no CR/LF (a second header), no NUL, none of the typographic quotes
-// PowerShell takes as quote characters.
-const RelayHeaderValue = /^[ -~]{1,4096}$/;
-
-/**
- * @param {*} headers - The message's headers, [{name, value}].
- * @return {Array<string>}
- */
-export function relayHeaderFields(headers) {
-  if (!Array.isArray(headers)) {
-    return [];
-  }
-  const fields = [];
-  for (const header of headers) {
-    if (header && typeof header.name === 'string' && typeof header.value === 'string' &&
-        RelayHeaderNames.test(header.name) && RelayHeaderValue.test(header.value)) {
-      fields.push(`${header.name}: ${header.value}`);
-    }
-  }
-  return fields;
-}
-
-/**
  * Whether a URL may go to mpv: http(s) only, as mpv also opens local files and UNC paths (a UNC
  * path signs in to its host with the user's credentials). The string itself must start with the
  * scheme: the URL parser reads `https:\\host\share` as https://host/share.
@@ -855,104 +585,6 @@ export function isStreamUrl(url) {
   } catch (e) {
     return false;
   }
-}
-
-/**
- * @param {string} streamUrl - The stream URL headed to mpv.
- * @param {string} [contentType] - 'anime', 'movie' or 'native' (no upscaler); anything else is a
- *   no-op and streamUrl is returned unchanged.
- * @return {string} The URL, with the marker appended when contentType is set.
- */
-export function withContentTypeFragment(streamUrl, contentType) {
-  if (contentType !== 'anime' && contentType !== 'movie' && contentType !== 'native') {
-    return streamUrl;
-  }
-  return withFragmentTag(streamUrl, `fs-content=${contentType}`);
-}
-
-/**
- * The resume key for a page: the first 16 hex digits of its URL's sha256.
- * @param {string} [pageUrl] - The browser tab's page URL.
- * @return {string|undefined} The key, or undefined for a missing or
- *   non-http(s) URL.
- */
-export function resumeIdFor(pageUrl) {
-  if (typeof pageUrl !== 'string' || !/^https?:\/\//i.test(pageUrl)) {
-    return undefined;
-  }
-  return crypto.createHash('sha256').update(pageUrl).digest('hex').slice(0, 16);
-}
-
-/**
- * A page URL percent-encoded as one fragment tag value (fs-page=); http(s) pages only.
- * @param {string} [pageUrl] - The browser tab's page URL.
- * @return {string|undefined} The encoded page URL, or undefined for a
- *   missing or non-http(s) URL.
- */
-export function pageFragmentFor(pageUrl) {
-  if (typeof pageUrl !== 'string' || !/^https?:\/\//i.test(pageUrl)) {
-    return undefined;
-  }
-  return encodeURIComponent(pageUrl);
-}
-
-// The most qualities taken, and the longest URL of one (MpvBackend.relayQualities).
-const MaxQualities = 12;
-const MaxQualityUrlChars = 2048;
-
-/**
- * The page player's qualities as an fs-quality= value for faststream-quality.lua: percent-encoded
- * JSON [{label, height, url}], at least two. Checked again here: http(s) URLs (isStreamUrl) with
- * no fragment (the script matches mpv's path up to its first '#'), labels in whole characters.
- * @param {*} qualities - The open message's qualities.
- * @return {string|undefined} The tag's value, or undefined without a usable list.
- */
-export function qualityFragmentFor(qualities) {
-  if (!Array.isArray(qualities)) {
-    return undefined;
-  }
-  const list = [];
-  for (const entry of qualities.slice(0, MaxQualities)) {
-    if (!entry || !isStreamUrl(entry.url) || entry.url.length > MaxQualityUrlChars) {
-      continue;
-    }
-    const label = typeof entry.label === 'string' ?
-      cutText(entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim(), 40) : '';
-    const height = Number.isInteger(entry.height) && entry.height > 0 && entry.height <= 10000 ? entry.height : 0;
-    const parsed = new URL(entry.url);
-    parsed.hash = '';
-    list.push({label, height, url: parsed.href});
-  }
-  return list.length >= 2 ? encodeURIComponent(JSON.stringify(list)) : undefined;
-}
-
-/**
- * The open message (the list at the top of this file).
- * @typedef {{url: string, headers?: Object<string, string>, title?: string,
- *   fullscreen?: boolean, singleInstance?: boolean, contentType?: string,
- *   pageUrl?: string, start?: number, subtitles?: Array<{srt: string,
- *   label?: string}>, qualities?: Array<{url: string, label?: string,
- *   height?: number}>}} OpenMessage
- */
-/**
- * The URL for mpv: the stream URL as the URL parser writes it (it drops tabs and newlines
- * isStreamUrl never saw, and percent-encodes what a request line cannot carry), and fs-* fragment
- * tags for mpv's scripts, never sent to the server: fs-content= (gpu-toggles.lua), fs-id=
- * (stream-resume.lua's key: a hash of the page URL, as the stream URL's token changes), fs-page=
- * (source-info.lua) and fs-quality= (faststream-quality.lua).
- * @param {OpenMessage} message - The open message from the extension; its url passed
- *   isStreamUrl.
- * @return {string} The URL for mpv.
- */
-export function mpvTargetUrl(message) {
-  const target = withContentTypeFragment(withoutFsTags(new URL(message.url).href), message.contentType);
-  const resumeId = resumeIdFor(message.pageUrl);
-  const withId = resumeId ? withFragmentTag(target, `fs-id=${resumeId}`) : target;
-  const pageFragment = pageFragmentFor(message.pageUrl);
-  const withPage = pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
-  // fs-quality= last: it is the longest.
-  const qualities = qualityFragmentFor(message.qualities);
-  return qualities ? withFragmentTag(withPage, `fs-quality=${qualities}`) : withPage;
 }
 
 // What a send may carry with a stream, checked again here.
@@ -981,18 +613,7 @@ function isPrivateTarget(target) {
 }
 
 /**
- * The position to start the stream at, when the message names a usable one.
- * @param {{start?: *}} message - The open message.
- * @return {number|undefined} Seconds (millisecond precision), or undefined.
- */
-export function startOf(message) {
-  const t = message.start;
-  return typeof t === 'number' && Number.isFinite(t) && t >= 1 && t < 1e7 ?
-    Math.floor(t * 1000) / 1000 : undefined;
-}
-
-/**
- * @param {{subtitles?: *}} message - The open message.
+ * @param {{subtitles?: *}} message - The play message.
  * @return {Array<{srt: string, label: string}>} The subtitles.
  */
 export function subtitlesOf(message) {
@@ -1427,32 +1048,16 @@ export function perFileOptions(headerFields, title, extras = {}, delimiter = pat
 }
 
 /**
- * Loads a URL into the mpv instance already running on our pipe.
- * @param {OpenMessage} message - The open message from the extension.
- * @param {Array<string>} headerFields - "Name: value" strings for mpv.
- * @param {string} title - Media title to display.
- * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests; defaults
- *   to the real named-pipe transport.
- * @param {{start?: number, subFiles?: Array<string>}} [extras] - perFileOptions'.
- * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, refused?: boolean, error?: string}>}
- *   ok:false when no instance of ours answered, in which case the caller should start
- *   one - unless busy: one is running and did not answer in time; or refused: one is
- *   running and refused the command (error is mpv's reason).
- */
-export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, extras = {}) {
-  return loadInto(mpvTargetUrl(message), perFileOptions(headerFields, title, extras),
-      Boolean(message.fullscreen), ipcRequest);
-}
-
-/**
- * Loads a URL with its per-file options into the mpv on a pipe (loadIntoExisting, playMpv).
+ * Loads a URL with its per-file options into the mpv on a pipe (playMpv).
  * @param {string} target - The URL for mpv.
  * @param {Object<string, string>} options - loadfile's options (perFileOptions).
  * @param {boolean} fullscreen - Whether to make the window fullscreen first.
  * @param {(commands: Array<Object>) => ReturnType<typeof mpvIpcRequest>} ipcRequest - The
  *   transport, bound to its pipe.
  * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, stalled?: boolean, refused?: boolean,
- *   error?: string}>} As loadIntoExisting.
+ *   error?: string}>} ok:false when no mpv answered on the pipe, unless busy: one answered and did
+ *   not confirm the load in time; or refused: one refused the command (error is mpv's reason); or
+ *   stalled: nothing was written.
  */
 export async function loadInto(target, options, fullscreen, ipcRequest) {
   /** @type {Array<{command: *}>} */
@@ -1494,73 +1099,6 @@ export async function loadInto(target, options, fullscreen, ipcRequest) {
     ok: true,
     pid: pidReply && typeof pidReply.data === 'number' ? pidReply.data : undefined,
   };
-}
-
-// How long a status message may wait: until a slow stream opens, mpv names no decoder.
-export const MaxStatusWaitMs = 30000;
-const StatusPollMs = 1000;
-
-// What mpv is asked about its video decoder, in this order (decoderFromReplies).
-const DecoderProperties = ['hwdec-current', 'hwdec', 'video-format', 'width', 'height'];
-
-/**
- * Reads mpv's answers about its video decoder. hwdec-current is the API in use ("d3d11va",
- * "nvdec", "-copy" forms), "no" in software, unavailable while no video decoder is loaded.
- * @param {Array<Object>} replies - mpvIpcRequest's replies to DecoderProperties.
- * @return {?{hardware: boolean, api: string, requested: ?string, format: ?string,
- *   width: ?number, height: ?number}} null while no decoder is loaded.
- */
-export function decoderFromReplies(replies) {
-  /**
-   * @param {number} index - The property's place in DecoderProperties.
-   * @return {*} Its value, or undefined for an error or no reply.
-   */
-  const value = (index) => {
-    const reply = /** @type {Array<{request_id: number, error?: string, data?: *}>} */ (replies || []).find((r) => r && r.request_id === index + 1);
-    return reply && (reply.error === undefined || reply.error === 'success') ? reply.data : undefined;
-  };
-  const api = value(0);
-  if (typeof api !== 'string' || !api) {
-    return null;
-  }
-  const text = (/** @type {*} */ v) => (typeof v === 'string' && v ? v : null);
-  const size = (/** @type {*} */ v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
-  return {
-    hardware: api !== 'no',
-    api,
-    requested: text(value(1)),
-    format: text(value(2)),
-    width: size(value(3)),
-    height: size(value(4)),
-  };
-}
-
-/**
- * Asks the mpv on our pipe which video decoder it uses, waiting up to waitMs for one. An mpv
- * the user started has no pipe: "not running".
- * @param {number} [waitMs] - How long to keep asking while mpv has no decoder yet (none: 0).
- * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests.
- * @param {(ms: number) => Promise<void>} [sleep] - Injectable for tests.
- * @param {() => number} [now] - Injectable for tests.
- * @return {Promise<{running: boolean, decoder: ?Object}>}
- */
-export async function queryDecoder(waitMs, ipcRequest = mpvIpcRequest,
-    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now) {
-  const wait = Math.min(Math.max(Number(waitMs) || 0, 0), MaxStatusWaitMs);
-  const commands = DecoderProperties.map((name) => ({command: ['get_property', name]}));
-  const start = now();
-  for (;;) {
-    const result = await ipcRequest(commands, 1500, 3000);
-    // No pipe: no mpv of ours. A busy one runs, and may answer next time.
-    if (!result.ok && !result.busy) {
-      return {running: false, decoder: null};
-    }
-    const decoder = result.ok ? decoderFromReplies(result.replies || []) : null;
-    if (decoder || now() - start + StatusPollMs > wait) {
-      return {running: true, decoder};
-    }
-    await sleep(StatusPollMs);
-  }
 }
 
 /**
@@ -1785,7 +1323,7 @@ export function focusOutcome(text) {
 }
 
 /**
- * The answer when an open mpv was asked to take the stream (launchMpv, playMpv): it took it
+ * The answer when an open mpv was asked to take the stream (playMpv): it took it
  * (its window raised), refused it, or was too busy to answer; null when there was none.
  * @param {{ok: boolean, pid?: number, refused?: boolean, busy?: boolean, error?: string}} existing
  * @param {(pid: number) => Promise<string>} focus
@@ -1874,170 +1412,6 @@ function launchViaWmi(mpvPath, args, raise = true) {
       .then(wmiLaunchResult);
 }
 
-
-/**
- * The first `max` characters as a reader counts them (graphemes): a cut inside a flag or an
- * emoji leaves a broken character in mpv.
- * @param {string} text
- * @param {number} max
- * @return {string}
- */
-function cutText(text, max) {
-  let out = '';
-  let count = 0;
-  for (const {segment} of new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(text)) {
-    if (count++ === max) break;
-    out += segment;
-  }
-  return out;
-}
-
-/**
- * The title mpv shows: the tab's title when the extension sent one, else the stream's host name.
- * @param {{url: string, title?: *}} message - The open message.
- * @return {string} The title.
- */
-export function streamTitle(message) {
-  if (typeof message.title === 'string') {
-    // One line, cut in whole characters.
-    const oneLine = Array.from(message.title, (c) => c.charCodeAt(0) < 32 || c === '\u007f' ? ' ' : c)
-        .join('').replace(/\s+/g, ' ').trim();
-    const clean = cutText(oneLine, 200);
-    if (clean) {
-      return clean;
-    }
-  }
-  try {
-    return new URL(message.url).hostname || 'FastStream';
-  } catch (e) {
-    return 'FastStream';
-  }
-}
-
-/**
- * Plays an open message's stream in mpv: in the instance this host started before, when
- * the message asks for that and one runs, else in a new one.
- * @param {string} mpvPath - The mpv executable (resolveMpvPath).
- * @param {OpenMessage} message - The open message; its url passed isStreamUrl.
- * @param {Object} config - The parsed config.json.
- * @param {{ipcRequest?: typeof mpvIpcRequest, focus?: typeof focusPid,
- *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
- *     pid?: number, focus?: string, foreground?: string}>,
- *   platform?: string, sleep?: (ms: number) => Promise<void>, now?: () => number,
- *   lockFile?: string, lock?: {now?: () => number, alive?: (pid: number) => boolean}}} [io] -
- *   Stand-ins for tests; the real ones by default.
- * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
- *   foreground?: string}>} The reply for the extension; focus and foreground on Windows
- *   (see the message list at the top of this file).
- */
-export async function launchMpv(mpvPath, message, config, io = {}) {
-  const platform = io.platform || process.platform;
-  const ipcRequest = io.ipcRequest || mpvIpcRequest;
-  const focus = io.focus || focusPid;
-  const pipe = ipcPipeFor(config, platform);
-  const args = [];
-  const headerFields = relayHeaderFields(message.headers);
-  const title = streamTitle(message);
-  /** @type {{start?: number, subFiles: Array<string>}} */
-  const extras = {start: startOf(message), subFiles: []};
-  try {
-    extras.subFiles = writeSubtitleFiles(subtitlesOf(message));
-  } catch (e) {
-    // The stream still plays without them.
-    debugLog(config, 'subtitles-failed', {error: String(e)});
-  }
-
-  // Reuse the window we own: only an mpv started with our pipe answers, never the user's own.
-  /** @type {?ReturnType<typeof takeLaunchLock>} */
-  let lock = null;
-  if (message.singleInstance) {
-    const tryExisting = () => loadIntoExisting(message, headerFields, title,
-        (commands) => ipcRequest(commands, undefined, undefined, pipe), extras);
-    let existing = await tryExisting();
-    // Another helper is starting an mpv on this pipe: this stream goes to that mpv once its pipe
-    // answers, and replaces its stream, as the later send should.
-    if (!existing.ok && !existing.refused && !existing.busy) {
-      const lockFile = io.lockFile || launchLockFile(config);
-      lock = takeLaunchLock(lockFile, io.lock);
-      if (!lock.taken) {
-        debugLog(config, 'launch-wait', {});
-        const sleep = io.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-        const now = io.now || Date.now;
-        const until = now() + LaunchLockMs;
-        while (!existing.ok && !existing.refused && launchLockHeld(lockFile, io.lock) && now() < until) {
-          await sleep(PipeWaitPollMs);
-          existing = await tryExisting();
-        }
-        if (!existing.ok && !existing.refused && !existing.busy) {
-          lock = takeLaunchLock(lockFile, io.lock);
-          if (!lock.taken) {
-            return {ok: false, error: 'another mpv is starting and did not take the stream: try again in a moment'};
-          }
-        }
-      }
-    }
-    const answer = await answerOfOpenMpv(existing, focus, config, platform);
-    if (answer) return answer;
-    args.push(`--input-ipc-server=${pipe}`);
-  }
-
-  if (message.fullscreen) {
-    args.push('--fullscreen');
-  }
-  // A window at once, not after the stream opened, so the focus script finds it in time.
-  args.push('--force-window=immediate');
-  args.push('--no-terminal');
-  // Headers, title, start and subtitles as a per-file group (perFileOptions). One
-  // --http-header-fields-append per header: a Referer may hold a comma. No "--" before the URL (it
-  // would end the group too): only http(s) URLs get here, which cannot read as an option.
-  args.push('--{');
-  for (const field of headerFields) {
-    args.push(`--http-header-fields-append=${field}`);
-  }
-  args.push(`--force-media-title=${title}`);
-  if (extras.start !== undefined) {
-    args.push(`--start=${extras.start}`);
-  }
-  for (const file of extras.subFiles) {
-    args.push(`--sub-files-append=${file}`);
-  }
-  let target = mpvTargetUrl(message);
-  // Windows caps the command line: past it, mpv starts without the quality list, and only its
-  // quality menu misses it. An open window gets the list over the pipe.
-  if (platform === 'win32' && windowsCommandLine(mpvPath, [...args, target, '--}']).length >= MaxCommandLineChars) {
-    const withoutQualities = mpvTargetUrl({...message, qualities: undefined});
-    if (withoutQualities !== target) {
-      debugLog(config, 'qualities-dropped', {length: target.length});
-      target = withoutQualities;
-    }
-  }
-  args.push(target);
-  args.push('--}');
-
-  debugLog(config, 'spawn', {mpvPath, args});
-
-  // On Windows mpv must start outside the host's job object (launchViaWmi). From here the launch
-  // lock waits on the mpv started.
-  const settleLock = (/** @type {{ok: boolean, error?: string, pid?: number, focus?: string, foreground?: string}} */ result) => {
-    if (result.ok && Number.isInteger(result.pid)) lock?.hand(/** @type {number} */ (result.pid));
-    else lock?.release();
-    return result;
-  };
-  if (platform === 'win32') {
-    const result = settleLock(await (io.start || launchViaWmi)(mpvPath, args));
-    if (result.ok) {
-      debugLog(config, 'wmi-created',
-          {pid: result.pid, focus: result.focus,
-            foreground: result.foreground});
-      return {ok: true, ...focusFields(result)};
-    }
-    debugLog(config, 'wmi-failed', result);
-    // No direct spawn as a fallback: Firefox kills it when this host exits (launchViaWmi).
-    return {ok: false, error: 'Could not start mpv: ' + result.error};
-  }
-
-  return settleLock(await (io.start || launchDirect)(mpvPath, args));
-}
 
 /**
  * A launch result's focus and foreground, the ones it has.
@@ -2294,7 +1668,7 @@ export const MaxTargetBytes = 512 * 1024;
 const MaxTitleChars = 1000;
 const MaxPlayHeaders = 8;
 const PlayStart = /^\d{1,7}(\.\d{1,3})?$/;
-// relayHeaderFields' names and values, as one "Name: value" string (the protocol's form).
+// Referer, Origin or User-Agent with a printable ASCII value (no CR/LF, no NUL), as one "Name: value" string.
 const PlayHeader = /^(referer|origin|user-agent): [ -~]{1,4096}$/i;
 
 /**
@@ -2619,7 +1993,7 @@ export async function stopMpv(pid, io = {}) {
  *   lockFile?: string, lock?: {now?: () => number, alive?: (pid: number) => boolean}}} [io] -
  *   Stand-ins for tests; the real ones by default.
  * @return {Promise<{ok: boolean, window?: string, error?: string, reused?: boolean, closed?: boolean,
- *   focus?: string, foreground?: string, local?: string}>} The answer for the extension, as the legacy open's;
+ *   focus?: string, foreground?: string, local?: string}>} The answer for the extension;
  *   window: the one it played in or tried to (none when the playlists could not be written); closed: play.window
  *   is gone; local: the playlist file mpv plays for hls, its path in mpv's watch.
  */
@@ -3128,7 +2502,7 @@ export function relayMpv(send, options = {}, io = {}) {
 }
 
 /**
- * Answers the one message the extension sends this run (a watch: for as long as its port
+ * Answers the one message the extension sends this run (a relay: for as long as its port
  * stays open). It only returns; main() ends the process.
  */
 async function handleMessage() {
@@ -3152,31 +2526,6 @@ async function handleMessage() {
     } else {
       await sendMessage({ok: true, mpv: false});
     }
-    return;
-  }
-
-  if ((/** @type {{type: string}} */ (message)).type === 'status') {
-    const status = await queryDecoder((/** @type {{waitMs?: number}} */ (message)).waitMs);
-    debugLog(config, 'status', status);
-    await sendMessage({ok: true, ...status});
-    return;
-  }
-
-  if ((/** @type {{type: string}} */ (message)).type === 'watch') {
-    const watch = watchMpv((event) => {
-      debugLog(config, 'watch', event);
-      sendMessage(event);
-    });
-    // The browser went: a write fails, and the watch ends as when the extension lets go.
-    process.stdout.on('error', () => watch.stop());
-    readMessages(process.stdin, (next) => {
-      if ((/** @type {{type: string}} */ (next)).type === 'notify') watch.notify(String((/** @type {{title?: *}} */ (next)).title || ''), String((/** @type {{detail?: *}} */ (next)).detail || ''), (/** @type {{seconds?: *}} */ (next)).seconds);
-      else if ((/** @type {{type: string}} */ (next)).type === 'hide') watch.hide();
-      else if ((/** @type {{type: string}} */ (next)).type === 'state') watch.state(next);
-    }, () => watch.stop());
-    await watch.done;
-    // The last message ('closed') out before the host goes.
-    await sendMessage({type: 'bye'});
     return;
   }
 
@@ -3229,30 +2578,13 @@ async function handleMessage() {
       if ((/** @type {{type: string}} */ (event)).type !== 'mpv' && (/** @type {{type: string}} */ (event)).type !== 'mpv-reply') debugLog(config, 'relay', event);
       last = sendMessage(event);
     }, checked, {pipe: ipcPipeFor(config, undefined, undefined, checked.window)});
-    // The browser went while mpv plays on: as when the extension lets go (the watch's reason).
+    // The browser went while mpv plays on: as when the extension lets go.
     process.stdout.on('error', () => relay.stop());
     readMessages(process.stdin, (next) => relay.receive(next), () => relay.stop());
     const reason = await relay.done;
     // The last message ('closed') out before the host goes.
     await last;
     played.end(reason);
-    return;
-  }
-
-  if ((/** @type {{type: string}} */ (message)).type === 'open' && typeof (/** @type {{url?: string}} */ (message)).url === 'string' && (/** @type {{url: string}} */ (message)).url.length > 0) {
-    if (!isStreamUrl((/** @type {{url: string}} */ (message)).url)) {
-      debugLog(config, 'refused', {url: (/** @type {{url: string}} */ (message)).url});
-      await sendMessage({ok: false, error: 'mpv is only given http(s) streams'});
-      return;
-    }
-    const mpvPath = resolveMpvPath((/** @type {{mpvPath?: string}} */ (message)).mpvPath);
-    if (!mpvPath) {
-      await sendMessage({ok: false, error: mpvNotFoundError((/** @type {{mpvPath?: string}} */ (message)).mpvPath)});
-      return;
-    }
-    const result = await launchMpv(mpvPath, /** @type {OpenMessage} */ (message), config);
-    debugLog(config, 'launched', {mpvPath, url: (/** @type {{url: string}} */ (message)).url, result});
-    await sendMessage(result);
     return;
   }
 

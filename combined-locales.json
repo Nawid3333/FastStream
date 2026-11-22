@@ -8009,24 +8009,6 @@
     "zh_CN": "此视频只能通过其页面加载，mpv 无法打开：FastStream 将在此处播放。",
     "zh_TW": "此影片只能透過其頁面載入，mpv 無法開啟：FastStream 會在此處播放。"
   },
-  "player_mpv_needs_hls_helper": {
-    "en": "mpv can play this stream only with the newer mpv helper: run update-local.cmd in the mpv folder of FastStream, then send it again.",
-    "de": "mpv kann diesen Stream nur mit dem neueren mpv-Helfer abspielen: Führe update-local.cmd im mpv-Ordner von FastStream aus und sende ihn dann erneut.",
-    "es": "mpv solo puede reproducir esta transmisión con la versión más reciente del programa de conexión para mpv: ejecuta update-local.cmd en la carpeta mpv de FastStream y vuelve a enviarla.",
-    "fr": "mpv ne peut lire ce flux qu'avec la nouvelle version de l'assistant mpv : lancez update-local.cmd dans le dossier mpv de FastStream, puis renvoyez-le.",
-    "id": "mpv hanya dapat memutar stream ini dengan program penghubung mpv yang lebih baru: jalankan update-local.cmd di folder mpv FastStream, lalu kirim lagi.",
-    "it": "mpv può riprodurre questo stream solo con la versione più recente del programma di supporto mpv: esegui update-local.cmd nella cartella mpv di FastStream, poi invialo di nuovo.",
-    "ja": "このストリームは新しい mpv ヘルパーでのみ mpv で再生できます。FastStream の mpv フォルダーで update-local.cmd を実行してから、もう一度送ってください。",
-    "ko": "이 스트림은 최신 mpv 도우미로만 mpv에서 재생할 수 있습니다. FastStream의 mpv 폴더에서 update-local.cmd를 실행한 다음 다시 보내세요.",
-    "ms": "mpv hanya boleh memainkan strim ini dengan pembantu mpv yang lebih baharu: jalankan update-local.cmd dalam folder mpv FastStream, kemudian hantar semula.",
-    "nl": "mpv kan deze stream alleen afspelen met het nieuwere mpv-hulpje: voer update-local.cmd uit in de mpv-map van FastStream en stuur hem daarna opnieuw.",
-    "pl": "mpv może odtworzyć ten strumień tylko z nowszym hostem mpv: uruchom update-local.cmd w folderze mpv FastStream, a potem wyślij go ponownie.",
-    "pt_BR": "O mpv só consegue reproduzir este stream com o auxiliar do mpv mais recente: execute update-local.cmd na pasta mpv do FastStream e envie-o novamente.",
-    "ru": "mpv может воспроизвести этот поток только с более новой версией mpv-хоста: запустите update-local.cmd в папке mpv FastStream, затем отправьте его снова.",
-    "tr": "mpv bu akışı yalnızca daha yeni mpv yardımcısıyla oynatabilir: FastStream'in mpv klasöründe update-local.cmd dosyasını çalıştırın, ardından yeniden gönderin.",
-    "zh_CN": "mpv 只有使用较新的 mpv 辅助程序才能播放此流：请在 FastStream 的 mpv 文件夹中运行 update-local.cmd，然后重新发送。",
-    "zh_TW": "mpv 只有使用較新的 mpv 主機才能播放此串流：請在 FastStream 的 mpv 資料夾中執行 update-local.cmd，然後重新傳送。"
-  },
   "mpv_episode_loading": {
     "en": "loading in mpv",
     "de": "wird in mpv geladen",

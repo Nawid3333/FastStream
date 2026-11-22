@@ -184,9 +184,6 @@ export class SaveManager {
         return;
       }
       if (response && response.ok) {
-        // Sent, through an outdated helper too (response.hostOutdated): since the thin helper
-        // an older one still plays the stream and lacks only newer features, and
-        // the owner chose silence here. The toolbar's tooltip and "Test mpv connection" say so.
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
         // mpv has the stream now, so stop playing it here too: otherwise both
         // players run at once and the user has to come back just to pause.

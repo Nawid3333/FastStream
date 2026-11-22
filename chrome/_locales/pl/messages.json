@@ -1334,9 +1334,6 @@
     "player_mpv_page_only": {
         "message": "Ten film ładuje się tylko przez swoją stronę i mpv nie może go otworzyć: FastStream odtwarza go tutaj."
     },
-    "player_mpv_needs_hls_helper": {
-        "message": "mpv może odtworzyć ten strumień tylko z nowszym hostem mpv: uruchom update-local.cmd w folderze mpv FastStream, a potem wyślij go ponownie."
-    },
     "mpv_episode_loading": {
         "message": "ładowanie w mpv"
     },
