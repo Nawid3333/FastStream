@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "Zrób zrzut ekranu"
     },
+    "player_redownload_label": {
+        "message": "Pobierz wideo ponownie"
+    },
+    "player_buffer_reused": {
+        "message": "Używane są ponownie już pobrane dane ($1). Kliknij tutaj, aby pobrać wszystko od nowa."
+    },
     "player_pip_label": {
         "message": "Obraz w obrazie"
     },

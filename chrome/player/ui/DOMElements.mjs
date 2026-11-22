@@ -26,6 +26,7 @@ export const DOMElements = {
   mpvContentBanner: /** @type {HTMLElement} */ (document.querySelector('#mpv_content_banner')),
   saveNotifBanner: /** @type {HTMLElement} */ (document.querySelector('#save_notif_banner')),
   screenshot: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_button_screenshot')),
+  redownload: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_button_redownload')),
   pip: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_button_pip')),
   nextVideo: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_button_next')),
   // The next button and the autoplay switch beside it: one tool in the bar.

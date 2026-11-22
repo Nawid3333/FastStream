@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "스크린샷 찍기"
     },
+    "player_redownload_label": {
+        "message": "동영상 다시 다운로드"
+    },
+    "player_buffer_reused": {
+        "message": "이미 다운로드한 $1을(를) 다시 사용합니다. 모두 다시 다운로드하려면 여기를 클릭하세요."
+    },
     "player_pip_label": {
         "message": "화면 속 화면"
     },

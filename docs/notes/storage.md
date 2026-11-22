@@ -528,6 +528,14 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   tell files apart. FreshLink uses the same (`DownloadManager.relink`): a refused link's fresh one
   no longer downloads everything again. (FreshLink gives no link in a private window or a
   container tab since 2026-11-13: "Storage in a private window".)
+- **Downloading the video again** (the owner, 2026-11-22): a reload to mend a load that went wrong
+  keeps what it downloaded, broken parts too. A buffer taken back says so for 10 s, with its size
+  (`player_buffer_reused`, status level `REUSED`; `DownloadManager.adopt` counts the bytes of RAM
+  and disk); a click on it, or the more menu's button (`redownload`, any stream from the network),
+  runs `FastStreamClient.downloadAgain`: the same source again at the current second, quality and
+  audio track kept, playing if it played, without `keepStorage`, so the reset deletes everything
+  downloaded, in RAM and on the disk. `FastStreamClient.test.mjs` ("downloading the video again",
+  "a buffer taken back").
 
 ## Network layer: reasons behind the code
 

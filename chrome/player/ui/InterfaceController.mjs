@@ -585,6 +585,12 @@ export class InterfaceController {
 
     WebUtils.setupTabIndex(DOMElements.pip);
 
+    DOMElements.redownload.addEventListener('click', (e) => {
+      this.client.downloadAgain();
+      e.stopPropagation();
+    });
+    WebUtils.setupTabIndex(DOMElements.redownload);
+
     DOMElements.playerContainer.addEventListener('dragenter', (e) => {
       e.stopPropagation();
       e.preventDefault();

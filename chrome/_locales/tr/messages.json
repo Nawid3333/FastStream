@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "Ekran görüntüsü al"
     },
+    "player_redownload_label": {
+        "message": "Videoyu yeniden indir"
+    },
+    "player_buffer_reused": {
+        "message": "Önceden indirilen $1 yeniden kullanılıyor. Hepsini yeniden indirmek için buraya tıklayın."
+    },
     "player_pip_label": {
         "message": "Resim içinde resim"
     },
