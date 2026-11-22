@@ -57,18 +57,22 @@ function isCutShort(element) {
 export class StatusManager {
   constructor() {
     this.statusMessages = new Map();
-    /** @type {?{level: *, until: number}} A new message the bar cuts short, shown whole for its reading time. */
-    this.fullText = null;
-    /** @type {?{index: number, until: number}} The status message the pointer is on. */
+    /** @type {Array<*>} The level shown in each status message, or null. */
+    this.displayed = [];
+    /**
+     * The status message the pointer is on, whatever it shows; after a finger lifts, the message it was on.
+     * @type {?{index: number, level: *, until: number}}
+     */
     this.pointedAt = null;
     DOMElements.statusMessages.forEach((element, index) => {
       element.onpointerenter = () => {
-        this.pointedAt = {index, until: Infinity};
+        this.pointedAt = {index, level: null, until: Infinity};
         this.updateStatusMessage();
       };
       element.onpointerleave = (/** @type {PointerEvent} */ e) => {
         // A finger leaves as it lifts: the text stays for its reading time.
-        this.pointedAt = e.pointerType === 'touch' ? {index, until: Date.now() + readingMs(element.textContent || '')} : null;
+        const level = this.displayed[index];
+        this.pointedAt = e.pointerType === 'touch' && level ? {index, level, until: Date.now() + readingMs(level.message)} : null;
         this.updateStatusMessage();
       };
     });
@@ -110,6 +114,9 @@ export class StatusManager {
       onClick: null,
       // Not shown yet: whole above the bar if the bar cuts it short.
       fresh: false,
+      // When it showed first, and until when it shows whole (0: it fits, or it is gone).
+      readFrom: 0,
+      readUntil: 0,
     };
     this.statusMessages.set(key, level);
   }
@@ -132,6 +139,7 @@ export class StatusManager {
     // The download line changes all the time.
     level.fresh = Boolean(message) && key !== StatusTypes.DOWNLOAD &&
       (level.fresh || !shown || messageShape(shown) !== messageShape(message || '') || level.type !== (type || 'info'));
+    if (!message || level.fresh) level.readUntil = 0;
     level.message = message;
     level.type = type || 'info';
     level.expiry = expiry ? (Date.now() + expiry) : 0;
@@ -210,26 +218,26 @@ export class StatusManager {
   updateFullText(toDisplayList, elements) {
     const bubble = DOMElements.statusFullText;
     const now = Date.now();
+    this.displayed = toDisplayList;
     toDisplayList.forEach((level, index) => {
       if (!level?.fresh) return;
       level.fresh = false;
-      if (isCutShort(elements[index])) {
-        const until = now + readingMs(level.message);
-        this.fullText = {level, until: level.expiry ? Math.min(level.expiry, until) : until};
-      }
+      level.readFrom = now;
+      level.readUntil = isCutShort(elements[index]) ? now + readingMs(level.message) : 0;
     });
-    if (this.fullText && (now > this.fullText.until || !toDisplayList.includes(this.fullText.level))) {
-      this.fullText = null;
-    }
-    if (this.pointedAt && now > this.pointedAt.until) {
+    const pointed = this.pointedAt;
+    if (pointed && (now > pointed.until || (pointed.level && toDisplayList[pointed.index] !== pointed.level))) {
       this.pointedAt = null;
     }
-    // Measured only while something may show: each measure lays the page out.
-    let index = this.pointedAt && toDisplayList[this.pointedAt.index] ? this.pointedAt.index : -1;
-    if (index === -1 || !isCutShort(elements[index])) {
-      index = this.fullText ? toDisplayList.indexOf(this.fullText.level) : -1;
+    // The message pointed at, else the newest still in its reading time (another's end shows the one under it again).
+    // Measured only then: each measure lays the page out.
+    const candidates = toDisplayList.map((level, index) => ({level, index}))
+        .filter(({level}) => level && level.readUntil > now)
+        .sort((a, b) => b.level.readFrom - a.level.readFrom);
+    if (this.pointedAt && toDisplayList[this.pointedAt.index]) {
+      candidates.unshift({level: toDisplayList[this.pointedAt.index], index: this.pointedAt.index});
     }
-    const level = index === -1 || !isCutShort(elements[index]) ? null : toDisplayList[index];
+    const level = candidates.find(({index}) => isCutShort(elements[index]))?.level ?? null;
     if (!bubble) return;
     if (!level) {
       bubble.style.display = 'none';

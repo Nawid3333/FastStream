@@ -108,6 +108,33 @@ describe('a status message the bar cuts short', () => {
     expect(bubble.textContent).toBe(LONG);
   });
 
+  it('shows the one under it again for the rest of its time when a newer one goes', () => {
+    widths(0, 600);
+    widths(1, 600);
+    manager.setStatusMessage(StatusTypes.INFO, LONG, 'info');
+    vi.setSystemTime(1_000_000 + 1_000);
+    manager.setStatusMessage(StatusTypes.COPY, 'Copied the address of the video to the clipboard', 'info', 2000);
+    expect(bubble.textContent).toMatch(/^Copied/);
+    vi.setSystemTime(1_000_000 + 3_100);
+    manager.updateStatusMessage();
+    expect(shown()).toBe(true);
+    expect(bubble.textContent).toBe(LONG);
+    vi.setSystemTime(1_000_000 + 6_200);
+    manager.updateStatusMessage();
+    expect(shown()).toBe(false);
+  });
+
+  it('keeps showing a message whose time was renewed with the same words', () => {
+    widths(1, 600);
+    manager.setStatusMessage(StatusTypes.SUBTITLES, 'Subtitles shifted by 0.5 s against the video', 'info', 1500);
+    vi.setSystemTime(1_000_000 + 1_000);
+    manager.setStatusMessage(StatusTypes.SUBTITLES, 'Subtitles shifted by 1.0 s against the video', 'info', 1500);
+    vi.setSystemTime(1_000_000 + 2_000);
+    manager.updateStatusMessage();
+    expect(shown()).toBe(true);
+    expect(bubble.textContent).toMatch(/1\.0 s/);
+  });
+
   it('never shows by itself for the download line, but while the pointer is on it', () => {
     widths(0, 600);
     manager.setStatusMessage(StatusTypes.DOWNLOAD, 'Downloading with 4 connections, 12.5 MB/s, 40% done', 'info');
@@ -129,6 +156,18 @@ describe('a status message the bar cuts short', () => {
     elements[0].onpointerleave({pointerType: 'touch'});
     expect(shown()).toBe(true);
     vi.setSystemTime(1_000_000 + 6_200);
+    manager.updateStatusMessage();
+    expect(shown()).toBe(false);
+  });
+
+  it('leaves the message under a tapped one alone when the tapped one goes', () => {
+    widths(0, 600);
+    manager.setStatusMessage(StatusTypes.DOWNLOAD, 'Downloading with 4 connections, 12.5 MB/s, 40% done', 'info');
+    manager.setStatusMessage(StatusTypes.INFO, LONG, 'info', 1000);
+    elements[0].onpointerenter();
+    elements[0].onpointerleave({pointerType: 'touch'});
+    expect(bubble.textContent).toBe(LONG);
+    vi.setSystemTime(1_000_000 + 1_100);
     manager.updateStatusMessage();
     expect(shown()).toBe(false);
   });

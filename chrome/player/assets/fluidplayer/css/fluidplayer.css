@@ -1057,6 +1057,10 @@ body {
     pointer-events: none;
 }
 
+.expanded.controls_visible .status_full_text {
+    max-height: calc(100vh - 145px);
+}
+
 .status_full_text.success {
     color: var(--status-success-color);
 }
