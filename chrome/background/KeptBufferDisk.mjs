@@ -13,6 +13,14 @@ const WritingKey = 'bufferKeepWriting';
 // What kept buffers may hold on the disk together: the rest is for the videos playing.
 const QuotaShare = 0.25;
 const UnknownQuotaLimit = 2e9;
+// Well inside the 30 s Firefox lets an idle event page live.
+const AwakeEveryMs = 10000;
+
+/** @return {Promise<void>} */
+function stayAwake() {
+  return chrome.storage.session.set({[WritingKey]: Date.now()})
+      .catch((/** @type {*} */ e) => console.warn('Could not keep the background up while writing', e));
+}
 
 /** @return {Promise<FileSystemDirectoryHandle>} */
 async function fsblobRoot() {
@@ -64,14 +72,28 @@ export function keptBufferDisk() {
     },
 
     async writeFile(session, name, blob) {
-      await writeWhole(await (await fsblobRoot()).getDirectoryHandle(session), name, blob);
       // An extension call counts as the event page's activity (measured: an OPFS write alone does not, and Firefox
-      // unloaded it 30 s in): it stays up while the buffer is written.
-      await chrome.storage.session.set({[WritingKey]: Date.now()});
+      // unloaded it 30 s in): it stays up while the buffer is written, a slow write of one file too.
+      const awake = setInterval(stayAwake, AwakeEveryMs);
+      try {
+        await writeWhole(await (await fsblobRoot()).getDirectoryHandle(session), name, blob);
+      } finally {
+        clearInterval(awake);
+      }
+      await stayAwake();
     },
 
     async writeRecord(session, record) {
       await writeWhole(await (await fsblobRoot()).getDirectoryHandle(session), KeptRecordFile, JSON.stringify(record));
+    },
+
+    async removeRecord(session) {
+      try {
+        await (await (await fsblobRoot()).getDirectoryHandle(session)).removeEntry(KeptRecordFile);
+      } catch (e) {
+        // Gone with its directory already.
+        if (/** @type {DOMException} */ (e)?.name !== 'NotFoundError') throw e;
+      }
     },
 
     async listKept() {

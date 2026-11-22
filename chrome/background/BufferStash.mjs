@@ -7,8 +7,9 @@ import {BufferKeepMaxMs, BufferKeepRamOnlySeconds} from '../player/options/Buffe
  */
 
 export const BufferKeepMs = BufferKeepRamOnlySeconds * 1000;
-// The record of a buffer on the disk is written again after this much of its RAM was written there.
-const RecordEveryBytes = 256 * 1024 * 1024;
+// The record of a buffer on the disk is written again after this much of its RAM was written there: what an event page
+// that went meanwhile wrote and had not recorded is downloaded again.
+const RecordEveryBytes = 64 * 1024 * 1024;
 
 /**
  * @typedef {Object} HandedEntry
@@ -34,6 +35,7 @@ const RecordEveryBytes = 256 * 1024 * 1024;
  * @property {string} browser - The Firefox run it was kept in (KeptDisk.browserId).
  * @property {string} key - bufferKey.
  * @property {number} until - When it goes.
+ * @property {number} since - When it was handed over: of two records of one video, the newer is kept.
  * @property {string} url
  * @property {HandedEntry[]} entries - Its files only.
  */
@@ -45,6 +47,7 @@ const RecordEveryBytes = 256 * 1024 * 1024;
  * @property {() => Promise<string>} newSession - A session directory for a buffer that had none (all in RAM).
  * @property {(session: string, name: string, blob: Blob) => Promise<void>} writeFile - Keeps the event page up.
  * @property {(session: string, record: KeptRecord) => Promise<void>} writeRecord
+ * @property {(session: string) => Promise<void>} removeRecord - Taken: its directory is the taker's to delete.
  * @property {() => Promise<Array<{session: string, record: *}>>} listKept - Every session with a record.
  * @property {(when: ?number) => void} schedule - Wakes the background then (an alarm); null for none.
  * @property {() => Promise<number>} limitBytes - What all buffers kept on the disk may hold together.
@@ -58,6 +61,8 @@ const RecordEveryBytes = 256 * 1024 * 1024;
  * @property {number} bytes
  * @property {boolean} onDisk
  * @property {ReturnType<typeof setTimeout>} timer
+ * @property {Promise<void>} busy - Its write to the disk that runs now: a directory with a file open for writing
+ *   cannot be deleted (Firefox locks it), so its deletion waits for that.
  */
 
 /**
@@ -129,7 +134,7 @@ export class BufferStash {
     const now = Date.now();
     /** @type {Kept} */
     const kept = {handOff, until: now + ms, since: now, bytes: sizeOf(handOff.entries), onDisk: false,
-      timer: setTimeout(() => this.expire(), ms)};
+      timer: setTimeout(() => this.expire(), ms), busy: Promise.resolve()};
     this.kept.set(key, kept);
     if (this.disk && ms > BufferKeepMs) {
       this.keepOnDisk(key, kept).catch((e) => {
@@ -149,7 +154,17 @@ export class BufferStash {
     if (!kept) return null;
     clearTimeout(kept.timer);
     this.kept.delete(key);
-    if (kept.onDisk) this.schedule();
+    if (kept.onDisk) {
+      this.schedule();
+      // Its record, read back by a later event page, would hand it over again: files the taker moved away, and a
+      // newer buffer of the same video deleted as the older one.
+      const session = kept.handOff.session;
+      const disk = /** @type {KeptDisk} */ (this.disk);
+      if (session) {
+        kept.busy.then(() => disk.removeRecord(session))
+            .catch((e) => console.warn('Could not remove a taken buffer\'s record', e));
+      }
+    }
     return kept.handOff;
   }
 
@@ -163,7 +178,7 @@ export class BufferStash {
     clearTimeout(kept.timer);
     this.kept.delete(key);
     if (kept.handOff.session !== keepSession) {
-      this.drop(kept.handOff.session);
+      this.drop(kept.handOff.session, kept.busy);
     }
     if (kept.onDisk) this.schedule();
   }
@@ -181,10 +196,13 @@ export class BufferStash {
     return this.kept.size;
   }
 
-  /** @param {?string} session */
-  drop(session) {
+  /**
+   * @param {?string} session
+   * @param {Promise<void>} [after] - A write to it that runs now.
+   */
+  drop(session, after = Promise.resolve()) {
     if (!session) return;
-    Promise.resolve()
+    after
         .then(() => this.dropSession(session))
         .catch((e) => console.warn('Could not delete a handed-over buffer\'s files', e));
   }
@@ -208,6 +226,8 @@ export class BufferStash {
    */
   async keepOnDisk(key, kept) {
     const disk = /** @type {KeptDisk} */ (this.disk);
+    // The buffers an earlier event page kept count against the room too.
+    await this.ready;
     const limit = await disk.limitBytes();
     if (this.kept.get(key) !== kept) return;
     if (kept.bytes > limit) {
@@ -242,6 +262,15 @@ export class BufferStash {
     const disk = /** @type {KeptDisk} */ (this.disk);
     const handOff = kept.handOff;
     const here = () => this.kept.get(key) === kept;
+    /**
+     * @param {() => Promise<void>} write
+     * @return {Promise<void>}
+     */
+    const busy = (write) => {
+      const running = write();
+      kept.busy = running.catch(() => {});
+      return running;
+    };
     const browser = await disk.browserId();
     if (!here()) return;
     if (!handOff.session) {
@@ -253,8 +282,9 @@ export class BufferStash {
       handOff.session = created;
     }
     const session = handOff.session;
-    const record = () => disk.writeRecord(session, {browser, key, until: kept.until, url: handOff.url,
-      entries: handOff.entries.filter((entry) => typeof entry.file === 'string').map(({blob, ...entry}) => entry)});
+    const record = () => busy(() => disk.writeRecord(session, {browser, key, until: kept.until, since: kept.since,
+      url: handOff.url,
+      entries: handOff.entries.filter((entry) => typeof entry.file === 'string').map(({blob, ...entry}) => entry)}));
     await record();
     let count = 0;
     let unrecorded = 0;
@@ -262,7 +292,8 @@ export class BufferStash {
       if (!here()) return;
       if (!(entry.blob instanceof Blob)) continue;
       const name = 'k' + count++;
-      await disk.writeFile(session, name, entry.blob);
+      const blob = entry.blob;
+      await busy(() => disk.writeFile(session, name, blob));
       if (!here()) return;
       unrecorded += entry.blob.size;
       entry.file = name;
@@ -284,18 +315,28 @@ export class BufferStash {
     const disk = /** @type {KeptDisk} */ (this.disk);
     const browser = await disk.browserId();
     const now = Date.now();
+    const found = [];
     for (const {session, record: read} of await disk.listKept()) {
       // Being written now: put() came first.
       if ([...this.kept.values()].some((kept) => kept.handOff.session === session)) continue;
       const record = validRecord(read, browser, now);
-      // A newer one of the same video came first.
-      if (!record || this.kept.has(record.key)) {
+      if (record) {
+        found.push({session, record, since: Number.isFinite(record.since) ? record.since : 0});
+      } else {
+        this.drop(session);
+      }
+    }
+    // Of two of one video, the newer: the order the directories are listed in says nothing.
+    found.sort((a, b) => b.since - a.since);
+    for (const {session, record, since} of found) {
+      // A newer one of the same video came first, or was handed over meanwhile.
+      if (this.kept.has(record.key)) {
         this.drop(session);
         continue;
       }
-      const key = record.key;
-      this.kept.set(key, {handOff: {url: record.url, session, entries: record.entries}, until: record.until,
-        since: now, bytes: sizeOf(record.entries), onDisk: true, timer: setTimeout(() => this.expire(), record.until - now)});
+      this.kept.set(record.key, {handOff: {url: record.url, session, entries: record.entries}, until: record.until,
+        since, bytes: sizeOf(record.entries), onDisk: true, timer: setTimeout(() => this.expire(), record.until - now),
+        busy: Promise.resolve()});
     }
     this.schedule();
   }

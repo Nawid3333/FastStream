@@ -1,10 +1,11 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {BufferStash} from '../../chrome/background/BufferStash.mjs';
+import {keptBufferDisk} from '../../chrome/background/KeptBufferDisk.mjs';
 import {BufferKeepChoices, bufferKeepLabel, bufferKeepMs, bufferKeepSeconds} from '../../chrome/player/options/BufferKeep.mjs';
 
-// The owner (2026-11-22): a reload or a closed tab keeps the buffer for a time the user picks (fixed steps up to an
-// hour), gone when Firefox closes. Past 20 s it lives on the disk: Firefox unloads the idle event page, and its RAM
+// A reload or a closed tab keeps the buffer for a time the user picks (fixed steps up to an hour), gone when Firefox
+// closes. Past 20 s it lives on the disk: Firefox unloads the idle event page, and its RAM
 // with it, about 30 s after its last event.
 
 const KEY = '[0,"","https://site.test/watch/1","https://cdn.test/v/master.m3u8"]';
@@ -38,6 +39,9 @@ function fakeDisk({limit = 1e12, browser = 'run-1'} = {}) {
     }),
     writeRecord: vi.fn(async (session, record) => {
       dir(session).record = structuredClone(record);
+    }),
+    removeRecord: vi.fn(async (session) => {
+      if (dirs.has(session)) dirs.get(session).record = null;
     }),
     listKept: vi.fn(async () => [...dirs].filter(([, d]) => d.record).map(([session, d]) => ({session, record: d.record}))),
     schedule: vi.fn(),
@@ -79,6 +83,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('the keep time a user picks', () => {
@@ -126,10 +131,11 @@ describe('a buffer kept longer than the event page lives', () => {
     const dir = disk.dirs.get('fsblob-1-1');
     expect([...dir.files.keys()]).toEqual(['k0']);
     expect(await dir.files.get('k0').text()).toBe('one');
-    expect(dir.record).toEqual({browser: 'run-1', key: KEY, until: 1_000_000 + 5 * 60000, url: kept.url, entries: [
-      {url: 'https://cdn.test/v/seg-1.ts', responseType: 'arraybuffer', dataSize: 3, file: 'k0'},
-      {url: 'https://cdn.test/v/seg-2.ts', responseType: 'arraybuffer', dataSize: 5, file: 'f0'},
-    ]});
+    expect(dir.record).toEqual({browser: 'run-1', key: KEY, until: 1_000_000 + 5 * 60000, since: 1_000_000, url: kept.url,
+      entries: [
+        {url: 'https://cdn.test/v/seg-1.ts', responseType: 'arraybuffer', dataSize: 3, file: 'k0'},
+        {url: 'https://cdn.test/v/seg-2.ts', responseType: 'arraybuffer', dataSize: 5, file: 'f0'},
+      ]});
     // Its RAM is let go of: the file is it now.
     expect(kept.entries[0].blob).toBeUndefined();
     expect(disk.schedule).toHaveBeenLastCalledWith(1_000_000 + 5 * 60000);
@@ -274,10 +280,118 @@ describe('a buffer kept longer than the event page lives', () => {
     const {stash, dropSession} = stashOn(disk);
     stash.put(KEY, handOff(), HOUR);
     await settle();
-    list([{session: 'fsblob-1-1', record: disk.dirs.get('fsblob-1-1').record}]);
+    // Its record, from a write the event page before had begun.
+    list([{session: 'fsblob-1-1', record: {browser: 'run-1', key: KEY, until: 1_000_000 + HOUR, since: 1_000_000,
+      url: 'https://cdn.test/v/master.m3u8?t=A', entries: []}}]);
     await stash.ready;
     await settle();
     expect(dropSession).not.toHaveBeenCalled();
     expect((await stash.take(KEY)).session).toBe('fsblob-1-1');
+  });
+
+  it('forgets one taken: a later event page does not hand it over again', async () => {
+    const disk = fakeDisk();
+    const {stash} = stashOn(disk);
+    stash.put(KEY, handOff(), HOUR);
+    await settle();
+    expect(await stash.take(KEY)).not.toBe(null);
+    await settle();
+    // Firefox unloaded the event page before the taker deleted the directory.
+    expect(disk.dirs.get('fsblob-1-1').record).toBe(null);
+    const {stash: again} = stashOn(disk);
+    expect(await again.take(KEY)).toBe(null);
+  });
+
+  it('keeps the newer of two records of one video, whatever order they are listed in', async () => {
+    const disk = fakeDisk();
+    const record = {browser: 'run-1', key: KEY, until: 1_000_000 + HOUR, url: 'https://cdn.test/v/m.m3u8', entries: []};
+    disk.dir('fsblob-1-older').record = {...record, since: 900_000};
+    disk.dir('fsblob-2-newer').record = {...record, since: 950_000};
+    const {stash, dropSession} = stashOn(disk);
+    await stash.ready;
+    await settle();
+    expect(dropSession.mock.calls).toEqual([['fsblob-1-older']]);
+    expect((await stash.take(KEY)).session).toBe('fsblob-2-newer');
+  });
+
+  it('deletes one let go of while a file of it was written, once the file is closed', async () => {
+    const disk = fakeDisk({limit: 10});
+    const open = new Set();
+    let release;
+    disk.writeFile.mockImplementationOnce(async (session, name, blob) => {
+      open.add(session);
+      await new Promise((resolve) => (release = resolve));
+      open.delete(session);
+      disk.dirs.get(session).files.set(name, blob);
+    });
+    // Firefox does not delete a directory with a file open for writing.
+    const dropSession = vi.fn((session) => {
+      if (open.has(session)) throw new DOMException('A file is open', 'NoModificationAllowedError');
+      disk.dirs.delete(session);
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const stash = new BufferStash({dropSession, disk});
+    stash.put('a', handOff('fsblob-1-a'), HOUR);
+    await settle();
+    vi.advanceTimersByTime(1000);
+    // No room for both: the older goes while its file is written.
+    stash.put('b', handOff('fsblob-2-b'), HOUR);
+    await settle();
+    release();
+    await settle();
+    expect(disk.dirs.has('fsblob-1-a')).toBe(false);
+    const {stash: again} = stashOn(disk);
+    expect(await again.take('a')).toBe(null);
+    expect(await again.take('b')).not.toBe(null);
+  });
+
+  it('counts what an earlier event page kept when it makes room for a new one', async () => {
+    const disk = fakeDisk({limit: 10});
+    disk.dir('fsblob-1-old').record = {browser: 'run-1', key: 'old', until: 1_000_000 + HOUR, since: 990_000,
+      url: 'https://cdn.test/v/m.m3u8', entries: [{url: 'https://cdn.test/v/seg-9.ts', responseType: 'arraybuffer',
+        dataSize: 8, file: 'f0'}]};
+    const records = [{session: 'fsblob-1-old', record: disk.dirs.get('fsblob-1-old').record}];
+    let list;
+    disk.listKept.mockImplementationOnce(() => new Promise((resolve) => (list = resolve)));
+    const {stash, dropSession} = stashOn(disk);
+    // Handed over while the event page still reads back what it kept.
+    stash.put(KEY, handOff('fsblob-2-new'), HOUR);
+    await settle();
+    list(records);
+    await stash.ready;
+    await settle();
+    expect(dropSession).toHaveBeenCalledWith('fsblob-1-old');
+    expect(await stash.take('old')).toBe(null);
+    expect((await stash.take(KEY)).session).toBe('fsblob-2-new');
+  });
+});
+
+describe('the disk of kept buffers (KeptBufferDisk)', () => {
+  it('keeps the event page up while one slow file is written', async () => {
+    const set = vi.fn(async () => {});
+    vi.stubGlobal('chrome', {storage: {session: {set}}});
+    let finish;
+    const writable = {write: vi.fn(() => new Promise((resolve) => (finish = resolve))), close: vi.fn(async () => {}),
+      abort: vi.fn(async () => {})};
+    const dir = {getDirectoryHandle: vi.fn(async () => dir),
+      getFileHandle: vi.fn(async () => ({createWritable: async () => writable}))};
+    vi.stubGlobal('navigator', {storage: {getDirectory: async () => dir}});
+    const writing = keptBufferDisk().writeFile('fsblob-1-1', 'k0', new Blob(['x']));
+    // Firefox unloads an idle event page 30 s after its last extension call.
+    await vi.advanceTimersByTimeAsync(25000);
+    expect(set.mock.calls.length).toBeGreaterThanOrEqual(2);
+    finish();
+    await writing;
+    expect(writable.close).toHaveBeenCalled();
+  });
+
+  it('removes a record that is gone already without an error', async () => {
+    const dir = {getDirectoryHandle: vi.fn(async () => dir),
+      removeEntry: vi.fn(async () => {
+        throw new DOMException('Gone', 'NotFoundError');
+      })};
+    vi.stubGlobal('navigator', {storage: {getDirectory: async () => dir}});
+    await expect(keptBufferDisk().removeRecord('fsblob-1-1')).resolves.toBeUndefined();
+    expect(dir.removeEntry).toHaveBeenCalledWith('_kept.json');
   });
 });
