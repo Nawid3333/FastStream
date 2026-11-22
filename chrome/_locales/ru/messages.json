@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "Сделать скриншот"
     },
+    "player_redownload_label": {
+        "message": "Загрузить видео заново"
+    },
+    "player_buffer_reused": {
+        "message": "Используются уже загруженные данные ($1). Нажмите здесь, чтобы загрузить всё заново."
+    },
     "player_pip_label": {
         "message": "Картинка в картинке"
     },

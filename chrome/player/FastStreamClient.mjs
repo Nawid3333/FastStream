@@ -90,6 +90,8 @@ const PreviewsFailedInBuild = new WeakSet();
 const NextAnswerMs = 5000;
 const AutoNextRetryMs = 2000;
 const AutoNextTries = 5;
+// How long the notice of a buffer taken back shows, with its click to download the video again.
+const ReusedNoticeMs = 10000;
 
 /** @typedef {import('./options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
 /** @typedef {import('./VideoSource.mjs').VideoSource} VideoSource */
@@ -2195,12 +2197,46 @@ export class FastStreamClient extends EventEmitter {
     // Into this realm: Blobs from another realm are not `instanceof Blob` here; their data is shared, not copied.
     const handOff = structuredClone(answer.handOff);
     // The RAM's at once; the disk's while the player starts.
-    const {taken, onDisk} = this.downloadManager.adopt(handOff, source.url);
+    const {taken, bytes, onDisk} = this.downloadManager.adopt(handOff, source.url);
     const record = this.bufferTakenBack = {taken, of: handOff.entries.length};
+    if (bytes > 0) {
+      // A reload to mend a load that went wrong keeps what it downloaded: one click starts over without it.
+      this.interfaceController.setStatusMessage(StatusTypes.REUSED,
+          Localize.getMessage('player_buffer_reused', [StringUtils.formatSize(bytes)]), 'info', ReusedNoticeMs,
+          () => this.source === source && this.downloadAgain());
+    }
     onDisk.then((fromDisk) => {
       record.taken += fromDisk;
       console.log(`Took back ${record.taken} of the ${record.of} downloads a player of this video had`);
     }).catch((e) => console.warn('Could not take back the handed-over files on the disk', e));
+  }
+
+  /**
+   * The video from where it is, with nothing it downloaded (the more menu's button, the notice of a buffer taken
+   * back): for a load that went wrong, which a reload no longer mends while the buffer is kept.
+   * @return {boolean} Whether it starts over.
+   */
+  downloadAgain() {
+    const source = this.source;
+    // Not while another source is on its way in (a reset waiting for a save): it would replace that one.
+    if (!source || !this.player || !/^https?:/i.test(source.url) || this.fallbacks.request !== this.sourceRequests) {
+      return false;
+    }
+    this.interfaceController.setStatusMessage(StatusTypes.REUSED, null);
+    const again = source.copy();
+    const time = Math.floor(this.currentTime);
+    if (time >= 1 && !this.isLive()) {
+      again.url = URLUtils.withTimestamp(again.url, time);
+    }
+    again.defaultLevelInfo = {
+      level: this.getCurrentVideoLevelID() ?? undefined,
+      audioLevel: this.getCurrentAudioLevelID() ?? undefined,
+    };
+    const wasPlaying = !!this.state.playing || !this.paused;
+    // Without keepStorage: the reset deletes what was downloaded, in RAM and on the disk.
+    this.setSource(again, this.fallbacks.sources, {play: wasPlaying, keepChoice: true, rebuild: true, skipRemembered: true})
+        .catch((e) => console.warn('Could not download the video again', e));
+    return true;
   }
 
   /** @return {Promise<void>} */

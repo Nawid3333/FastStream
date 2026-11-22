@@ -29,7 +29,7 @@ vi.mock('../../chrome/player/utils/Utils.mjs', () => ({Utils: {mergeOptions: (a)
 vi.mock('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs', () => ({AudioAnalyzer: class {}}));
 vi.mock('../../chrome/player/modules/analyzer/PreviewFrameExtractor.mjs', () => ({PreviewFrameExtractor: class {}}));
 vi.mock('../../chrome/player/ui/StatusManager.mjs', () => ({StatusTypes: {INFO: 'info', REQINTERACTION: 'reqinteraction', QUALITY: 'quality',
-  RESUMED: 'resumed'}}));
+  RESUMED: 'resumed', REUSED: 'reused'}}));
 vi.mock('../../chrome/player/utils/InterfaceUtils.mjs', () => ({InterfaceUtils: {}}));
 vi.mock('../../chrome/player/ui/audio/VirtualAudioNode.mjs', () => ({VirtualAudioNode: class {}}));
 vi.mock('../../chrome/player/players/SyncedAudioPlayer.mjs', () => ({
@@ -3320,5 +3320,95 @@ describe('FastStreamClient.currentTime, a live stream\'s end', () => {
     expect(player.seeks).toEqual([]);
     client.currentTime = 12;
     expect(player.seeks).toEqual([12]);
+  });
+});
+
+describe('FastStreamClient, downloading the video again', () => {
+  // A reload no longer mends a load that went wrong while the buffer is kept (BufferStash): the more menu's
+  // button and the notice of a buffer taken back start the video over without it.
+
+  it('builds the player again where it was, playing, without keeping what it downloaded', async () => {
+    const client = makeClient();
+    client.downloadManager.keepStorageOnce = vi.fn();
+    const source = makeSource('https://cdn.example/v.m3u8');
+    const first = await setSource(client, source);
+    first._currentTime = 42.7;
+    first.paused = false;
+    let second = null;
+    client.playerLoader.createPlayer = vi.fn(async () => (second = new FakePlayer(null)));
+
+    expect(client.downloadAgain()).toBe(true);
+    await vi.waitFor(() => expect(second).not.toBe(null));
+    await settle();
+
+    expect(client.downloadManager.keepStorageOnce).not.toHaveBeenCalled();
+    expect(client.downloadManager.reset).toHaveBeenCalledTimes(2);
+    expect(client.source.url).toBe('https://cdn.example/v.m3u8');
+    second.emit(DefaultPlayerEvents.LOADEDMETADATA);
+    await settle();
+    expect(second.seeks).toContain(42);
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('reused', null);
+  });
+
+  it('does not replace a source that is on its way in', async () => {
+    const client = makeClient();
+    await setSource(client, makeSource('https://cdn.example/a.m3u8'));
+    // setSource(B) counted its request; its reset still waits (for a save to be cancelled, say).
+    client.sourceRequests++;
+    client.playerLoader.createPlayer = vi.fn();
+    expect(client.downloadAgain()).toBe(false);
+    await settle();
+    expect(client.playerLoader.createPlayer).not.toHaveBeenCalled();
+  });
+
+  it('does nothing without a player, or for a file', async () => {
+    const client = makeClient();
+    expect(client.downloadAgain()).toBe(false);
+    await setSource(client, makeSource('blob:moz-extension://faststream/1'));
+    expect(client.downloadAgain()).toBe(false);
+  });
+});
+
+describe('FastStreamClient, a buffer taken back', () => {
+  /**
+   * A client whose background answers BUFFER_TAKE with a hand-over, and whose download manager takes `adopted`.
+   * @param {{taken: number, bytes: number}} adopted
+   * @return {FastStreamClient}
+   */
+  function clientTaking(adopted) {
+    const client = makeClient();
+    client.downloadManager.adopt = vi.fn(() => ({...adopted, onDisk: Promise.resolve(0)}));
+    chrome.runtime.sendMessage = vi.fn(async () => ({page: 'https://site.test/watch',
+      handOff: {url: 'https://cdn.example/v.m3u8', session: null, entries: [{url: 'https://cdn.example/s1.ts'}]}}));
+    return client;
+  }
+
+  it('says how much it reuses, and a click on it downloads the video again', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client = clientTaking({taken: 1, bytes: 1.4e9});
+    await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+
+    const call = client.interfaceController.setStatusMessage.mock.calls.find(([key]) => key === 'reused');
+    expect(call.slice(0, 4)).toEqual(['reused', 'player_buffer_reused', 'info', 10000]);
+    client.downloadAgain = vi.fn();
+    call[4]();
+    expect(client.downloadAgain).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not download another video again, clicked once that one plays', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client = clientTaking({taken: 1, bytes: 1.4e9});
+    await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+    const call = client.interfaceController.setStatusMessage.mock.calls.find(([key]) => key === 'reused');
+    client.source = makeSource('https://cdn.example/other.m3u8');
+    client.downloadAgain = vi.fn();
+    call[4]();
+    expect(client.downloadAgain).not.toHaveBeenCalled();
+  });
+
+  it('says nothing when none of it was taken (another link)', async () => {
+    const client = clientTaking({taken: 0, bytes: 0});
+    await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+    expect(client.interfaceController.setStatusMessage.mock.calls.some(([key]) => key === 'reused')).toBe(false);
   });
 });

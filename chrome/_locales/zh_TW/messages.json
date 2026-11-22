@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "截圖"
     },
+    "player_redownload_label": {
+        "message": "重新下載影片"
+    },
+    "player_buffer_reused": {
+        "message": "正在重複使用已下載的 $1。按一下這裡即可重新下載全部內容。"
+    },
     "player_pip_label": {
         "message": "畫中畫"
     },

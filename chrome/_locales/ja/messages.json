@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "スクリーンショットを撮る"
     },
+    "player_redownload_label": {
+        "message": "動画を再ダウンロード"
+    },
+    "player_buffer_reused": {
+        "message": "ダウンロード済みの $1 を再利用しています。すべてを再ダウンロードするにはここをクリックしてください。"
+    },
     "player_pip_label": {
         "message": "ピクチャー イン ピクチャー (PiP)"
     },

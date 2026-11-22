@@ -131,9 +131,12 @@ describe('DownloadManager.adopt', () => {
   it('answers the same link\'s requests from what it took back', async () => {
     const manager = new DownloadManager(null);
     manager.downloaders = [];
-    const {taken, onDisk} = manager.adopt(handOff, OLD);
+    const {taken, bytes, onDisk} = manager.adopt(handOff, OLD);
     // The RAM's at once, the disk's while the player starts.
     expect(taken).toBe(2);
+    // All it took, RAM and disk: the notice of a buffer taken back says how much.
+    expect(bytes).toBeGreaterThan(0);
+    expect(bytes).toBe(handOff.entries.reduce((sum, entry) => sum + entry.dataSize, 0));
     expect(await onDisk).toBe(1);
     expect(ask(manager, seg(1)).stored).toBe(true);
     expect(ask(manager, seg(3)).stored).toBe(true);

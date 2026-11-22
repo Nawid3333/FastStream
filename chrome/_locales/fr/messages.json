@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "Prendre une capture d'écran"
     },
+    "player_redownload_label": {
+        "message": "Télécharger à nouveau la vidéo"
+    },
+    "player_buffer_reused": {
+        "message": "$1 déjà téléchargés sont réutilisés. Cliquez ici pour tout télécharger à nouveau."
+    },
     "player_pip_label": {
         "message": "Image dans l'image"
     },
