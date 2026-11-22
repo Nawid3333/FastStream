@@ -2811,6 +2811,17 @@ describe('FastStreamClient, going while its buffer is on the disk', () => {
     expect(ops).toEqual(['destroy', 'terminated']);
   });
 
+  it('hands over nothing when the user keeps no buffer ("Off"), and deletes its files', async () => {
+    const {client, ops} = await goingClient();
+    client.options.bufferKeep = 0;
+    chrome.runtime.sendMessage = vi.fn(async () => {});
+    client.handOffBuffer();
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+    client.destroy();
+    await vi.runAllTimersAsync();
+    expect(ops).toEqual(['clear', 'destroy', 'terminated']);
+  });
+
   it('deletes its files on the disk before it closes its store, with nothing handed over', async () => {
     const {client, manager, ops} = await goingClient();
     client.destroy();

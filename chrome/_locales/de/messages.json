@@ -905,6 +905,12 @@
     "options_general_bufferbehind": {
         "message": "Sekunden, die hinter der Wiedergabeposition gepuffert bleiben, bevor sie verworfen werden"
     },
+    "options_general_bufferkeep": {
+        "message": "Wie lange das heruntergeladene Video nach Neuladen oder Schließen des Tabs behalten wird (höchstens bis Firefox geschlossen wird)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Aus"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: Bereits abgespieltes Video wird sofort verworfen; beim Zurückspulen wird es neu geladen. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
@@ -1476,7 +1482,13 @@
         "message": "Lange Videos auf der Festplatte speichern"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Ohne sie lässt Firefox ein Add-on höchstens 10 GB speichern, sodass ein langes Video selbst ohne Begrenzung in den Einstellungen von FastStream nicht vollständig vorgeladen werden könnte. FastStream speichert trotzdem nicht mehr als die Einstellung „Maximale Größe für vorgeladene Videos“ erlaubt und löscht das Video, wenn der Player geschlossen wird. Firefox fragt nach dieser Berechtigung nicht."
+        "message": "Ohne sie lässt Firefox ein Add-on höchstens 10 GB speichern, sodass ein langes Video selbst ohne Begrenzung in den Einstellungen von FastStream nicht vollständig vorgeladen werden könnte. FastStream speichert trotzdem nicht mehr als die Einstellung „Maximale Größe für vorgeladene Videos“ erlaubt und löscht das Video, wenn der Player geschlossen wird. Ein nach Neuladen oder Schließen des Tabs behaltenes Video wird gelöscht, sobald die dafür eingestellte Zeit abgelaufen ist. Firefox fragt nach dieser Berechtigung nicht."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Behaltene Videos pünktlich löschen"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Ein nach Neuladen oder Schließen des Tabs behaltenes Video wird gelöscht, wenn die dafür eingestellte Zeit abgelaufen ist, auch wenn kein FastStream-Player mehr offen ist. Firefox fragt nach dieser Berechtigung nicht."
     },
     "player_audio_output_label": {
         "message": "Audioausgabe"

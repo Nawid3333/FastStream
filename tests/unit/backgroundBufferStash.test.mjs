@@ -73,6 +73,25 @@ describe('a player\'s buffer handed over as it goes', () => {
     expect(await take(await playerOn(1, PAGE))).toBeNull();
   });
 
+  it('is kept for the time the user picked; a private window\'s 20 s at most, and none when "Off"', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: PAGE}], options: {bufferKeep: 3600}});
+    // The background's own copy of the module (each load is a fresh one).
+    const {BufferStash} = await import('../../chrome/background/BufferStash.mjs');
+    const put = vi.spyOn(BufferStash.prototype, 'put');
+    await bg.message(handOff, await playerOn(1, PAGE));
+    await bg.message(handOff, await playerOn(2, PAGE, {incognito: true}));
+    await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
+    expect(put.mock.calls.map(([, , ms, where]) => [ms, where])).toEqual([[3600000, {ramOnly: false}], [20000, {ramOnly: true}]]);
+    bg.unload();
+
+    // "Off" deletes its files at once: no OPFS here.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], options: {bufferKeep: 0}});
+    await bg.message(handOff, await playerOn(1, PAGE));
+    expect(await take(await playerOn(1, PAGE))).toBeNull();
+    vi.restoreAllMocks();
+  });
+
   it('is let go of after 20 s', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});

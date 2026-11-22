@@ -25,6 +25,7 @@ import {CloudSettings} from './CloudSettings.mjs';
 import {WebStorage} from '../utils/WebStorage.mjs';
 import {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory, ramBudgetRisky} from './RamGuard.mjs';
 import {ignoredPatternLines, ignoredUrlLines, showIgnoredLines} from './IgnoredLines.mjs';
+import {BufferKeepChoices, bufferKeepLabel, bufferKeepSeconds} from './BufferKeep.mjs';
 
 // Empty until loadOptions: the select menus below are built before it.
 let Options = /** @type {typeof DefaultOptions} */ ({});
@@ -54,6 +55,7 @@ const ramSize = /** @type {HTMLSelectElement} */ (document.getElementById('ramsi
 const bufferToDisk = /** @type {HTMLInputElement} */ (document.getElementById('buffertodisk'));
 const bufferAhead = /** @type {HTMLInputElement} */ (document.getElementById('bufferahead'));
 const bufferBehind = /** @type {HTMLInputElement} */ (document.getElementById('bufferbehind'));
+const bufferKeep = /** @type {HTMLSelectElement} */ (document.getElementById('bufferkeep'));
 const seekStepSize = /** @type {HTMLInputElement} */ (document.getElementById('seekstepsize'));
 const autoplayNext = /** @type {HTMLInputElement} */ (document.getElementById('autoplaynext'));
 const autoplayCountdown = /** @type {HTMLInputElement} */ (document.getElementById('autoplaycountdown'));
@@ -217,6 +219,7 @@ async function loadOptions(newOptions) {
   showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
   showSeconds(bufferAhead, Options.bufferAhead);
   showSeconds(bufferBehind, Options.bufferBehind);
+  bufferKeep.value = String(bufferKeepSeconds(Options.bufferKeep));
   seekStepSize.value = /** @type {any} */ (Math.round(Options.seekStepSize * 100) / 100);
   customSourcePatterns.value = Options.customSourcePatterns || '';
   showIgnoredLines(customSourcePatterns, ignoredPatternLines);
@@ -870,6 +873,19 @@ for (const gigabytes of ComputerMemorySizes) {
   option.textContent = memorySizeLabel(gigabytes);
   ramSize.append(option);
 }
+
+// Fixed steps up to an hour (BufferKeep.mjs): no other value can be picked.
+for (const seconds of BufferKeepChoices) {
+  const option = document.createElement('option');
+  option.value = String(seconds);
+  option.textContent = bufferKeepLabel(seconds, Localize.getLanguage()) ?? Localize.getMessage('options_general_bufferkeep_off');
+  bufferKeep.append(option);
+}
+
+bufferKeep.addEventListener('change', () => {
+  Options.bufferKeep = bufferKeepSeconds(Number(bufferKeep.value));
+  optionChanged();
+});
 
 ramSize.addEventListener('change', () => {
   Object.assign(Options, optionsForComputerMemory(Number(ramSize.value)));

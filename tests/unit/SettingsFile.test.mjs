@@ -51,6 +51,14 @@ describe('holdImportedNumbers', () => {
       bufferBehind: 12, maxSpeed: -1, maxVideoSize: DefaultOptions.maxVideoSize, videoZoom: 2, videoDelay: 0});
   });
 
+  it('keeps a buffer only for one of the settings steps, an hour at most', () => {
+    for (const [given, held] of [[3600, 3600], [0, 0], [60, 60], [86400, 20], [-1, 20], ['300', 20], [null, 20]]) {
+      const options = {...DefaultOptions, bufferKeep: given};
+      holdImportedNumbers(options);
+      expect(options.bufferKeep, String(given)).toBe(held);
+    }
+  });
+
   it('leaves a sound file as it is', () => {
     const options = {...DefaultOptions, ramBudget: 0, bufferAhead: -1, videoZoom: 0.5, videoDelay: -250};
     holdImportedNumbers(options);

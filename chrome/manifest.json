@@ -84,7 +84,8 @@
     "downloads",
     "cookies",
     "menus",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "alarms"
   ],
   "optional_permissions": [
     "proxy"

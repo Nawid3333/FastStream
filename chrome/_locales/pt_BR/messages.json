@@ -905,6 +905,12 @@
     "options_general_bufferbehind": {
         "message": "Segundos a manter em buffer atrás da reprodução antes de serem descartados"
     },
+    "options_general_bufferkeep": {
+        "message": "Por quanto tempo o vídeo baixado é mantido após recarregar ou fechar a aba (no máximo até o Firefox ser fechado)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Desativado"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: o vídeo já reproduzido é descartado na hora; voltar para trás recarrega o vídeo. Deixe o campo vazio para não haver limite."
     },
@@ -1476,7 +1482,13 @@
         "message": "Manter vídeos longos no disco"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Sem ela, o Firefox permite que uma extensão guarde no máximo 10 GB, então um vídeo longo não poderia ser pré-baixado por inteiro mesmo sem limite nas configurações do FastStream. O FastStream continua guardando no máximo o que a configuração \"Tamanho máximo do vídeo pré-baixado\" permite e apaga o vídeo quando o player é fechado. O Firefox não pergunta sobre esta permissão."
+        "message": "Sem ela, o Firefox permite que uma extensão guarde no máximo 10 GB, então um vídeo longo não poderia ser pré-baixado por inteiro mesmo sem limite nas configurações do FastStream. O FastStream continua guardando no máximo o que a configuração \"Tamanho máximo do vídeo pré-baixado\" permite e apaga o vídeo quando o player é fechado. Um vídeo mantido após recarregar ou fechar a aba é excluído quando o tempo definido para ele termina. O Firefox não pergunta sobre esta permissão."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Excluir vídeos mantidos no prazo"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Um vídeo mantido após recarregar ou fechar a aba é excluído quando o tempo definido termina, mesmo que nenhum player do FastStream esteja mais aberto. O Firefox não pergunta sobre esta permissão."
     },
     "player_audio_output_label": {
         "message": "Saída de áudio"

@@ -905,6 +905,12 @@
     "options_general_bufferbehind": {
         "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"
     },
+    "options_general_bufferkeep": {
+        "message": "Berapa lama video yang sudah diunduh disimpan setelah muat ulang atau tab ditutup (paling lama sampai Firefox ditutup)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Mati"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: video yang sudah diputar langsung dibuang; mundur ke bagian sebelumnya akan memuatnya lagi. Biarkan kolom kosong untuk tanpa batas."
     },
@@ -1476,7 +1482,13 @@
         "message": "Menyimpan video panjang di disk"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Tanpa izin ini, Firefox hanya membolehkan pengaya menyimpan paling banyak 10 GB, sehingga video panjang tidak dapat dipraunduh seluruhnya meskipun tanpa batas di pengaturan FastStream. FastStream tetap tidak menyimpan lebih dari pengaturan \"Ukuran maksimum video yang dipraunduh\" dan menghapus video saat pemutar ditutup. Firefox tidak menanyakan izin ini."
+        "message": "Tanpa izin ini, Firefox hanya membolehkan pengaya menyimpan paling banyak 10 GB, sehingga video panjang tidak dapat dipraunduh seluruhnya meskipun tanpa batas di pengaturan FastStream. FastStream tetap tidak menyimpan lebih dari pengaturan \"Ukuran maksimum video yang dipraunduh\" dan menghapus video saat pemutar ditutup. Video yang disimpan setelah muat ulang atau tab ditutup dihapus begitu waktu yang ditetapkan habis. Firefox tidak menanyakan izin ini."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Menghapus video yang disimpan tepat waktu"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Video yang disimpan setelah muat ulang atau tab ditutup dihapus saat waktu yang ditetapkan habis, bahkan jika tidak ada lagi pemutar FastStream yang terbuka. Firefox tidak menanyakan izin ini."
     },
     "player_audio_output_label": {
         "message": "Output audio"

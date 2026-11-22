@@ -4,6 +4,7 @@ import {ClickActions} from './ClickActions.mjs';
 import {ColorThemes} from './ColorThemes.mjs';
 import {DefaultKeybinds} from './DefaultKeybinds.mjs';
 import {DEFAULT_SEEK_STEP_SIZE, KEYBINDS_VERSION} from '../KeybindUtils.mjs';
+import {BufferKeepDefault} from '../BufferKeep.mjs';
 import {MiniplayerPositions} from './MiniplayerPositions.mjs';
 import {VisChangeActions} from './VisChangeActions.mjs';
 
@@ -51,6 +52,7 @@ export const DefaultOptions = {
   ramBudget: 2000000000, // all players together; beyond it: disk (private windows: let go)
   computerMemory: 0, // GB, as the user gave it (0: not given): sets ramBudget, and when its field warns
   bufferToDisk: true, // false: beyond the RAM budget let go, downloaded again when needed
+  bufferKeep: BufferKeepDefault, // seconds a gone player's buffer waits for the next player of its video (BufferKeep.mjs); 0: none
   bufferAhead: 300, // seconds, when predownloading is off or unavailable
   bufferBehind: 20, // seconds to keep buffered behind playback before trimming
   seekStepSize: DEFAULT_SEEK_STEP_SIZE,

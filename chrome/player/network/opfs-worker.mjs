@@ -1,4 +1,5 @@
 // @ts-check
+import {BufferKeepMaxMs, KeptRecordFile} from '../options/BufferKeep.mjs';
 import {OpQueue} from './OpQueue.mjs';
 
 // Owns one OPFS session directory. One OpQueue runs its file operations: two sync access handles on one file throw.
@@ -64,7 +65,24 @@ function sessionCreatedTime(name) {
 }
 
 /**
- * Deletes sessions whose heartbeat is stale or missing; one younger than STALE_MS has none yet.
+ * Until when the background keeps a gone player's session for the next player of its video (BufferStash); 0 for
+ * none, a broken record, or a time past BufferKeepMaxMs from now.
+ * @param {string} name
+ * @return {Promise<number>}
+ */
+async function keptUntil(name) {
+  try {
+    const dir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(name);
+    const until = JSON.parse(await (await (await dir.getFileHandle(KeptRecordFile)).getFile()).text())?.until;
+    return Number.isFinite(until) && until <= Date.now() + BufferKeepMaxMs ? until : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+/**
+ * Deletes sessions whose heartbeat is stale or missing; one younger than STALE_MS has none yet, and one the
+ * background keeps stays until its time is up.
  * @param {string} ownName
  */
 async function prune(ownName) {
@@ -75,7 +93,7 @@ async function prune(ownName) {
     if (created !== null && Date.now() - created <= STALE_MS) continue;
     const heartbeat = await readHeartbeat(name);
     if (heartbeat.unreadable) continue;
-    if (!heartbeat.time || Date.now() - heartbeat.time > STALE_MS) {
+    if ((!heartbeat.time || Date.now() - heartbeat.time > STALE_MS) && await keptUntil(name) <= Date.now()) {
       stale.push(name);
     }
   }

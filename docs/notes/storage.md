@@ -473,10 +473,12 @@ against an idle baseline of the same length:
   typically 600 TBW); 10 GB of spilled video a day is ~9 TB a year with the overhead, about 1.5 %
   of that. The budget is what decides how much is written: the overflow beyond it.
 
-## A reload keeps the buffer for 20 s
+## A reload keeps the buffer (20 s, or the time the user picks)
 
 His wish: a reload of the page must not throw away what was buffered; what nobody takes back is let
-go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e2e.mjs`.
+go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e2e.mjs`. Since
+2026-11-22 the time is an option (`bufferKeep`, "How long the downloaded video is kept after a reload or a closed tab": Off,
+20 s, 1, 5, 15, 30 min, 1 h; default 20 s), below.
 
 - **The hand-off.** At the player's `beforeunload`, before `destroy()`, the client sends its finished
   video files to the background (`BUFFER_STASH`, `FastStreamClient.handOffBuffer` ->
@@ -507,6 +509,27 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   measured). A newer hand-off of the same key replaces an older one. If the event page itself
   goes first, its RAM goes with it, and the directory waits for the 60 s prune. Measured: a stash
   in the event page survives 25 s with nothing else happening.
+- **Kept longer than 20 s, it goes to the disk** (`KeptBufferDisk.mjs`), because the event page does
+  not live that long. Measured in Firefox 159 (an add-on probe): an idle event page is stopped after
+  `extensions.background.idle.timeout` (30 s; stopped at 29.8 s while it wrote OPFS files and called
+  no extension API); one that calls an extension API after each write (`storage.session.set`) is
+  still running after 50 s; a stopped one wakes as a new document, its memory and timers gone. So
+  the stash writes the hand-off's RAM Blobs into a session directory of its own (`fsblob-<ms>-kept…`,
+  files `k<n>`, raw bytes like any other) with a `_kept.json` record (key, link, the files, until
+  when, this Firefox's id) and calls `storage.session.set` after each file. A new event page reads
+  the records back (`BufferStash.restore`, before any take), and an alarm (`buffer-keep`, the
+  `alarms` permission) wakes it when the first one is due. `ext-specs/keep-buffer-long.e2e.mjs`:
+  5 minutes picked, the tab closed, the event page stopped (idle timeout lowered to 2 s), 25 s
+  later the page opened again took all 21 parts back from the disk and asked for none again; the
+  build before failed it (nothing taken back).
+- **Hard limits.** At most 1 h (`BufferKeepMaxMs`; a record further ahead is not believed). The
+  kept buffers together stay under a quarter of the storage quota (`limitBytes`): the oldest goes
+  first, and one larger than that on its own is kept 20 s in RAM only. A private window keeps 20 s
+  in RAM only, never on the disk (`ramOnly`). Firefox closed: the id in `storage.session` is gone
+  with it, so a record from before is not this Firefox's and is deleted at the next start, with its
+  files; the OPFS prune (`opfs-worker.mjs`, 60 s heartbeat) leaves a directory alone while its
+  `_kept.json` says it is kept, at most 1 h. Off: the player hands nothing over and the reset
+  deletes its files at once. `BufferKeep.test.mjs`, `opfsStorage.test.mjs`.
 - **A moved file whose part was let go of** is deleted (`adoptOne`), but not when the same part was downloaded
   again meanwhile: that download is saved under the same key, and deleting it lost it (an area review, 2026-11-21).
   "Its data under the key" is `entry.blobId ?? key` (`keepsDataUnder`): a download moved on to a new link keeps its

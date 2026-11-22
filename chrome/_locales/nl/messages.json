@@ -905,6 +905,12 @@
     "options_general_bufferbehind": {
         "message": "Seconden die achter de afspeelpositie gebufferd blijven voordat ze worden verwijderd"
     },
+    "options_general_bufferkeep": {
+        "message": "Hoe lang de gedownloade video bewaard blijft na herladen of sluiten van het tabblad (hooguit tot Firefox wordt gesloten)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Uit"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: afgespeelde video wordt meteen weggegooid; terugspoelen laadt hem opnieuw. Laat het veld leeg voor geen limiet."
     },
@@ -1476,7 +1482,13 @@
         "message": "Lange video's op de schijf bewaren"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Zonder deze toestemming laat Firefox een add-on hoogstens 10 GB opslaan, zodat een lange video zelfs zonder limiet in de instellingen van FastStream niet volledig vooraf gedownload kan worden. FastStream bewaart nog steeds niet meer dan de instelling 'Maximale grootte van vooraf gedownloade video' toestaat, en verwijdert de video als de speler sluit. Firefox vraagt niet om deze toestemming."
+        "message": "Zonder deze toestemming laat Firefox een add-on hoogstens 10 GB opslaan, zodat een lange video zelfs zonder limiet in de instellingen van FastStream niet volledig vooraf gedownload kan worden. FastStream bewaart nog steeds niet meer dan de instelling 'Maximale grootte van vooraf gedownloade video' toestaat, en verwijdert de video als de speler sluit. Een video die na herladen of sluiten van het tabblad bewaard blijft, wordt verwijderd zodra de ingestelde tijd voorbij is. Firefox vraagt niet om deze toestemming."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Bewaarde video's op tijd verwijderen"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Een video die na herladen of sluiten van het tabblad bewaard blijft, wordt verwijderd zodra de ingestelde tijd voorbij is, ook als er geen FastStream-speler meer open is. Firefox vraagt niet om deze toestemming."
     },
     "player_audio_output_label": {
         "message": "Audio-uitvoer"

@@ -905,6 +905,12 @@
     "options_general_bufferbehind": {
         "message": "Detik yang dikekalkan dalam penampan di belakang main balik sebelum dipangkas"
     },
+    "options_general_bufferkeep": {
+        "message": "Berapa lama video yang dimuat turun disimpan selepas muat semula atau tab ditutup (paling lama sehingga Firefox ditutup)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Mati"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: video yang telah dimainkan terus dibuang; mencari ke belakang memuatkan semula. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
@@ -1476,7 +1482,13 @@
         "message": "Simpan video panjang pada cakera"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Tanpanya, Firefox membenarkan alat tambah menyimpan paling banyak 10 GB, jadi video panjang tidak dapat dimuat turun awal sepenuhnya walaupun tanpa had dalam tetapan FastStream. FastStream tetap tidak menyimpan lebih daripada tetapan \"Saiz maksimum video yang dimuat turun awal\" dan memadam video apabila pemain ditutup. Firefox tidak bertanya tentang kebenaran ini."
+        "message": "Tanpanya, Firefox membenarkan alat tambah menyimpan paling banyak 10 GB, jadi video panjang tidak dapat dimuat turun awal sepenuhnya walaupun tanpa had dalam tetapan FastStream. FastStream tetap tidak menyimpan lebih daripada tetapan \"Saiz maksimum video yang dimuat turun awal\" dan memadam video apabila pemain ditutup. Video yang disimpan selepas muat semula atau tab ditutup dipadam sebaik sahaja masa yang ditetapkan tamat. Firefox tidak bertanya tentang kebenaran ini."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Memadam video yang disimpan tepat pada masanya"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Video yang disimpan selepas muat semula atau tab ditutup dipadam apabila masa yang ditetapkan tamat, walaupun tiada lagi pemain FastStream yang terbuka. Firefox tidak bertanya tentang kebenaran ini."
     },
     "player_audio_output_label": {
         "message": "Output audio"

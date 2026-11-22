@@ -905,6 +905,12 @@
     "options_general_bufferbehind": {
         "message": "Secondes à conserver en mémoire tampon derrière la lecture avant leur suppression"
     },
+    "options_general_bufferkeep": {
+        "message": "Durée de conservation de la vidéo téléchargée après un rechargement ou la fermeture de l'onglet (au plus jusqu'à la fermeture de Firefox)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Désactivé"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0 : la vidéo déjà lue est immédiatement supprimée ; revenir en arrière la recharge. Laissez le champ vide pour ne définir aucune limite."
     },
@@ -1476,7 +1482,13 @@
         "message": "Conserver les longues vidéos sur le disque"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Sans elle, Firefox permet à un module de stocker au plus 10 Go : une longue vidéo ne pourrait donc pas être préchargée en entier, même sans limite dans les réglages de FastStream. FastStream ne conserve toujours pas plus que le réglage « Taille maximale de la vidéo préchargée » et supprime la vidéo à la fermeture du lecteur. Firefox ne demande rien pour cette permission."
+        "message": "Sans elle, Firefox permet à un module de stocker au plus 10 Go : une longue vidéo ne pourrait donc pas être préchargée en entier, même sans limite dans les réglages de FastStream. FastStream ne conserve toujours pas plus que le réglage « Taille maximale de la vidéo préchargée » et supprime la vidéo à la fermeture du lecteur. Une vidéo conservée après un rechargement ou la fermeture de l'onglet est supprimée dès que la durée choisie est écoulée. Firefox ne demande rien pour cette permission."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Supprimer à temps les vidéos conservées"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Une vidéo conservée après un rechargement ou la fermeture de l'onglet est supprimée à la fin de la durée choisie, même si plus aucun lecteur FastStream n'est ouvert. Firefox ne demande rien pour cette permission."
     },
     "player_audio_output_label": {
         "message": "Sortie audio"

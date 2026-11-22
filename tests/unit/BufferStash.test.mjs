@@ -12,7 +12,7 @@ describe('BufferStash', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('keeps a hand-off for 20 s, for the next player to take back', () => {
+  it('keeps a hand-off for 20 s, for the next player to take back', async () => {
     expect(BufferKeepMs).toBe(20000);
     const dropSession = vi.fn();
     const stash = new BufferStash({dropSession});
@@ -20,9 +20,9 @@ describe('BufferStash', () => {
     const kept = handOff();
     stash.put(key, kept);
     vi.advanceTimersByTime(19000);
-    expect(stash.take(key)).toBe(kept);
+    expect(await stash.take(key)).toBe(kept);
     // Taken: its taker owns its files now, and nothing is flushed later.
-    expect(stash.take(key)).toBeNull();
+    expect(await stash.take(key)).toBeNull();
     vi.advanceTimersByTime(5000);
     expect(dropSession).not.toHaveBeenCalled();
   });
@@ -35,7 +35,7 @@ describe('BufferStash', () => {
     vi.advanceTimersByTime(BufferKeepMs);
     await vi.runAllTimersAsync();
     expect(stash.size).toBe(0);
-    expect(stash.take(key)).toBeNull();
+    expect(await stash.take(key)).toBeNull();
     expect(dropSession).toHaveBeenCalledExactlyOnceWith('fsblob-9-9');
   });
 
