@@ -258,6 +258,7 @@ export class InterfaceController {
     this.setStatusMessage('download', null, 'success');
     // Its notices are not the next one's ("Resumed at 0:30" over a video that starts at 0).
     this.setStatusMessage(StatusTypes.RESUMED, null, 'info');
+    this.setStatusMessage(StatusTypes.REUSED, null, 'info');
     this.setStatusMessage(StatusTypes.WAIT, null, 'info');
     this.setStatusMessage(StatusTypes.SUBTITLES_HINT, null, 'info');
     // And its "all buffered" was the next one's: one buffered from the start never said so.
@@ -584,6 +585,12 @@ export class InterfaceController {
     });
 
     WebUtils.setupTabIndex(DOMElements.pip);
+
+    DOMElements.redownload.addEventListener('click', (e) => {
+      this.client.downloadAgain();
+      e.stopPropagation();
+    });
+    WebUtils.setupTabIndex(DOMElements.redownload);
 
     DOMElements.playerContainer.addEventListener('dragenter', (e) => {
       e.stopPropagation();

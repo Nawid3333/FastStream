@@ -99,4 +99,8 @@ export const DefaultToolSettings = {
     'location': 'extra',
     'priority': 600,
   },
+  'redownload': {
+    'location': 'extra',
+    'priority': 700,
+  },
 };

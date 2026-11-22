@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "Schermafbeelding maken"
     },
+    "player_redownload_label": {
+        "message": "Video opnieuw downloaden"
+    },
+    "player_buffer_reused": {
+        "message": "$1 die al gedownload was, wordt hergebruikt. Klik hier om alles opnieuw te downloaden."
+    },
     "player_pip_label": {
         "message": "Beeld-in-beeld"
     },

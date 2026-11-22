@@ -295,16 +295,18 @@ export class DownloadManager {
    * Takes back what an earlier player of this video handed over; its disk files are moved meanwhile.
    * @param {{url: string, session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}} handOff
    * @param {string} url
-   * @return {{taken: number, onDisk: Promise<number>}} Taken at once (RAM), and how many of the disk's once moved.
+   * @return {{taken: number, bytes: number, onDisk: Promise<number>}} Taken at once (RAM), the size of all taken
+   *   (RAM and disk), and how many of the disk's once moved.
    */
   adopt(handOff, url) {
     const signature = signatureParams(handOff.url, url);
     if (signature === null || !this.blobStore) {
-      return {taken: 0, onDisk: Promise.resolve(0)};
+      return {taken: 0, bytes: 0, onDisk: Promise.resolve(0)};
     }
     this.adoptedSignature = signature;
     this.adopted = new Map();
     let taken = 0;
+    let bytes = 0;
     /** @type {AdoptedFile[]} */
     const disk = [];
     /** @type {Set<string>} */
@@ -326,6 +328,7 @@ export class DownloadManager {
         entry.data = record.blob;
         this.keepAdopted(entry);
         taken++;
+        bytes += entry.dataSize;
       } else if (typeof record.file === 'string' && handOff.session) {
         if (this.storage.has(identifier)) continue;
         // Here at once, read once its file is moved: in its turn, or at once for a read that comes first.
@@ -340,9 +343,10 @@ export class DownloadManager {
         };
         this.keepAdopted(entry);
         disk.push(item);
+        bytes += entry.dataSize;
       }
     }
-    return {taken, onDisk: this.adoptDiskFiles(disk, handOff.session)};
+    return {taken, bytes, onDisk: this.adoptDiskFiles(disk, handOff.session)};
   }
 
   /**

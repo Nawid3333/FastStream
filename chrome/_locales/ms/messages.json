@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "Ambil tangkapan skrin"
     },
+    "player_redownload_label": {
+        "message": "Muat turun semula video"
+    },
+    "player_buffer_reused": {
+        "message": "Menggunakan semula $1 yang sudah dimuat turun. Klik di sini untuk memuat turun semuanya semula."
+    },
     "player_pip_label": {
         "message": "Gambar dalam gambar"
     },

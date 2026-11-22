@@ -183,9 +183,12 @@ describe('The audio output', function() {
           .some((el) => el.style.display !== 'none' && el.textContent === again.replace('$1', label));
     }, again), {timeout: 15000, interval: 250, timeoutMsg: 'the next video did not say how to get the device back'});
     expect((await outputState()).playing).toBe(null);
+    // This one, by its words: the same video again also says it reuses what it downloaded, clickable too (REUSED).
+    const saying = await browser.execute((again) => again.replace('$1', window.fastStream.audioOutputDevice.choice?.label),
+        again);
     const messages = await browser.$$('.mainplayer .status_message.clickable');
     for (const message of messages) {
-      if (await message.isDisplayed()) {
+      if (await message.isDisplayed() && await message.getProperty('textContent') === saying) {
         await message.click();
         break;
       }
@@ -194,8 +197,8 @@ describe('The audio output', function() {
         {timeout: 15000, interval: 250, timeoutMsg: 'a click on the message did not bring the sound to the device'});
     expect((await outputState()).sameAsChoice).toBe(true);
     // Said and done: the message goes.
-    expect(await browser.execute(() => Array.from(document.querySelectorAll('.mainplayer .status_message.clickable'))
-        .some((el) => el.style.display !== 'none'))).toBe(false);
+    expect(await browser.execute((saying) => Array.from(document.querySelectorAll('.mainplayer .status_message.clickable'))
+        .some((el) => el.style.display !== 'none' && el.textContent === saying), saying)).toBe(false);
 
     await clickRow(en.player_audio_output_default.message);
     await browser.waitUntil(async () => (await outputState()).playing === null,

@@ -518,6 +518,12 @@
     "player_screenshot_label": {
         "message": "Bildschirmaufnahme machen"
     },
+    "player_redownload_label": {
+        "message": "Video neu herunterladen"
+    },
+    "player_buffer_reused": {
+        "message": "$1, die schon heruntergeladen waren, werden weiterverwendet. Hier klicken, um alles neu herunterzuladen."
+    },
     "player_pip_label": {
         "message": "Bild-in-Bild"
     },

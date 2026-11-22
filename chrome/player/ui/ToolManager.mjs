@@ -123,6 +123,13 @@ export class ToolManager {
       DOMElements.skipBackwardButton.classList.add('hidden');
     }
 
+    // FastStreamClient.downloadAgain: a stream from the network, not a file or an archive.
+    if (this.client.player && /^https?:/i.test(this.client.source?.url || '') && !this.client.source?.loadedFromArchive) {
+      DOMElements.redownload.classList.remove('hidden');
+    } else {
+      DOMElements.redownload.classList.add('hidden');
+    }
+
     if (this.client.player && !this.client.player.canSave().cantSave) {
       DOMElements.download.classList.remove('hidden');
     } else {
@@ -168,6 +175,7 @@ export class ToolManager {
       previous: DOMElements.previousVideo,
       pip: DOMElements.pip,
       screenshot: DOMElements.screenshot,
+      redownload: DOMElements.redownload,
       download: DOMElements.download,
       mpv: DOMElements.mpv,
       playrate: DOMElements.playbackRate,
