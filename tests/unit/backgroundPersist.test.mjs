@@ -32,15 +32,29 @@ describe('the background at its start', () => {
     expect(persist).toHaveBeenCalledTimes(1);
   });
 
-  it('starts as usual when the answer is no, an error, or there is no such API', async () => {
-    const vetoed = vi.fn(async () => {
-      throw new Error('denied');
-    });
-    await loadWithStorage({persist: vetoed});
-    expect(vetoed).toHaveBeenCalledTimes(1);
-    expect(bg.callbackErrors).toEqual([]);
-    bg.unload();
-    await loadWithStorage(undefined);
-    expect(bg.callbackErrors).toEqual([]);
+  it('leaves nothing unhandled when the answer is an error', async () => {
+    const rejections = [];
+    const onRejection = (reason) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    try {
+      // Not a vi.fn: a spy follows the promise it returns, which counts as handling its rejection.
+      let asked = 0;
+      await loadWithStorage({persist: () => {
+        asked++;
+        return Promise.reject(new Error('denied'));
+      }});
+      expect(asked).toBe(1);
+      // Real time for Node to report a rejection nothing caught (the harness's timers are fake).
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
+  });
+
+  it('starts where there is no navigator.storage (the import would fail on a missing API)', async () => {
+    await expect(loadWithStorage(undefined)).resolves.toBeUndefined();
+    await expect(loadWithStorage({})).resolves.toBeUndefined();
   });
 });
