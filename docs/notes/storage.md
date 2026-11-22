@@ -395,7 +395,16 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   `persist()` from a top-level page answers true in a few ms, and the framed player has the full quota
   at once. The background (a top-level page) asks at every start (`background.mjs`): measured with
   the built extension, framed first, 899.6 GB on Windows and 540.55 GB on Linux at once, where 229
-  had 10.74 GB. An update (227 to 229) got the quota within seconds without it.
+  had 10.74 GB. An update (227 to 229) with only framed players after it, as when watching on
+  sites, kept 10.74 GB too (still 36 s on; a top-level page opened in between had persisted it);
+  with the background's `persist()`, 540.55 GB one second after the update (Firefox 153.7 ESR with
+  `xpinstall.signatures.required` off, so the unsigned build installs as an update). The same in
+  Firefox 153.0, 153.7 ESR and 160.0.1. Settings: with `privacy.resistFingerprinting` the persisted
+  quota reads 53.69 GB (50 GiB) whatever the disk; fingerprinting protection, strict tracking
+  protection, blocked third-party cookies and clearing data on close change nothing; with
+  `privacy.firstparty.isolate` the storage is never persisted, not after a restart and not with the
+  background's `persist()`: 10 GiB stays. `storage-quota.e2e.mjs` opens the framed player first in
+  its session and fails without the call.
 - **Why a video is not predownloaded whole** (2026-11-21, #798): `roomWarning` names the cause, once
   per video, as an info for 12 s, and each message says it still plays and how far ahead it keeps
   loading. The maximum size setting (`player_buffer_size_warning`; none for a maximum of 0, which
