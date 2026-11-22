@@ -327,6 +327,35 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
   });
 });
 
+describe('opfs-worker: a session the background keeps for the next player (BufferStash)', () => {
+  it('stays until the time its record names, never past an hour from now', async () => {
+    const now = Date.now();
+    const root = new FakeDir();
+    const fsblob = await root.getDirectoryHandle('fsblob', {create: true});
+    const kept = (name, until) => {
+      const dir = new FakeDir();
+      // Its player's last heartbeat, two minutes ago: without its record, it is gone.
+      dir.children.set('_meta.json', new FakeFile(JSON.stringify({updated_time: now - 120000})));
+      if (until !== undefined) dir.children.set('_kept.json', new FakeFile(typeof until === 'string' ? until : JSON.stringify({until})));
+      fsblob.children.set(name, dir);
+    };
+    kept(`fsblob-${now - 180000}-1`, now + 10 * 60000);
+    // Its time is up.
+    kept(`fsblob-${now - 180000}-2`, now - 1000);
+    // Past the longest keep: a broken record.
+    kept(`fsblob-${now - 180000}-3`, now + 2 * 3600 * 1000);
+    kept(`fsblob-${now - 180000}-4`, '{"unt');
+    kept(`fsblob-${now - 180000}-5`);
+
+    const manager = await startManager(root);
+    try {
+      expect([...fsblob.children.keys()].sort()).toEqual([`fsblob-${now - 180000}-1`, manager.sessionName].sort());
+    } finally {
+      await manager.close();
+    }
+  });
+});
+
 describe('opfs-worker: a session whose directory another player deleted', () => {
   // A live session pruned while the computer slept writes to a new directory.
   it('makes its directory again for the next fragment, and for the next save', async () => {

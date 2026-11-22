@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "Secondi da mantenere nel buffer dietro la posizione di riproduzione prima di scartarli"
     },
+    "options_general_bufferkeep": {
+        "message": "Per quanto tempo il video scaricato viene conservato dopo un ricaricamento o la chiusura della scheda (al massimo fino alla chiusura di Firefox)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Disattivato"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: il video già riprodotto viene eliminato subito; tornando indietro viene ricaricato. Lascia il campo vuoto per non avere limiti."
     },
@@ -1470,7 +1476,13 @@
         "message": "Conservare i video lunghi su disco"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Senza di esso, Firefox consente a un componente aggiuntivo di salvare al massimo 10 GB, quindi un video lungo non potrebbe essere prescaricato per intero nemmeno senza limiti nelle impostazioni di FastStream. FastStream continua a non conservare più di quanto indica l'impostazione «Dimensione massima del video prescaricato» ed elimina il video alla chiusura del lettore. Firefox non chiede nulla per questo permesso."
+        "message": "Senza di esso, Firefox consente a un componente aggiuntivo di salvare al massimo 10 GB, quindi un video lungo non potrebbe essere prescaricato per intero nemmeno senza limiti nelle impostazioni di FastStream. FastStream continua a non conservare più di quanto indica l'impostazione «Dimensione massima del video prescaricato» ed elimina il video alla chiusura del lettore. Un video conservato dopo un ricaricamento o la chiusura della scheda viene eliminato allo scadere del tempo impostato. Firefox non chiede nulla per questo permesso."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Eliminare in tempo i video conservati"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Un video conservato dopo un ricaricamento o la chiusura della scheda viene eliminato allo scadere del tempo impostato, anche se non è più aperto alcun lettore FastStream. Firefox non chiede nulla per questo permesso."
     },
     "player_audio_output_label": {
         "message": "Uscita audio"

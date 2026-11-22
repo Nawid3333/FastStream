@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "在播放位置后方、裁剪前保留缓冲的秒数"
     },
+    "options_general_bufferkeep": {
+        "message": "重新加载或关闭标签页后，已下载视频的保留时长（最长到关闭 Firefox 为止）"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "关闭"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0：已播放的内容会立即丢弃；往回跳转时会重新加载。将输入框留空即为无限制。"
     },
@@ -1470,7 +1476,13 @@
         "message": "将长视频保存在磁盘上"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "没有此权限时，Firefox 最多只允许附加组件存储 10 GB，因此即使 FastStream 的设置中没有限制，长视频也无法完整预下载。FastStream 仍然不会超过“预下载视频的最大大小”设置来保存视频，并会在播放器关闭时删除视频。Firefox 不会就此权限询问你。"
+        "message": "没有此权限时，Firefox 最多只允许附加组件存储 10 GB，因此即使 FastStream 的设置中没有限制，长视频也无法完整预下载。FastStream 仍然不会超过“预下载视频的最大大小”设置来保存视频，并会在播放器关闭时删除视频。重新加载或关闭标签页后保留的视频会在设定的时间结束后删除。Firefox 不会就此权限询问你。"
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "按时删除保留的视频"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "重新加载或关闭标签页后保留的视频会在设定的时间结束后删除，即使已没有打开的 FastStream 播放器。Firefox 不会就此权限询问你。"
     },
     "player_audio_output_label": {
         "message": "音频输出"

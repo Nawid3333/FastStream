@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "Seconds to keep buffered behind playback before trimming"
     },
+    "options_general_bufferkeep": {
+        "message": "How long the downloaded video is kept after a reload or a closed tab (until Firefox closes at the latest)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Off"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: played video is dropped at once; seeking back loads it again. Leave the field empty for no limit."
     },
@@ -1470,7 +1476,13 @@
         "message": "Keep long videos on your disk"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Without it, Firefox lets an add-on store at most 10 GB, so a long video could not be predownloaded whole even with no limit in FastStream's settings. FastStream still keeps no more than its \"Maximum size of predownloaded video\" setting, and deletes the video when the player closes. Firefox does not ask about this permission."
+        "message": "Without it, Firefox lets an add-on store at most 10 GB, so a long video could not be predownloaded whole even with no limit in FastStream's settings. FastStream still keeps no more than its \"Maximum size of predownloaded video\" setting, and deletes the video when the player closes. A video kept after a reload or a closed tab is deleted once the time set for it is up. Firefox does not ask about this permission."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Delete kept videos on time"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "A video kept after a reload or a closed tab is deleted when the time set for it is up, even when no FastStream player is open anymore. Firefox does not ask about this permission."
     },
     "player_audio_output_label": {
         "message": "Audio output"

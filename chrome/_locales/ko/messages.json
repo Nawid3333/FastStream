@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "트리밍 전까지 재생 지점 이전 구간을 버퍼에 유지할 초 수"
     },
+    "options_general_bufferkeep": {
+        "message": "새로고침하거나 탭을 닫은 후 다운로드한 동영상을 보관하는 시간(최대 Firefox를 닫을 때까지)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "끄기"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: 재생한 부분은 곧바로 버려지고, 뒤로 이동하면 다시 로드합니다. 제한 없음으로 하려면 칸을 비워 두세요."
     },
@@ -1470,7 +1476,13 @@
         "message": "긴 비디오를 디스크에 보관"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "이 권한이 없으면 Firefox는 부가 기능이 최대 10 GB까지만 저장하도록 하므로, FastStream 설정에 제한이 없어도 긴 비디오를 전체 사전 다운로드할 수 없습니다. FastStream은 여전히 \"사전 다운로드할 비디오의 최대 크기\" 설정을 넘겨 보관하지 않으며, 플레이어를 닫으면 비디오를 삭제합니다. Firefox는 이 권한에 대해 묻지 않습니다."
+        "message": "이 권한이 없으면 Firefox는 부가 기능이 최대 10 GB까지만 저장하도록 하므로, FastStream 설정에 제한이 없어도 긴 비디오를 전체 사전 다운로드할 수 없습니다. FastStream은 여전히 \"사전 다운로드할 비디오의 최대 크기\" 설정을 넘겨 보관하지 않으며, 플레이어를 닫으면 비디오를 삭제합니다. 새로고침하거나 탭을 닫은 후 보관된 동영상은 설정한 시간이 지나면 삭제됩니다. Firefox는 이 권한에 대해 묻지 않습니다."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "보관된 동영상을 제때 삭제"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "새로고침하거나 탭을 닫은 후 보관된 동영상은 FastStream 플레이어가 더 이상 열려 있지 않아도 설정한 시간이 지나면 삭제됩니다. Firefox는 이 권한에 대해 묻지 않습니다."
     },
     "player_audio_output_label": {
         "message": "오디오 출력"

@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"
     },
+    "options_general_bufferkeep": {
+        "message": "İndirilen videonun yeniden yükleme veya sekme kapatıldıktan sonra ne kadar saklanacağı (en fazla Firefox kapanana kadar)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Kapalı"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: oynatılmış kısım hemen atılır; geriye sarmak onu yeniden yükler. Sınırsız olması için alanı boş bırakın."
     },
@@ -1470,7 +1476,13 @@
         "message": "Uzun videoları diskte tutma"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Bu izin olmadan Firefox bir eklentinin en fazla 10 GB saklamasına izin verir; bu yüzden FastStream ayarlarında sınır olmasa bile uzun bir video tamamen önceden indirilemezdi. FastStream yine de \"Önceden indirilen videonun maksimum boyutu\" ayarından fazlasını saklamaz ve oynatıcı kapandığında videoyu siler. Firefox bu izin için soru sormaz."
+        "message": "Bu izin olmadan Firefox bir eklentinin en fazla 10 GB saklamasına izin verir; bu yüzden FastStream ayarlarında sınır olmasa bile uzun bir video tamamen önceden indirilemezdi. FastStream yine de \"Önceden indirilen videonun maksimum boyutu\" ayarından fazlasını saklamaz ve oynatıcı kapandığında videoyu siler. Yeniden yükleme veya sekme kapatıldıktan sonra saklanan video, bunun için ayarlanan süre dolunca silinir. Firefox bu izin için soru sormaz."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Saklanan videoları zamanında silme"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Yeniden yükleme veya sekme kapatıldıktan sonra saklanan video, açık bir FastStream oynatıcısı kalmasa bile ayarlanan süre dolunca silinir. Firefox bu izin için soru sormaz."
     },
     "player_audio_output_label": {
         "message": "Ses çıkışı"

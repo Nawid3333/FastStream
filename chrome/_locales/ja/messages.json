@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "再生位置より後ろを切り詰める前にバッファーに保持する秒数"
     },
+    "options_general_bufferkeep": {
+        "message": "再読み込みやタブを閉じた後、ダウンロード済みの動画を保持する時間（最長で Firefox を閉じるまで）"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "オフ"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: 再生済みの部分はすぐに破棄され、シークして戻るともう一度読み込みます。上限をなくすには、フィールドを空のままにしてください。"
     },
@@ -1470,7 +1476,13 @@
         "message": "長い動画をディスクに保存する"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "この権限がないと、Firefox はアドオンが保存できる量を最大 10 GB に制限するため、FastStream の設定で制限をなくしても長い動画を全体まで事前ダウンロードできません。FastStream は引き続き「プリダウンロードする動画の最大サイズ」の設定を超えて保存せず、プレーヤーを閉じると動画を削除します。Firefox はこの権限について確認を求めません。"
+        "message": "この権限がないと、Firefox はアドオンが保存できる量を最大 10 GB に制限するため、FastStream の設定で制限をなくしても長い動画を全体まで事前ダウンロードできません。FastStream は引き続き「プリダウンロードする動画の最大サイズ」の設定を超えて保存せず、プレーヤーを閉じると動画を削除します。再読み込みやタブを閉じた後に保持された動画は、設定した時間が過ぎると削除されます。Firefox はこの権限について確認を求めません。"
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "保持した動画を時間どおりに削除"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "再読み込みやタブを閉じた後に保持された動画は、FastStream のプレーヤーが一つも開いていなくても、設定した時間が過ぎると削除されます。Firefox はこの権限について確認を求めません。"
     },
     "player_audio_output_label": {
         "message": "オーディオ出力"

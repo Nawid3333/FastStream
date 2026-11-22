@@ -44,6 +44,7 @@ import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {besidePlayhead, downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
 import {isTimed, untimedSpans} from './network/UntimedSpans.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
+import {BufferKeepDefault, bufferKeepSeconds} from './options/BufferKeep.mjs';
 import {resumedMessage} from './ui/PlaybackNotices.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
@@ -111,6 +112,7 @@ const AutoNextTries = 5;
  * @property {number} maxVideoSize - Bytes.
  * @property {number} ramBudget - Bytes, for all players together.
  * @property {boolean} bufferToDisk
+ * @property {number} bufferKeep - Seconds a gone player's buffer is kept for its next player (BufferKeep.mjs); 0 none.
  * @property {number} bufferAhead - Seconds; Infinity for no limit.
  * @property {number} bufferBehind - Seconds; Infinity for no limit.
  * @property {boolean} freeFragments
@@ -160,6 +162,7 @@ export class FastStreamClient extends EventEmitter {
       maxVideoSize: 5000000000,
       ramBudget: DEFAULT_BUDGET_BYTES,
       bufferToDisk: true,
+      bufferKeep: BufferKeepDefault,
       bufferAhead: 300,
       bufferBehind: 20,
       freeFragments: true,
@@ -451,6 +454,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.ramBudget = options.ramBudget;
     // Only the buffer: watch progress and saving keep their own storage.
     this.options.bufferToDisk = options.bufferToDisk !== false;
+    this.options.bufferKeep = bufferKeepSeconds(options.bufferKeep);
     this.downloadManager?.setBufferToDisk(this.options.bufferToDisk);
     // Seconds; an empty field (-1) is no limit: the whole video ahead, everything played kept.
     this.options.bufferAhead = FastStreamClient.bufferSeconds(options.bufferAhead);
@@ -2144,8 +2148,10 @@ export class FastStreamClient extends EventEmitter {
    */
   handOffBuffer() {
     const source = this.source;
-    // For the page takeBackBuffer was told (bufferPage): no page, no hand-off.
-    if (!source || !this.bufferPage || source.identifier !== this.bufferPage.identifier || !this.downloadManager) {
+    // For the page takeBackBuffer was told (bufferPage): no page, no hand-off. Kept for no time ("Off"): none
+    // either, and the reset deletes the files at once.
+    if (!source || !this.bufferPage || source.identifier !== this.bufferPage.identifier || !this.downloadManager ||
+        this.options.bufferKeep === 0) {
       return;
     }
     const {session, entries} = this.downloadManager.handOff();

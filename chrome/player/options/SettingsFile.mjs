@@ -1,6 +1,7 @@
 // @ts-check
 import {DefaultOptions} from './defaults/DefaultOptions.mjs';
 import {KEYBINDS_VERSION} from './KeybindUtils.mjs';
+import {bufferKeepSeconds} from './BufferKeep.mjs';
 
 // Never imported (a shared file could name a program planted on this computer), never exported
 // (it names the Windows account).
@@ -48,4 +49,6 @@ export function holdImportedNumbers(options) {
   }
   options.videoZoom = Number.isFinite(options.videoZoom) ? Math.min(Math.max(options.videoZoom, 0.1), 2) : defaults.videoZoom;
   if (!Number.isFinite(options.videoDelay)) options.videoDelay = defaults.videoDelay;
+  // One of the settings' steps: none other is kept (up to an hour).
+  options.bufferKeep = bufferKeepSeconds(options.bufferKeep);
 }

@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "Sekundy już odtworzonego wideo trzymane w buforze, zanim zostaną usunięte"
     },
+    "options_general_bufferkeep": {
+        "message": "Jak długo pobrane wideo jest przechowywane po przeładowaniu lub zamknięciu karty (najdłużej do zamknięcia Firefoksa)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Wyłączone"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: odtworzone wideo jest od razu usuwane; przewinięcie w tył wczytuje je ponownie. Zostaw pole puste, aby nie było limitu."
     },
@@ -1470,7 +1476,13 @@
         "message": "Przechowywanie długich filmów na dysku"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Bez niego Firefox pozwala dodatkowi przechowywać najwyżej 10 GB, więc długiego wideo nie dałoby się wstępnie pobrać w całości nawet bez limitu w ustawieniach FastStream. FastStream nadal przechowuje nie więcej, niż pozwala ustawienie „Maksymalny rozmiar wstępnie pobranego wideo”, i usuwa wideo po zamknięciu odtwarzacza. Firefox nie pyta o to uprawnienie."
+        "message": "Bez niego Firefox pozwala dodatkowi przechowywać najwyżej 10 GB, więc długiego wideo nie dałoby się wstępnie pobrać w całości nawet bez limitu w ustawieniach FastStream. FastStream nadal przechowuje nie więcej, niż pozwala ustawienie „Maksymalny rozmiar wstępnie pobranego wideo”, i usuwa wideo po zamknięciu odtwarzacza. Wideo zachowane po przeładowaniu lub zamknięciu karty jest usuwane, gdy minie ustawiony dla niego czas. Firefox nie pyta o to uprawnienie."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Usuwanie zachowanych filmów na czas"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Wideo zachowane po przeładowaniu lub zamknięciu karty jest usuwane, gdy minie ustawiony czas, nawet jeśli żaden odtwarzacz FastStream nie jest już otwarty. Firefox nie pyta o to uprawnienie."
     },
     "player_audio_output_label": {
         "message": "Wyjście audio"

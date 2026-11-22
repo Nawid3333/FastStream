@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "Segundos que se mantienen en el búfer por detrás de la reproducción antes de descartarse"
     },
+    "options_general_bufferkeep": {
+        "message": "Cuánto tiempo se conserva el vídeo descargado tras recargar o cerrar la pestaña (como mucho, hasta cerrar Firefox)"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "Desactivado"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0: el video ya reproducido se descarta de inmediato; si retrocedes, se vuelve a cargar. Deja el campo vacío para que no haya límite."
     },
@@ -1470,7 +1476,13 @@
         "message": "Guardar videos largos en el disco"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Sin él, Firefox permite que un complemento guarde como máximo 10 GB, así que un video largo no podría predescargarse entero ni siquiera sin límite en los ajustes de FastStream. FastStream sigue guardando como máximo lo que indica el ajuste «Tamaño máximo de video predescargado» y borra el video cuando se cierra el reproductor. Firefox no pregunta por este permiso."
+        "message": "Sin él, Firefox permite que un complemento guarde como máximo 10 GB, así que un video largo no podría predescargarse entero ni siquiera sin límite en los ajustes de FastStream. FastStream sigue guardando como máximo lo que indica el ajuste «Tamaño máximo de video predescargado» y borra el video cuando se cierra el reproductor. Un vídeo conservado tras recargar o cerrar la pestaña se elimina cuando termina el tiempo configurado para ello. Firefox no pregunta por este permiso."
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "Eliminar a tiempo los vídeos conservados"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "Un vídeo conservado tras recargar o cerrar la pestaña se elimina cuando termina el tiempo configurado, aunque ya no haya ningún reproductor de FastStream abierto. Firefox no pregunta por este permiso."
     },
     "player_audio_output_label": {
         "message": "Salida de audio"

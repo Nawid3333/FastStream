@@ -11,6 +11,8 @@ import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {bufferKey, BufferStash} from './BufferStash.mjs';
+import {BufferKeepAlarm, keptBufferDisk} from './KeptBufferDisk.mjs';
+import {bufferKeepMs} from '../player/options/BufferKeep.mjs';
 import {isLocalAddress} from './LocalAddress.mjs';
 import {createMenus, linkTarget, MenuIds, updateMenus} from './ContextMenu.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
@@ -986,16 +988,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // For the page BUFFER_TAKE told it: by now the page's frame is the next page's.
     const key = BackgroundUtils.isUrlPlayerUrl(sender.url || '') ? playerBufferKey(msg.page, sender, msg.identifier) : null;
     if (key && typeof msg.url === 'string' && Array.isArray(msg.entries)) {
-      bufferStash.put(key, {
+      const handOff = {
         url: msg.url,
         session: typeof msg.session === 'string' && /^[\w-]+$/.test(msg.session) ? msg.session : null,
         entries: msg.entries,
-      });
+      };
+      // A private window's stays in RAM (BufferKeep.mjs).
+      const ramOnly = !!senderTab?.incognito;
+      ensureOptions().then(() => bufferStash.put(key, handOff, bufferKeepMs(Options.bufferKeep, ramOnly), {ramOnly}))
+          .catch((e) => console.warn('Could not keep a handed-over buffer', e));
     }
   } else if (msg.type === MessageTypes.BUFFER_TAKE) {
     const page = (frame.parent || frame).url;
     const key = BackgroundUtils.isUrlPlayerUrl(sender.url || '') ? playerBufferKey(page, sender, msg.identifier) : null;
-    sendResponse(key ? {page, handOff: bufferStash.take(key)} : null);
+    if (!key) {
+      sendResponse(null);
+      return;
+    }
+    // After the options, as BUFFER_STASH's put: a hand-off just made is there.
+    ensureOptions().then(() => bufferStash.take(key)).then((handOff) => sendResponse({page, handOff}), (e) => {
+      console.warn('Could not take back a handed-over buffer', e);
+      sendResponse({page, handOff: null});
+    });
+    return true;
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
     // The page took the player iframe out before it loaded: no PLAYER_LOADED will end the opening.
     if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {
@@ -1540,7 +1555,14 @@ async function getPageFrame(frame) {
   return null;
 }
 
-const bufferStash = new BufferStash({dropSession: dropBufferSession});
+const bufferStash = new BufferStash({dropSession: dropBufferSession,
+  disk: typeof navigator.storage?.getDirectory === 'function' ? keptBufferDisk() : null});
+// A buffer kept on the disk past the event page's life goes at its time (KeptBufferDisk).
+chrome.alarms?.onAlarm.addListener((alarm) => {
+  if (alarm.name === BufferKeepAlarm) {
+    bufferStash.ready.then(() => bufferStash.expire()).catch((e) => console.warn('Could not let kept buffers go', e));
+  }
+});
 
 /**
  * Keeps two videos on one address apart; the page BUFFER_TAKE told the player, as by its hand-off the frames are the next page's.

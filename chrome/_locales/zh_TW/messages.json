@@ -899,6 +899,12 @@
     "options_general_bufferbehind": {
         "message": "在播放位置後方、修剪前保留緩衝的秒數"
     },
+    "options_general_bufferkeep": {
+        "message": "重新載入或關閉分頁後，已下載影片的保留時間（最長到關閉 Firefox 為止）"
+    },
+    "options_general_bufferkeep_off": {
+        "message": "關閉"
+    },
     "options_general_bufferbehind_zero": {
         "message": "0：已播放的部分會立即釋放；往回跳轉時會重新載入。留空表示無限制。"
     },
@@ -1470,7 +1476,13 @@
         "message": "將長影片保存在磁碟上"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "沒有此權限時，Firefox 最多只允許附加元件儲存 10 GB，因此即使 FastStream 的設定中沒有限制，長影片也無法完整預先下載。FastStream 仍不會超過「預先下載影片最大大小」設定來保存影片，並會在播放器關閉時刪除影片。Firefox 不會就此權限詢問你。"
+        "message": "沒有此權限時，Firefox 最多只允許附加元件儲存 10 GB，因此即使 FastStream 的設定中沒有限制，長影片也無法完整預先下載。FastStream 仍不會超過「預先下載影片最大大小」設定來保存影片，並會在播放器關閉時刪除影片。重新載入或關閉分頁後保留的影片會在設定的時間結束後刪除。Firefox 不會就此權限詢問你。"
+    },
+    "perms_page_breakdown_perm14h": {
+        "message": "準時刪除保留的影片"
+    },
+    "perms_page_breakdown_perm14d": {
+        "message": "重新載入或關閉分頁後保留的影片會在設定的時間結束後刪除，即使已沒有開啟的 FastStream 播放器。Firefox 不會就此權限詢問你。"
     },
     "player_audio_output_label": {
         "message": "音訊輸出"
