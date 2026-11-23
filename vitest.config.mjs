@@ -33,6 +33,7 @@ export default defineConfig({
     // belongs in the WebdriverIO end-to-end suite instead.
     environment: 'node',
     include: ['tests/unit/**/*.test.mjs'],
+    globalSetup: ['tests/unit/helpers/warmPowerShell.mjs'],
     reporters: ['default'],
     coverage: {
       // No repo-wide threshold: most of chrome/player and chrome/background
