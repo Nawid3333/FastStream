@@ -41,7 +41,7 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   for a seek to -3 s that landed on the buffered 0. `keyboard.png` on the welcome page predates version 2
   and is out of date; the text list above it is current.
 - **Shift+A switches autoplay** (2026-11-21, layout version 7). `ToggleAutoplayNext` does what the
-  autoplay switch does (this tab only; the options page sets where a new tab starts) and says the
+  autoplay switch does (saved for every tab: the options page has no autoplay checkbox) and says the
   new state on the video with the mpv notice's words. Shift+A was free, plain A is the 4x preset;
   Ctrl+A would fire inside the player's text fields, where Ctrl combinations still count. mpv's
   own toggle stays Ctrl+A (its Shift+A cycles the aspect ratio). A user's own binding on Shift+A

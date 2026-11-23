@@ -22,7 +22,6 @@ import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 import {holdImportedNumbers, importedForMigration, settingsForExport} from './SettingsFile.mjs';
 import {CloudSettings} from './CloudSettings.mjs';
-import {WebStorage} from '../utils/WebStorage.mjs';
 import {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory, ramBudgetRisky} from './RamGuard.mjs';
 import {BufferAheadMaxSeconds, migrateStorage, optionsForStorageMode, recommendedRamBudget, StorageModes, storageModeOf} from './StorageMode.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
@@ -36,8 +35,7 @@ const playMP4URLs = /** @type {HTMLInputElement} */ (document.getElementById('pl
 const downloadAll = /** @type {HTMLInputElement} */ (document.getElementById('downloadall'));
 const keybindsList = /** @type {HTMLElement} */ (document.getElementById('keybindslist'));
 const autoEnableURLSInput = /** @type {HTMLTextAreaElement} */ (document.getElementById('autoEnableURLs'));
-const mpvModeToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvmode'));
-const mpvModeSectionToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvModeSectionToggle'));
+const mpvModeToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvModeSectionToggle'));
 const mpvAllowlistInput = /** @type {HTMLTextAreaElement} */ (document.getElementById('mpvAllowlist'));
 const mpvPathInput = /** @type {HTMLInputElement} */ (document.getElementById('mpvpath'));
 const mpvFullscreenToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvfullscreen'));
@@ -64,7 +62,6 @@ const bufferAhead = /** @type {HTMLInputElement} */ (document.getElementById('bu
 const bufferBehind = /** @type {HTMLInputElement} */ (document.getElementById('bufferbehind'));
 const bufferKeep = /** @type {HTMLSelectElement} */ (document.getElementById('bufferkeep'));
 const seekStepSize = /** @type {HTMLInputElement} */ (document.getElementById('seekstepsize'));
-const autoplayNext = /** @type {HTMLInputElement} */ (document.getElementById('autoplaynext'));
 const autoplayCountdown = /** @type {HTMLInputElement} */ (document.getElementById('autoplaycountdown'));
 const problemsList = /** @type {HTMLElement} */ (document.getElementById('problemslist'));
 const clearProblemsButton = /** @type {HTMLButtonElement} */ (document.getElementById('clearproblems'));
@@ -129,7 +126,6 @@ let platformKnown = false;
 // Firefox for Android runs no mpv helper: its options are not shown there.
 const showMpvOptions = () => {
   const hidden = EnvUtils.isAndroid();
-  /** @type {HTMLElement} */ (document.getElementById('mpvmoderow')).hidden = hidden;
   /** @type {HTMLElement} */ (document.getElementById('mpvsection')).hidden = hidden;
 };
 showMpvOptions();
@@ -177,7 +173,6 @@ if (!EnvUtils.isExtension()) {
   autoEnableURLSInput.disabled = true;
   customSourcePatterns.disabled = true;
   mpvModeToggle.disabled = true;
-  mpvModeSectionToggle.disabled = true;
   mpvAllowlistInput.disabled = true;
   mpvPathInput.disabled = true;
   mpvFullscreenToggle.disabled = true;
@@ -186,7 +181,6 @@ if (!EnvUtils.isExtension()) {
   mpvAutoplayNextToggle.disabled = true;
   mpvTestButton.disabled = true;
   /** @type {HTMLInputElement} */ (miniSize).disabled = true;
-  autoplayNext.disabled = true;
   autoplayCountdown.disabled = true;
 }
 
@@ -203,7 +197,6 @@ async function loadOptions(newOptions) {
   playStreamURLs.checked = !!Options.playStreamURLs;
   playMP4URLs.checked = !!Options.playMP4URLs;
   mpvModeToggle.checked = !!Options.mpvMode;
-  mpvModeSectionToggle.checked = !!Options.mpvMode;
   mpvAllowlistInput.value = (Options.mpvAllowlist || []).join('\n');
   showIgnoredLines(mpvAllowlistInput, ignoredUrlLines);
   mpvPathInput.value = Options.mpvPath || '';
@@ -216,7 +209,6 @@ async function loadOptions(newOptions) {
   lowerOnDroppedFrames.checked = Options.lowerOnDroppedFrames !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   cycleSubs.checked = !!Options.cycleSubtitles;
-  autoplayNext.checked = !!Options.autoplayNext;
   autoplayCountdown.value = /** @type {string} */ (/** @type {unknown} */ (Options.autoplayCountdown));
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   showSpeed(Options.maxSpeed);
@@ -585,7 +577,6 @@ playStreamURLs.addEventListener('change', () => {
 
 const mpvModeChanged = () => {
   Options.mpvMode = mpvModeToggle.checked;
-  mpvModeSectionToggle.checked = Options.mpvMode;
   optionChanged();
   // The page's own save does not come back through loadOptions.
   if (mpvSuggestion) {
@@ -594,10 +585,6 @@ const mpvModeChanged = () => {
 };
 
 mpvModeToggle.addEventListener('change', mpvModeChanged);
-mpvModeSectionToggle.addEventListener('change', () => {
-  mpvModeToggle.checked = mpvModeSectionToggle.checked;
-  mpvModeChanged();
-});
 
 mpvAllowlistInput.addEventListener('change', (e) => {
   Options.mpvAllowlist = mpvAllowlistInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
@@ -704,12 +691,6 @@ lowerOnDroppedFrames.addEventListener('change', () => {
 
 storeProgress.addEventListener('change', () => {
   Options.storeProgress = storeProgress.checked;
-  optionChanged();
-});
-
-autoplayNext.addEventListener('change', () => {
-  Options.autoplayNext = autoplayNext.checked;
-  WebStorage.remove('session', 'autoplayNext');
   optionChanged();
 });
 

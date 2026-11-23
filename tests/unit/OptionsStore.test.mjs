@@ -108,6 +108,25 @@ describe('OptionsStore.replace', () => {
   });
 });
 
+// The player saves its autoplay switch with it, and has no options form.
+describe('OptionsStore.set', () => {
+  it('reads the options first, then writes only its own key over what is stored', async () => {
+    const saving = OptionsStore.set('autoplayNext', true);
+    resolveLoad({maxSpeed: 5, autoplayNext: false});
+    stored = {...stored, maxSpeed: 9};
+    await saving;
+    expect(stored).toMatchObject({maxSpeed: 9, autoplayNext: true});
+  });
+
+  it('keeps the order of two quick switches', async () => {
+    const loaded = OptionsStore.init();
+    resolveLoad({autoplayNext: false});
+    await loaded;
+    await Promise.all([OptionsStore.set('autoplayNext', true), OptionsStore.set('autoplayNext', false)]);
+    expect(stored.autoplayNext).toBe(false);
+  });
+});
+
 // In the extension a save goes to the background (LOAD_OPTIONS), which tells every tab
 // (UPDATE_OPTIONS) with the save's time, the page that saved included; a dragged slider saves
 // once a frame. An echo of the page's own save taken for a change made elsewhere redrew every
