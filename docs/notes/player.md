@@ -1458,7 +1458,9 @@ in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's
   name it as their parent frame (the player sits in the video's frame), a status question by
   the stream's host, else the newest stream's frame. One slot per tab was not enough (glm's
   review): an advert's frame loading an mp4 directly took over the guess for the video
-  playing. A frame's later loads keep its way current (a direct one only from its scripts,
+  playing. A host the player follows its frame to is that frame's from then on (glm's second
+  pass): otherwise a direct fetch from another frame of the page, with the advert's frame
+  newest, took the host off again. A frame's later loads keep its way current (a direct one only from its scripts,
   styles, images, fonts and media, since a direct fetch may be a content script's), the tab's
   next page starts over, and a subtitle file names no frame (a content script fetches those).
   Without a stream seen, the top page's way is the guess, as before. The "Continue without

@@ -402,6 +402,18 @@ describe('VpnProxyMirror, a video in a frame whose site goes another way than th
     expect(mirror.proxyFor(ownRequest(SEGMENT))?.host).toBe('muc139.m1.fastly-masque.net');
   });
 
+  it('keeps a host the player follows its frame to, when another frame of the page then fetches it directly', () => {
+    const {mirror} = setup();
+    mirror.noteRequest(pageRequest(PAGE, null, {type: 'main_frame'}));
+    mirror.noteSource(inFrame(CDN, vpn()));
+    mirror.noteSource(pageRequest('https://ads.example/spot.mp4', null, {frameId: 8, type: 'media'}));
+    mirror.noteRequest(ownRequest(SEGMENT, {frameId: 9, parentFrameId: 5}));
+    expect(mirror.proxyFor(ownRequest(SEGMENT))?.host).toBe('muc139.m1.fastly-masque.net');
+    // A content script's fetch of a segment the player could not load, in the top frame, which no stream came from.
+    mirror.noteRequest(pageRequest(SEGMENT, null));
+    expect(mirror.proxyFor(ownRequest(SEGMENT))?.host).toBe('muc139.m1.fastly-masque.net');
+  });
+
   it('remembers a bounded number of a page\'s stream frames, the newest always', () => {
     const {mirror} = setup();
     for (let i = 1; i <= 40; i++) mirror.noteSource(inFrame(`https://cdn${i}.example/a.m3u8`, i === 40 ? vpn() : null, {frameId: i}));

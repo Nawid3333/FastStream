@@ -237,11 +237,20 @@ export class VpnProxyMirror {
     }
     tab.ways.delete(frameId);
     tab.ways.set(frameId, way);
-    tab.hosts.delete(host);
-    tab.hosts.set(host, frameId);
     tab.newest = frameId;
     // The oldest go first; never the frame just seen.
     while (tab.ways.size > MaxSourceFrames) tab.ways.delete(/** @type {number} */ (tab.ways.keys().next().value));
+    VpnProxyMirror.noteFrameHost(tab, frameId, host);
+  }
+
+  /**
+   * @param {SourceFrames} tab
+   * @param {number} frameId
+   * @param {string} host
+   */
+  static noteFrameHost(tab, frameId, host) {
+    tab.hosts.delete(host);
+    tab.hosts.set(host, frameId);
     while (tab.hosts.size > MaxSourceFrames) tab.hosts.delete(/** @type {string} */ (tab.hosts.keys().next().value));
   }
 
@@ -270,7 +279,12 @@ export class VpnProxyMirror {
    */
   noteOwnRequest(details, host) {
     const key = this.guessFor(details.tabId, {frameId: details.parentFrameId, host});
-    if (key) this.addHost(VpnProxyMirror.hostKey(details.incognito, host), key, details.tabId);
+    if (!key) return;
+    // The host is that frame's now: a direct fetch from another frame of the page (a content script's) leaves it on.
+    const tab = this.sources.get(details.tabId);
+    const frameId = details.parentFrameId;
+    if (tab && frameId !== undefined && tab.ways.has(frameId)) VpnProxyMirror.noteFrameHost(tab, frameId, host);
+    this.addHost(VpnProxyMirror.hostKey(details.incognito, host), key, details.tabId);
   }
 
   /**
