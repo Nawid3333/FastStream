@@ -174,26 +174,22 @@ describe('the offer to turn MPV mode on', () => {
 
   it('is not offered on Firefox for Android, which runs no helper, and MPV mode and its section are hidden', async () => {
     const desktop = await openOptionsPage({os: 'win'});
-    expect(desktop.byId('mpvmoderow').hidden).toBe(false);
     expect(desktop.byId('mpvsection').hidden).toBe(false);
 
     const page = await openOptionsPage({os: 'android', userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:153.0) Gecko/153.0 Firefox/153.0'});
     expect(page.hostAsked()).toBe(0);
     expect(page.banner().hidden).toBe(true);
-    expect(page.byId('mpvmoderow').hidden).toBe(true);
     expect(page.byId('mpvsection').hidden).toBe(true);
   });
 
   it('hides MPV mode once Firefox says Android, when the user agent is a desktop site\'s', async () => {
     const page = await openOptionsPage({os: 'android', userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0'});
     expect(page.hostAsked()).toBe(0);
-    expect(page.byId('mpvmoderow').hidden).toBe(true);
     expect(page.byId('mpvsection').hidden).toBe(true);
   });
 
   it('shows MPV mode and offers it once Firefox says Windows, when the user agent is set to Android\'s', async () => {
     const page = await openOptionsPage({os: 'win', userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:153.0) Gecko/153.0 Firefox/153.0'});
-    expect(page.byId('mpvmoderow').hidden).toBe(false);
     expect(page.byId('mpvsection').hidden).toBe(false);
     expect(page.hostAsked()).toBe(1);
     expect(page.banner().hidden).toBe(false);
@@ -217,7 +213,6 @@ describe('the offer to turn MPV mode on', () => {
     expect(page.savedOptions().mpvMode).toBe(true);
     // The rest of what was saved stays.
     expect(page.savedOptions().mpvAllowlist).toEqual(['https://mine.example']);
-    expect(page.byId('mpvmode').checked).toBe(true);
     expect(page.byId('mpvModeSectionToggle').checked).toBe(true);
     // In Node a message is its key.
     expect(page.byId('mpvsuggesttext').textContent).toBe('options_mpv_suggest_done');
@@ -237,7 +232,7 @@ describe('the offer to turn MPV mode on', () => {
     page.byId('mpvsuggestyes').fire('click');
     await settle();
     expect(page.banner().hidden).toBe(false);
-    const toggle = page.byId('mpvmode');
+    const toggle = page.byId('mpvModeSectionToggle');
     toggle.checked = false;
     toggle.fire('change');
     await settle();
@@ -248,7 +243,7 @@ describe('the offer to turn MPV mode on', () => {
   it('goes when MPV mode is turned on with the checkbox instead', async () => {
     const page = await openOptionsPage();
     expect(page.banner().hidden).toBe(false);
-    const toggle = page.byId('mpvmode');
+    const toggle = page.byId('mpvModeSectionToggle');
     toggle.checked = true;
     toggle.fire('change');
     await settle();
@@ -260,7 +255,7 @@ describe('the offer to turn MPV mode on', () => {
     const page = await openOptionsPage();
     expect(page.banner().hidden).toBe(false);
     await page.savedElsewhere({mpvMode: true});
-    expect(page.byId('mpvmode').checked).toBe(true);
+    expect(page.byId('mpvModeSectionToggle').checked).toBe(true);
     expect(page.banner().hidden).toBe(true);
   });
 

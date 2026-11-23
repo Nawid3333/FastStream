@@ -472,8 +472,8 @@ export class FastStreamClient extends EventEmitter {
     this.options.miniPos = options.miniPos;
     this.options.maximumDownloaders = options.maximumDownloaders;
 
-    const autoplayNext = WebStorage.get('session', 'autoplayNext');
-    this.options.autoplayNext = autoplayNext !== null ? autoplayNext === 'true' : options.autoplayNext;
+    // Off in a tab whose countdown was stopped (InterfaceController.stopAutoplayInTab).
+    this.options.autoplayNext = WebStorage.get('session', 'autoplayStopped') === 'true' ? false : options.autoplayNext;
     // The next-episode banner's countdown (ProgressBar); 0 turns the banner off.
     this.options.autoplayCountdown = /** @type {{autoplayCountdown: number}} */ (options).autoplayCountdown;
 

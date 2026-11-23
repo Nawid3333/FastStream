@@ -3216,6 +3216,32 @@ describe('FastStreamClient, the player-core audit', () => {
     expect(client.options.autoplayNext).toBe(true);
   });
 
+  it('follows the saved autoplay over an older build value for the tab, and keeps a stopped countdown off', () => {
+    vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
+    // Before the switch was saved it wrote sessionStorage autoplayNext, which outlives an update in its tab.
+    const session = {autoplayNext: 'true'};
+    vi.stubGlobal('sessionStorage', {
+      setItem: (key, value) => {
+        session[key] = value;
+      },
+      getItem: (key) => session[key] ?? null,
+      removeItem: (key) => {
+        delete session[key];
+      },
+    });
+    const client = makeClient();
+    client.videoAnalyzer.disable = vi.fn();
+    client.interfaceController.updateAutoNextIndicator = vi.fn();
+    client.loadProgressData = vi.fn(async () => {});
+
+    client.setOptions({autoplayNext: false});
+    expect(client.options.autoplayNext).toBe(false);
+
+    session.autoplayStopped = 'true';
+    client.setOptions({autoplayNext: true});
+    expect(client.options.autoplayNext).toBe(false);
+  });
+
   it('lets go of a seek preview that failed while it was built, and keeps none', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const client = makeClient({previewEnabled: true});

@@ -24,6 +24,7 @@ import {LanguageChanger} from './menus/LanguageChanger.mjs';
 import {LoopMenu} from './menus/LoopMenu.mjs';
 import {PlaybackRateChanger} from './menus/PlaybackRateChanger.mjs';
 import {VideoQualityChanger} from './menus/VideoQualityChanger.mjs';
+import {OptionsStore} from '../options/OptionsStore.mjs';
 import {OptionsWindow} from './OptionsWindow.mjs';
 import {ProgressBar} from './ProgressBar.mjs';
 import {SaveManager} from './SaveManager.mjs';
@@ -759,9 +760,22 @@ export class InterfaceController {
     });
   }
 
+  /**
+   * The autoplay switch and its key: saved, so every player and every new tab follow it.
+   * @return {Promise<void>} Once saved.
+   */
   toggleAutoplayNext() {
-    this.client.options.autoplayNext = !this.client.options.autoplayNext;
-    WebStorage.set('session', 'autoplayNext', String(this.client.options.autoplayNext));
+    const on = !this.client.options.autoplayNext;
+    this.client.options.autoplayNext = on;
+    WebStorage.remove('session', 'autoplayStopped');
+    this.updateAutoNextIndicator();
+    return OptionsStore.set('autoplayNext', on).catch((e) => console.error('Saving autoplay failed', e));
+  }
+
+  /** The countdown's stop: autoplay off in this tab only, until it is switched again. */
+  stopAutoplayInTab() {
+    this.client.options.autoplayNext = false;
+    WebStorage.set('session', 'autoplayStopped', 'true');
     this.updateAutoNextIndicator();
   }
 
