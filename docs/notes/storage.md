@@ -580,7 +580,11 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   lets its Blobs go and deletes its session directory (the background sees the iframe's OPFS:
   measured). A newer hand-off of the same key replaces an older one. If the event page itself
   goes first, its RAM goes with it, and the directory waits for the 60 s prune. Measured: a stash
-  in the event page survives 25 s with nothing else happening.
+  in the event page survives 25 s with nothing else happening. Each record's timer lets go of that record
+  (`BufferStash.timerFor`), not of whatever `Date.now()` says is due: until 2026-11-23 it called `expire()`,
+  and with the wall clock behind the timer nothing was due, no timer was left, and the files waited for the
+  prune (`BufferStash.test.mjs`, a clock 50 ms behind). The likely cause, not proven, of `reload-keeps-buffer.e2e`
+  finding the directory still there at 22 s on CI (33 retries in the week to 2026-11-23, 30 green on the retry). `expire()` is the alarm's, for an event page loaded again.
 - **Kept longer than 20 s, it goes to the disk** (`KeptBufferDisk.mjs`), because the event page does
   not live that long. Measured in Firefox 159 (an add-on probe): an idle event page is stopped after
   `extensions.background.idle.timeout` (30 s; stopped at 29.8 s while it wrote OPFS files and called
