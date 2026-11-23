@@ -96,8 +96,8 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       mediabunny:
-        specifier: 1.66.0
-        version: 1.66.0
+        specifier: 1.66.2
+        version: 1.66.2
       mp4box:
         specifier: 2.6.0
         version: 2.6.0(patch_hash=542057760692c3d6c585c48450917f5ac9c334d4087b549f80ae7f07b7c31aff)
@@ -2376,8 +2376,8 @@ packages:
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
 
-  mediabunny@1.66.0:
-    resolution: {integrity: sha512-0Zff/qLkY1ZRyjBEt2vQjLeMigmU/dFKwJLpiPyCiskIel2f2R2kqMxaLYbeHN+rmyz4PVwwLSnU9anjUHHeJQ==}
+  mediabunny@1.66.2:
+    resolution: {integrity: sha512-NTzRrBhAyRVi8qpJ9AH6XPyxiDVkfugxYY+gu3Z5zi+Nw2R/7nTAnXJEt2Ucy8wTIve1/UYGnCFf50x2LpvMDQ==}
 
   minimatch@11.0.4:
     resolution: {integrity: sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==}
@@ -5437,7 +5437,7 @@ snapshots:
 
   mdn-data@2.27.1: {}
 
-  mediabunny@1.66.0:
+  mediabunny@1.66.2:
     dependencies:
       '@types/dom-mediacapture-transform': 0.1.12
       '@types/dom-webcodecs': 0.1.13
