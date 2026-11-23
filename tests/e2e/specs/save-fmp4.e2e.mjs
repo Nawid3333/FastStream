@@ -118,15 +118,26 @@ function sourceFrameCount() {
  * @return {Object} {frames, start} per codec type ('video', 'audio').
  */
 function fixtureStreams(name, index = 'index.m3u8') {
-  const {stdout, error} = spawnSync('ffprobe', [
-    '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,start_time',
-    '-of', 'json', path.join(fixturesDir, name, index),
-  ], {encoding: 'utf8'});
-  if (error) {
-    throw new Error(`ffprobe must be on PATH to count a fixture's frames: ${error.message}`);
+  const probe = (entries, format) => {
+    const {stdout, error} = spawnSync('ffprobe', [
+      '-v', 'error', ...entries, '-of', format, path.join(fixturesDir, name, index),
+    ], {encoding: 'utf8'});
+    if (error) {
+      throw new Error(`ffprobe must be on PATH to count a fixture's frames: ${error.message}`);
+    }
+    return stdout;
+  };
+  // Each kind starts at its earliest packet: since ffmpeg 9.1, ffprobe gives every stream of an
+  // HLS playlist the same start_time, the earliest of them.
+  const starts = {};
+  for (const line of probe(['-show_entries', 'packet=codec_type,pts_time'], 'csv=p=0').split('\n')) {
+    const [type, time] = line.trim().split(',');
+    const pts = Number(time);
+    if (type && Number.isFinite(pts)) starts[type] = Math.min(starts[type] ?? Infinity, pts);
   }
-  return Object.fromEntries(JSON.parse(stdout).streams.map((stream) =>
-    [stream.codec_type, {frames: Number(stream.nb_read_frames), start: Number(stream.start_time)}]));
+  const streams = JSON.parse(probe(['-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames'], 'json')).streams;
+  return Object.fromEntries(streams.map((stream) =>
+    [stream.codec_type, {frames: Number(stream.nb_read_frames), start: starts[stream.codec_type]}]));
 }
 
 const HLS_OUTPUT = [
