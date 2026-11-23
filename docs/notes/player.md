@@ -2000,8 +2000,9 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   page's checkbox is gone; the player's switch and Shift+A save `autoplayNext` through
   `OptionsStore.set`, which writes that one key over what is stored, so every open player and
   every new tab follow it. The countdown's stop (its cross) holds for its tab only: a
-  sessionStorage `autoplayNext` of "false", which `setOptions` reads before the saved setting,
-  until the switch is used again in that tab. The countdown's length stays on the options page;
+  sessionStorage `autoplayStopped` of "true", which `setOptions` reads before the saved setting,
+  until the switch is used again in that tab. A key of its own: the `autoplayNext` the switch wrote
+  before outlives an update in its tab, and would have held that tab against the saved setting. The countdown's length stays on the options page;
   MPV autoplay keeps its own checkbox, its only switch without mpv-config's button.
   `interfaceControllerAudit.test.mjs`, `player-controls.e2e.mjs`.
 

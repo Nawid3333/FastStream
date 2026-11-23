@@ -767,7 +767,7 @@ export class InterfaceController {
   toggleAutoplayNext() {
     const on = !this.client.options.autoplayNext;
     this.client.options.autoplayNext = on;
-    WebStorage.remove('session', 'autoplayNext');
+    WebStorage.remove('session', 'autoplayStopped');
     this.updateAutoNextIndicator();
     return OptionsStore.set('autoplayNext', on).catch((e) => console.error('Saving autoplay failed', e));
   }
@@ -775,7 +775,7 @@ export class InterfaceController {
   /** The countdown's stop: autoplay off in this tab only, until it is switched again. */
   stopAutoplayInTab() {
     this.client.options.autoplayNext = false;
-    WebStorage.set('session', 'autoplayNext', 'false');
+    WebStorage.set('session', 'autoplayStopped', 'true');
     this.updateAutoNextIndicator();
   }
 

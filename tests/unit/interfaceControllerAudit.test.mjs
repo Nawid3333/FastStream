@@ -175,7 +175,7 @@ describe('InterfaceController, the autoplay switch', () => {
     self.stopAutoplayInTab();
     expect(self.client.options.autoplayNext).toBe(false);
     expect(saved).toHaveBeenCalledTimes(1);
-    expect(session.get('session:autoplayNext')).toBe('false');
+    expect(session.get('session:autoplayStopped')).toBe('true');
 
     // Switched on again in this tab: saved, and the tab's own value is gone.
     await self.toggleAutoplayNext();
