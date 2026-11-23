@@ -230,6 +230,14 @@ describe('the options page\'s controls', () => {
     expect(unlabelled.map((field) => field.id || field.className)).toEqual([]);
   });
 
+  it('has one MPV mode checkbox, and leaves autoplay to the player\'s switch but keeps its countdown', () => {
+    const checkboxes = doc.querySelectorAll('input').filter((field) => field.getAttribute('type') === 'checkbox');
+    const labelled = (key) => checkboxes.filter((field) => field.dataset.i18nLabel === key).map((field) => field.id);
+    expect(labelled('options_mpv_toggle')).toEqual(['mpvModeSectionToggle']);
+    expect(labelled('options_general_autoplaynext')).toEqual([]);
+    expect(byId('autoplaycountdown')).not.toBe(null);
+  });
+
   it('hides the Welcome Page link in the web build, which has no welcome page', () => {
     expect(byId('welcomeitem').style.display).toBe('none');
     expect(byId('welcomeitem').querySelector('#welcome')).not.toBe(null);

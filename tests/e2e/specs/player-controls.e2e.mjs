@@ -356,7 +356,7 @@ describe('Player controls', function() {
     expect(await settle(banner, (display) => display === 'none')).toBe('none');
   });
 
-  it('counts down as long as the options say, and its cross stops autoplay for the tab', async function() {
+  it('counts down as long as the options say, and its cross stops autoplay for the tab, not the saved setting', async function() {
     // His choice: a countdown before the next episode, which can be stopped.
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -365,8 +365,11 @@ describe('Player controls', function() {
       banner: document.querySelector('.mainplayer .next_video_button').style.display,
       cancel: document.querySelector('.mainplayer .next_video_cancel').style.display,
       autoplay: window.fastStream.options.autoplayNext,
+      session: sessionStorage.getItem('autoplayStopped'),
+      saved: JSON.parse(localStorage.getItem('options') || '{}').autoplayNext ?? null,
     }));
     await browser.execute(() => {
+      sessionStorage.removeItem('autoplayStopped');
       const client = window.fastStream;
       client.options.autoplayNext = true;
       client.options.autoplayCountdown = 0;
@@ -375,18 +378,22 @@ describe('Player controls', function() {
     });
     // 0: no countdown, the next video comes at the end.
     await browser.pause(1000);
-    expect(await read()).toEqual({banner: 'none', cancel: 'none', autoplay: true});
+    const savedBefore = (await read()).saved;
+    expect(await read()).toEqual({banner: 'none', cancel: 'none', autoplay: true, session: null, saved: savedBefore});
 
     await browser.execute(() => {
       window.fastStream.options.autoplayCountdown = 5;
       window.fastStream.currentTime = window.fastStream.duration - 3;
     });
-    expect(await settle(read, (r) => r.banner === '')).toEqual({banner: '', cancel: '', autoplay: true});
+    expect(await settle(read, (r) => r.banner === '')).toEqual({banner: '', cancel: '', autoplay: true, session: null,
+      saved: savedBefore});
     await browser.execute(() => document.querySelector('.mainplayer .next_video_cancel').click());
-    expect(await settle(read, (r) => r.banner === 'none')).toEqual({banner: 'none', cancel: 'none', autoplay: false});
+    expect(await settle(read, (r) => r.banner === 'none')).toEqual({banner: 'none', cancel: 'none', autoplay: false,
+      session: 'true', saved: savedBefore});
+    await browser.execute(() => sessionStorage.removeItem('autoplayStopped'));
   });
 
-  it('turns autoplay next on and off with its switch, which is always in the bar', async function() {
+  it('turns autoplay next on and off with its switch, which is always in the bar, and saves it', async function() {
     // Autoplay's switch is a tool of its own, there also where no next link was found.
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -399,11 +406,14 @@ describe('Player controls', function() {
       return {shown: shown(toggle), next: shown(document.querySelector('.mainplayer .fluid_button_next')),
         icon: play && !pause ? 'play' : pause && !play ? 'pause' : 'both or none',
         checked: toggle.getAttribute('aria-checked'), option: window.fastStream.options.autoplayNext,
-        session: sessionStorage.getItem('autoplayNext'),
+        session: sessionStorage.getItem('autoplayStopped'), saved: JSON.parse(localStorage.getItem('options') || '{}').autoplayNext ?? null,
         badge: document.querySelector('.mainplayer .nextvideo_banner').style.display};
     });
     await browser.execute(() => {
-      sessionStorage.removeItem('autoplayNext');
+      sessionStorage.removeItem('autoplayStopped');
+      // Saved off, and an older build's value for the tab, which the saved setting wins over.
+      sessionStorage.setItem('autoplayNext', 'true');
+      localStorage.setItem('options', JSON.stringify({...JSON.parse(localStorage.getItem('options') || '{}'), autoplayNext: false}));
       window.fastStream.options.autoplayNext = false;
       window.fastStream.interfaceController.updateAutoNextIndicator();
       window.fastStream.hasNextVideo = () => false;
@@ -411,26 +421,33 @@ describe('Player controls', function() {
     });
     // No next link known: the next button is gone, the switch is not.
     expect(await read()).toEqual({shown: true, next: false, icon: 'pause', checked: 'false', option: false,
-      session: null, badge: 'none'});
+      session: null, saved: false, badge: 'none'});
 
     await (await browser.$('.mainplayer .fluid_autoplay_switch')).click();
-    expect(await read()).toEqual({shown: true, next: false, icon: 'play', checked: 'true', option: true,
-      session: 'true', badge: ''});
+    expect(await settle(read, (r) => r.saved === true)).toEqual({shown: true, next: false, icon: 'play', checked: 'true',
+      option: true, session: null, saved: true, badge: ''});
 
     await browser.execute(() => {
       window.fastStream.hasNextVideo = () => true;
       window.fastStream.interfaceController.updateToolVisibility();
     });
     expect(await read()).toEqual({shown: true, next: true, icon: 'play', checked: 'true', option: true,
-      session: 'true', badge: ''});
+      session: null, saved: true, badge: ''});
 
     // Space presses a control only with keyboard focus (focusVisible); after a mouse click it is
     // play/pause.
     await browser.execute(() => /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_autoplay_switch'))
         .focus(/** @type {FocusOptions} */ ({focusVisible: true})));
+    // main.mjs reloads the options after the save, and setOptions then reads the tab's old value too.
+    await browser.execute(() => {
+      window.fastStream.optionsApplied = false;
+    });
     await browser.keys([' ']);
-    expect(await read()).toEqual({shown: true, next: true, icon: 'pause', checked: 'false', option: false,
-      session: 'false', badge: 'none'});
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.optionsApplied),
+        {timeout: 10000, timeoutMsg: 'the player never loaded the saved options again'});
+    expect(await settle(read, (r) => r.saved === false)).toEqual({shown: true, next: true, icon: 'pause', checked: 'false',
+      option: false, session: null, saved: false, badge: 'none'});
+    await browser.execute(() => sessionStorage.removeItem('autoplayNext'));
   });
 
   it('goes on to the next video when the stream gets stuck in its last seconds', async function() {
