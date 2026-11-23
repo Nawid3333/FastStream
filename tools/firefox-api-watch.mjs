@@ -86,7 +86,8 @@ export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c',
  *   with an item that has a key not reported before is news, even when it merged with items
  *   that were reported. A note reworded under the same bug is not.
  * @typedef {{id: string, area: string, priority: Level, kind: Kind, keywords: RegExp[], bcd: string[], modules: string[]}} Topic
- * @typedef {{topics: Topic[], bugzilla: {coreComponents: string[], coreKeywords: string[], coreSummary: RegExp,
+ * @typedef {{topics: Topic[], bugzilla: {firefoxComponents: string[], firefoxSummary: RegExp, firefoxExcludeSummary: RegExp,
+ *   coreComponents: string[], coreKeywords: string[], coreSummary: RegExp,
  *   excludeSummary: RegExp, android: RegExp, desktop: RegExp}, excludeText: RegExp, androidText: RegExp, desktopText: RegExp,
  *   stopIdentifiers: string[]}} Config
  *   The patterns are RegExp literals (firefox-api-watch.topics.mjs), without the g flag: test()
@@ -571,16 +572,20 @@ export function bugzillaItems(json, config, namespaces) {
     const keywords = Array.isArray(bug?.keywords) ? bug.keywords.map(String) : [];
     const flagged = keywords.some((k) => config.coreKeywords.includes(k));
     const webext = isWebExtensionsBug(`${product}: ${component}`);
+    const firefox = product === 'Firefox' && config.firefoxComponents.includes(component);
+    if (firefox && !flagged && (!config.firefoxSummary.test(summary) || config.firefoxExcludeSummary.test(summary))) continue;
     const namesAndroid = config.android.test(summary);
     // Firefox for Android is a bonus platform: of its bugs only the WebExtensions ones are read.
     if (namesAndroid && !webext) continue;
     // Android's alone: filed for it, or naming it and no desktop platform.
     const android = component === 'Android' || product === AndroidBugs.product || (namesAndroid && !config.desktop.test(summary));
-    if (!webext && !flagged && !coreSummary.test(summary)) continue;
+    if (!webext && !flagged && !firefox && !coreSummary.test(summary)) continue;
     const identifiers = namesIn(summary);
     const ns = identifiers.map((n) => n.split('.')[0]).filter((n) => namespaces.has(n));
     items.push({
-      source: 'bugzilla', title: `Bug ${id}: ${summary}`, detail: '', section: `${product}: ${component}`, bugs: [id],
+      // A Firefox component's name is what tells its topic: its summaries rarely name it.
+      source: 'bugzilla', title: `Bug ${id}: ${summary}`, detail: firefox ? `Firefox: ${component}` : '',
+      section: `${product}: ${component}`, bugs: [id],
       bcd: [], links: [], identifiers, textKey: '', experimental: false,
       removal: /^(remove|drop|deprecate)\b/i.test(summary), flagged: flagged || ns.length > 0,
       ...(android ? {android: true} : {}),
@@ -1398,9 +1403,10 @@ async function bugzillaFor(version, config, namespaces, fetchOptions) {
   const webext = `${Urls.bugzilla}?product=WebExtensions&${common}`;
   const core = `${Urls.bugzilla}?product=Core&${config.bugzilla.coreComponents.map((c) => `component=${encodeURIComponent(c)}`).join('&')}&${common}`;
   const android = `${Urls.bugzilla}?product=${encodeURIComponent(AndroidBugs.product)}&component=${encodeURIComponent(AndroidBugs.component)}&${common}`;
+  const firefox = `${Urls.bugzilla}?product=Firefox&${config.bugzilla.firefoxComponents.map((c) => `component=${encodeURIComponent(c)}`).join('&')}&${common}`;
   /** @type {RawItem[]} */
   const items = [];
-  for (const url of [webext, core, android]) {
+  for (const url of [webext, core, android, firefox]) {
     const json = await getJson(url, fetchOptions);
     if (json?.error) throw new SourceError(`${url.split('?')[0]}: ${String(json.message ?? 'error').slice(0, 120)}`, false);
     // As many as asked for: the list may have been cut, and what is missing would go unseen.
@@ -1489,8 +1495,8 @@ export function tempPath(dir, env = process.env) {
 
 /**
  * Mozilla's sources from files, for the workflow test (FFW_FIXTURES): versions.json, majors.json, <version>.md,
- * webextensions-<version>.json, core-<version>.json, android-<version>.json, feed.xml, bcd.json; anything else
- * answers 404.
+ * webextensions-<version>.json, core-<version>.json, android-<version>.json, firefox-<version>.json, feed.xml,
+ * bcd.json; anything else answers 404.
  * @param {string} dir - From tempPath.
  * @return {typeof fetch}
  */
@@ -1507,8 +1513,8 @@ export function fixtureFetch(dir) {
     if (url === Urls.feed) return file('feed.xml');
     const notes = /\/releases\/(\d{2,4})\/index\.md$/.exec(url);
     if (notes) return file(`${notes[1]}.md`);
-    const bugs = /^https:\/\/bugzilla\.mozilla\.org\/rest\/bug\?product=(WebExtensions|Core|Firefox%20for%20Android)&.*cf_status_firefox(\d{2,4})&/.exec(url);
-    if (bugs) return file(`${{'Core': 'core', 'WebExtensions': 'webextensions'}[bugs[1]] ?? 'android'}-${bugs[2]}.json`);
+    const bugs = /^https:\/\/bugzilla\.mozilla\.org\/rest\/bug\?product=(WebExtensions|Core|Firefox%20for%20Android|Firefox)&.*cf_status_firefox(\d{2,4})&/.exec(url);
+    if (bugs) return file(`${{'Core': 'core', 'WebExtensions': 'webextensions', 'Firefox': 'firefox'}[bugs[1]] ?? 'android'}-${bugs[2]}.json`);
     return new Response('', {status: 404});
   });
 }

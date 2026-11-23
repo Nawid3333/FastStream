@@ -1443,6 +1443,30 @@ in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's
   `firefox-vpn.e2e.mjs`'s VPN stand-in is a plain http proxy (Firefox sends the token only to
   an https one). The first version of this fix dropped every proxy without a token, and that
   spec failed. `tests/unit/VpnProxyMirror.test.mjs` fails without it.
+- **The guess follows the video's frame, not the top page** (2026-11-23, for Firefox 160's
+  per-tab rules and 161's site inclusions, read in Firefox 161's `IPPChannelFilter.shouldProxy`;
+  the same in 162 and 163). Firefox decides by the *loading* document's site: a frame's own
+  loads go by its site's rule, the frame's document by its embedder's, and moz-extension
+  requests never go through the VPN, in every mode. 161 adds "always use the VPN" rules: with
+  one, the VPN runs for those sites only (`MODE_INCLUSION`), even with its switch off. So with
+  only the page's site included, a hoster's player in a frame loads its stream directly while
+  the top page goes through the VPN. The old guess took the top page's way, reported such a
+  stream as coming through the VPN (the "Play through Firefox VPN" button), and with the
+  permission sent FastStream through the VPN while the frame went direct: a stream tied to
+  the address that asked failed. Now the way of each frame a stream came from is kept
+  (`sources`, at most 32 a page), and `guessFor` picks the frame: the player's own requests
+  name it as their parent frame (the player sits in the video's frame), a status question by
+  the stream's host, else the newest stream's frame. One slot per tab was not enough (glm's
+  review): an advert's frame loading an mp4 directly took over the guess for the video
+  playing. A host the player follows its frame to is that frame's from then on (glm's second
+  pass): otherwise a direct fetch from another frame of the page, with the advert's frame
+  newest, took the host off again. A frame's later loads keep its way current (a direct one only from its scripts,
+  styles, images, fonts and media, since a direct fetch may be a content script's), the tab's
+  next page starts over, and a subtitle file names no frame (a content script fetches those).
+  Without a stream seen, the top page's way is the guess, as before. The "Continue without
+  VPN" page's tab rule (160: every site in that tab; 163: only that site, until the tab
+  leaves it) is one more case of the same rule. A tracker-only mode (`MODE_TRACKER`) exists
+  in the code but nothing sets it outside Firefox's own tests (searched 2026-11-23).
 - **Only where needed.** Hosts are added when FastStream fetches them (a detected source, its
   own request in a tab whose page went through the VPN), at most 200; the listener asks for
   those hosts only. A host goes off the list once its tab's page, loaded again, reaches it
@@ -1467,6 +1491,13 @@ in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's
 - **Tests.** `tests/unit/VpnProxyMirror.test.mjs`; `tests/e2e/ext-specs/firefox-vpn.e2e.mjs`
   (a helper add-on plays the VPN: page requests only, through a local proxy, to a host no DNS
   answers). With `proxyFor` disabled, its two playback tests fail.
+- **What CI can and cannot see.** The VPN needs a Mozilla account, so no workflow runs the
+  real one: the Beta and Stable e2e runs (`firefox-beta.yml`, `firefox-stable.yml`) only
+  catch a change to the WebExtension parts the mirror uses (`proxy.onRequest`, webRequest's
+  `proxyInfo`), through the stand-in. A change to which requests the VPN carries reaches the
+  owner through `firefox-api-watch.yml`, which reads the fixed bugs of Bugzilla's
+  "Firefox: IP Protection" component about rules, modes, the proxy and add-ons (not its
+  interface's) into the release's review issue.
 
 ## A copy-protected video stays in the page's player
 

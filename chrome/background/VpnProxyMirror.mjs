@@ -17,6 +17,23 @@ const MaxHosts = 200;
 const PageLoadTypes = ['main_frame', 'sub_frame', 'script', 'stylesheet', 'image', 'font', 'media'];
 
 /**
+ * A frame's own loads, not its document: Firefox VPN decides by the loading document's site,
+ * so a frame's document goes its embedder's way.
+ */
+const FrameLoadTypes = ['script', 'stylesheet', 'image', 'font', 'media'];
+
+/** Per tab: a page with more frames or streams than this is not one a person watches. */
+const MaxSourceFrames = 32;
+
+/**
+ * The frames of a tab's page that streams came from.
+ * @typedef {Object} SourceFrames
+ * @property {Map<number, string>} ways - The way each frame's loads go: a Firefox VPN proxy's key, '' for any other.
+ * @property {Map<string, number>} hosts - A stream's host, and the frame it last came from.
+ * @property {number} newest - The frame of the newest stream.
+ */
+
+/**
  * @typedef {{type: string, host: string, port: number, proxyAuthorizationHeader?: string,
  *   connectionIsolationKey?: string, failoverTimeout?: number}} ProxyInfo
  */
@@ -56,6 +73,8 @@ export class VpnProxyMirror {
     this.hosts = new Map();
     /** @type {Map<number, string>} */
     this.tabs = new Map();
+    /** @type {Map<number, SourceFrames>} */
+    this.sources = new Map();
     /** @type {Map<string, SeenProxy>} */
     this.proxies = new Map();
     this.permitted = false;
@@ -118,6 +137,7 @@ export class VpnProxyMirror {
    */
   forgetUnusedProxies(keep) {
     const used = new Set([keep, ...this.tabs.values()]);
+    for (const tab of this.sources.values()) for (const key of tab.ways.values()) used.add(key);
     for (const entry of this.hosts.values()) used.add(entry.key);
     for (const key of this.proxies.keys()) {
       if (!used.has(key)) this.proxies.delete(key);
@@ -126,7 +146,7 @@ export class VpnProxyMirror {
 
   /**
    * A host goes off once its own tab's page reaches it directly: a content script's fetch, or another tab, may go direct by itself.
-   * @param {{url: string, tabId: number, frameId?: number, type?: string, incognito?: boolean,
+   * @param {{url: string, tabId: number, frameId?: number, parentFrameId?: number, type?: string, incognito?: boolean,
    *   originUrl?: string, documentUrl?: string, proxyInfo?: ?ProxyInfo}} details
    */
   noteRequest(details) {
@@ -138,11 +158,13 @@ export class VpnProxyMirror {
     }
     const hostKey = VpnProxyMirror.hostKey(details.incognito, host);
     const key = this.rememberProxy(details.proxyInfo);
+    if (details.tabId >= 0) this.noteFrameLoad(details, key);
     if (!key) {
       // The top frame's: a frame of a site left out of the VPN loads its parts directly.
       if (details.frameId === 0 && PageLoadTypes.includes(details.type || '')) this.tabs.delete(details.tabId);
       const entry = this.hosts.get(hostKey);
-      if (entry && details.tabId >= 0 && entry.tabId === details.tabId && !this.tabs.has(details.tabId)) {
+      if (entry && details.tabId >= 0 && entry.tabId === details.tabId &&
+          !this.guessFor(details.tabId, {frameId: details.frameId, host})) {
         this.hosts.delete(hostKey);
         this.updateListener();
       }
@@ -171,25 +193,98 @@ export class VpnProxyMirror {
   }
 
   /**
-   * @param {{url: string, tabId: number, incognito?: boolean, originUrl?: string,
-   *   documentUrl?: string, proxyInfo?: ?ProxyInfo}} details
+   * A new page starts over; later, a stream's frame's own loads tell its way (the VPN turned off or on for its site).
+   * @param {{tabId: number, frameId?: number, type?: string, proxyInfo?: ?ProxyInfo}} details
+   * @param {?string} key
    */
-  noteSource(details) {
+  noteFrameLoad(details, key) {
+    if (details.type === 'main_frame') {
+      this.sources.delete(details.tabId);
+      return;
+    }
+    const ways = this.sources.get(details.tabId)?.ways;
+    const frameId = details.frameId ?? 0;
+    if (!ways?.has(frameId) || details.type === 'sub_frame') return;
+    // Firefox VPN's never carries a content script's fetch, and a content script's may go direct or through a PAC file's.
+    if (key && details.proxyInfo?.proxyAuthorizationHeader) ways.set(frameId, key);
+    else if (FrameLoadTypes.includes(details.type || '')) ways.set(frameId, '');
+  }
+
+  /**
+   * @param {{url: string, tabId: number, frameId?: number, incognito?: boolean, originUrl?: string,
+   *   documentUrl?: string, proxyInfo?: ?ProxyInfo}} details
+   * @param {{stream?: boolean}} [options] - Not a stream (a subtitle file, which a content script may fetch): its way is not the frame's.
+   */
+  noteSource(details, {stream = true} = {}) {
     const host = hostOf(details.url);
     if (!host || details.tabId < 0 || this.isOwnRequest(details)) return;
     const key = this.rememberProxy(details.proxyInfo);
+    if (stream) this.noteSourceFrame(details.tabId, details.frameId ?? 0, host, key && details.proxyInfo?.proxyAuthorizationHeader ? key : '');
     if (key) this.addHost(VpnProxyMirror.hostKey(details.incognito, host), key, details.tabId);
   }
 
   /**
+   * @param {number} tabId
+   * @param {number} frameId
+   * @param {string} host
+   * @param {string} way
+   */
+  noteSourceFrame(tabId, frameId, host, way) {
+    let tab = this.sources.get(tabId);
+    if (!tab) {
+      tab = {ways: new Map(), hosts: new Map(), newest: frameId};
+      this.sources.set(tabId, tab);
+    }
+    tab.ways.delete(frameId);
+    tab.ways.set(frameId, way);
+    tab.newest = frameId;
+    // The oldest go first; never the frame just seen.
+    while (tab.ways.size > MaxSourceFrames) tab.ways.delete(/** @type {number} */ (tab.ways.keys().next().value));
+    VpnProxyMirror.noteFrameHost(tab, frameId, host);
+  }
+
+  /**
+   * @param {SourceFrames} tab
+   * @param {number} frameId
+   * @param {string} host
+   */
+  static noteFrameHost(tab, frameId, host) {
+    tab.hosts.delete(host);
+    tab.hosts.set(host, frameId);
+    while (tab.hosts.size > MaxSourceFrames) tab.hosts.delete(/** @type {string} */ (tab.hosts.keys().next().value));
+  }
+
+  /**
+   * Firefox VPN decides by the site of the frame that loads: the way of the frame a stream came from, else the page's.
+   * Which frame: the one asking (the player's own requests name its frame as their parent), else the one the host's
+   * stream came from, else the newest stream's.
+   * @param {number|undefined} tabId
+   * @param {{frameId?: number, host?: string}} [from]
+   * @return {string|undefined} The key of the Firefox VPN proxy a host the page was not seen asking would go through.
+   */
+  guessFor(tabId, {frameId, host} = {}) {
+    if (tabId === undefined || tabId < 0) return undefined;
+    const tab = this.sources.get(tabId);
+    if (!tab) return this.tabs.get(tabId);
+    let frame = frameId !== undefined && tab.ways.has(frameId) ? frameId : undefined;
+    if (frame === undefined && host) frame = tab.hosts.get(host);
+    if (frame === undefined || !tab.ways.has(frame)) frame = tab.newest;
+    return tab.ways.get(frame) || undefined;
+  }
+
+  /**
    * From the next request on: the proxy is chosen before webRequest hears of a request.
-   * @param {{tabId: number, incognito?: boolean}} details
+   * @param {{tabId: number, parentFrameId?: number, incognito?: boolean}} details
    * @param {string} host
    */
   noteOwnRequest(details, host) {
-    if (details.tabId < 0) return;
-    const key = this.tabs.get(details.tabId);
-    if (key) this.addHost(VpnProxyMirror.hostKey(details.incognito, host), key, details.tabId);
+    const key = this.guessFor(details.tabId, {frameId: details.parentFrameId, host});
+    if (!key) return;
+    // The host is that frame's now: a direct fetch from another frame of the page (a content script's) leaves it on.
+    const tab = this.sources.get(details.tabId);
+    const frameId = details.parentFrameId;
+    if (tab && frameId !== undefined && tab.ways.has(frameId)) VpnProxyMirror.noteFrameHost(tab, frameId, host);
+    this.addHost(VpnProxyMirror.hostKey(details.incognito, host), key, details.tabId);
   }
 
   /**
@@ -221,6 +316,7 @@ export class VpnProxyMirror {
    */
   forgetTab(tabId) {
     this.tabs.delete(tabId);
+    this.sources.delete(tabId);
     let changed = false;
     for (const [hostKey, entry] of this.hosts) {
       if (entry.tabId === tabId) {
@@ -240,7 +336,7 @@ export class VpnProxyMirror {
   proxyForUrl(url, incognito, tabId) {
     const host = hostOf(url);
     let key = host ? this.hosts.get(VpnProxyMirror.hostKey(incognito, host))?.key : undefined;
-    if (!key && tabId !== undefined && tabId >= 0) key = this.tabs.get(tabId);
+    if (!key) key = this.guessFor(tabId, {host});
     return key ? this.proxies.get(key) || null : null;
   }
 
@@ -252,7 +348,7 @@ export class VpnProxyMirror {
    */
   status(url, incognito, tabId) {
     const host = hostOf(url);
-    const tabKey = tabId !== undefined && tabId >= 0 ? this.tabs.get(tabId) : undefined;
+    const tabKey = this.guessFor(tabId, {host});
     if (host && tabKey && !this.hosts.has(VpnProxyMirror.hostKey(incognito, host))) {
       this.addHost(VpnProxyMirror.hostKey(incognito, host), tabKey, /** @type {number} */ (tabId));
     }
