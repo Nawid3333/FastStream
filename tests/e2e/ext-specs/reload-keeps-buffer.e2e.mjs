@@ -205,6 +205,24 @@ async function playerSession() {
 const placesFor = (sig) => new Set(segments.filter((s) => s.sig === sig).map((s) => s.place));
 
 /**
+ * The places the page's player has downloaded, as it says: what a reload hands over. The server's requests are not:
+ * a segment still on its way when the page goes is cut off by the reload, and the next player rightly asks for it
+ * again (CI, 2026-11-23: 22 asked for, 20 handed over, 2 asked again).
+ * @return {Promise<Set<string>>}
+ */
+async function placesDownloaded() {
+  await intoPlayer();
+  const urls = await browser.execute(() => {
+    const client = window.fastStream;
+    // DownloadStatus.DOWNLOAD_COMPLETE.
+    return [...(client?.fragments || []), ...(client?.audioFragments || [])]
+        .filter((fragment) => fragment?.status === 3).map((fragment) => fragment.getContext().url);
+  });
+  await browser.switchFrame(null);
+  return new Set(urls.map((url) => new URL(url).searchParams.get('i')).filter((place) => place !== null));
+}
+
+/**
  * Loads the page, and waits until its player plays and has downloaded `ahead` segments.
  * @param {string} page
  * @param {number} ahead
@@ -302,15 +320,16 @@ describe('A reload of the page', function() {
     await setOptions({autoEnableURLs: [SITE + '/']});
     segments = [];
     const first = await loadAndBuffer('/watch', 8);
-    const buffered = placesFor(first);
+    const buffered = await placesDownloaded();
     await reloadPage();
     const second = `s${pages}`;
     await playsLink(second, 'the reloaded page\'s player never played');
     const tookBack = await tookBackAll();
     const again = [...placesFor(second)].filter((place) => buffered.has(place));
-    console.log(`      buffered ${buffered.size} before the reload; took back ${JSON.stringify(tookBack)};`,
-        `asked for again after it: ${again.length} (${placesFor(second).size} under the new link)`);
+    console.log(`      buffered ${buffered.size} before the reload (${placesFor(first).size} asked for); took back`,
+        `${JSON.stringify(tookBack)}; asked for again after it: ${again.length} (${placesFor(second).size} under the new link)`);
     expect(tookBack.of).toBeGreaterThan(0);
+    expect(buffered.size).toBeGreaterThan(0);
     expect(again).toEqual([]);
     expect((await playerState()).failed).toBe(false);
   });
@@ -321,7 +340,7 @@ describe('A reload of the page', function() {
     manifests = [];
     slowLoads = 0;
     const first = await loadAndBuffer('/watch-slow', 8);
-    const buffered = placesFor(first);
+    const buffered = await placesDownloaded();
     await reloadPage();
     // 4 s on, the old page's player (gone at beforeunload) has loaded again with no stream: it
     // takes nothing back.
@@ -339,6 +358,7 @@ describe('A reload of the page', function() {
     expect(old.client).toBe(true);
     expect(tookBack.of).toBeGreaterThan(0);
     expect(tookBack.taken).toBe(tookBack.of);
+    expect(buffered.size).toBeGreaterThan(0);
     expect(again).toEqual([]);
     expect((await playerState()).failed).toBe(false);
   });
@@ -347,14 +367,14 @@ describe('A reload of the page', function() {
     // No RAM for the buffer: all but the next seconds goes to OPFS.
     await setOptions({autoEnableURLs: [SITE + '/'], ramBudget: 0, bufferToDisk: true});
     segments = [];
-    const first = await loadAndBuffer('/watch-disk', 12);
+    await loadAndBuffer('/watch-disk', 12);
     const oldSessions = await sessions();
     const own = await playerSession();
     // On the disk indeed: files in the player's session.
     let onDisk = [];
     await browser.waitUntil(async () => (onDisk = await sessionFiles(/** @type {string} */ (own))).length >= 5,
         {timeout: 30000, timeoutMsg: 'the player wrote no files to the disk'});
-    const buffered = placesFor(first);
+    const buffered = await placesDownloaded();
     await reloadPage();
     const second = `s${pages}`;
     await playsLink(second, 'the reloaded page\'s player never played');
@@ -366,6 +386,7 @@ describe('A reload of the page', function() {
     console.log(`      buffered ${buffered.size} (disk sessions ${JSON.stringify(oldSessions)}); asked for again: ${again.length};`,
         `sessions now ${JSON.stringify(nowSessions)}`);
     expect(oldSessions.length).toBeGreaterThan(0);
+    expect(buffered.size).toBeGreaterThan(0);
     expect(again).toEqual([]);
     // The old player's directory went once its files were moved into the new player's.
     expect(nowSessions).not.toContain(own);
