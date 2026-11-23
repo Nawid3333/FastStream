@@ -438,7 +438,13 @@ describe('Player controls', function() {
     // play/pause.
     await browser.execute(() => /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_autoplay_switch'))
         .focus(/** @type {FocusOptions} */ ({focusVisible: true})));
+    // main.mjs reloads the options after the save, and setOptions then reads the tab's old value too.
+    await browser.execute(() => {
+      window.fastStream.optionsApplied = false;
+    });
     await browser.keys([' ']);
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.optionsApplied),
+        {timeout: 10000, timeoutMsg: 'the player never loaded the saved options again'});
     expect(await settle(read, (r) => r.saved === false)).toEqual({shown: true, next: true, icon: 'pause', checked: 'false',
       option: false, session: null, saved: false, badge: 'none'});
     await browser.execute(() => sessionStorage.removeItem('autoplayNext'));
