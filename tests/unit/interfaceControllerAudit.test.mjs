@@ -32,6 +32,8 @@ const {RequestUtils} = await import('../../chrome/player/utils/RequestUtils.mjs'
 const {SubtitleUtils} = await import('../../chrome/player/utils/SubtitleUtils.mjs');
 const {AlertPolyfill} = await import('../../chrome/player/utils/AlertPolyfill.mjs');
 const {SubtitleTrack} = await import('../../chrome/player/SubtitleTrack.mjs');
+const {OptionsStore} = await import('../../chrome/player/options/OptionsStore.mjs');
+const {WebStorage} = await import('../../chrome/player/utils/WebStorage.mjs');
 vi.unstubAllGlobals();
 
 /**
@@ -151,6 +153,35 @@ describe('InterfaceController.toggleHide', () => {
     self.handleVisibilityChange(true);
     self.toggleHide();
     expect(player.play).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The options page has no autoplay checkbox: the player's switch is where it is set.
+describe('InterfaceController, the autoplay switch', () => {
+  it('saves its choice for every tab, and the countdown\'s stop holds for this tab only', async () => {
+    const saved = vi.spyOn(OptionsStore, 'set').mockResolvedValue();
+    const session = new Map();
+    vi.spyOn(WebStorage, 'set').mockImplementation((area, key, value) => session.set(`${area}:${key}`, value));
+    vi.spyOn(WebStorage, 'remove').mockImplementation((area, key) => session.delete(`${area}:${key}`));
+    const self = withMethods(InterfaceController, ['toggleAutoplayNext', 'stopAutoplayInTab'], {
+      client: {options: {autoplayNext: false}}, updateAutoNextIndicator: vi.fn(),
+    });
+
+    await self.toggleAutoplayNext();
+    expect(self.client.options.autoplayNext).toBe(true);
+    expect(saved).toHaveBeenLastCalledWith('autoplayNext', true);
+    expect([...session.keys()]).toEqual([]);
+
+    self.stopAutoplayInTab();
+    expect(self.client.options.autoplayNext).toBe(false);
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(session.get('session:autoplayNext')).toBe('false');
+
+    // Switched on again in this tab: saved, and the tab's own value is gone.
+    await self.toggleAutoplayNext();
+    expect(saved).toHaveBeenLastCalledWith('autoplayNext', true);
+    expect([...session.keys()]).toEqual([]);
+    expect(self.updateAutoNextIndicator).toHaveBeenCalledTimes(3);
   });
 });
 

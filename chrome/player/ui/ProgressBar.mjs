@@ -130,9 +130,8 @@ export class ProgressBar extends EventEmitter {
       e.stopPropagation();
     });
     WebUtils.setupTabIndex(DOMElements.nextVideoBannerButton);
-    // Stops the countdown: autoplay off for this tab, as the autoplay switch does.
     DOMElements.nextVideoCancelButton.addEventListener('click', (e) => {
-      if (this.client.options.autoplayNext) this.client.interfaceController.toggleAutoplayNext();
+      if (this.client.options.autoplayNext) this.client.interfaceController.stopAutoplayInTab();
       this.updateNextVideoBanner();
       e.preventDefault();
       e.stopPropagation();

@@ -69,6 +69,17 @@ export class OptionsStore {
   }
 
   /**
+   * Saves one option from a page that has no options form, such as the player's switches.
+   * @param {string} key
+   * @param {*} value
+   * @return {Promise<void>}
+   */
+  static async set(key, value) {
+    await this.init();
+    return this.replace({...this.#options, [key]: value});
+  }
+
+  /**
    * @param {(opts: Object)=>void} fn
    */
   static subscribe(fn) {
