@@ -134,7 +134,7 @@ export class BufferStash {
     const now = Date.now();
     /** @type {Kept} */
     const kept = {handOff, until: now + ms, since: now, bytes: sizeOf(handOff.entries), onDisk: false,
-      timer: setTimeout(() => this.expire(), ms), busy: Promise.resolve()};
+      timer: this.timerFor(key, ms), busy: Promise.resolve()};
     this.kept.set(key, kept);
     if (this.disk && ms > BufferKeepMs) {
       this.keepOnDisk(key, kept).catch((e) => {
@@ -183,7 +183,21 @@ export class BufferStash {
     if (kept.onDisk) this.schedule();
   }
 
-  /** Lets go of every buffer whose time is up: at its timer, or at the alarm of an event page loaded again. */
+  /**
+   * Lets go of the buffer kept under `key` when its time is up, by the timer alone: the wall clock can be behind
+   * it (a clock being corrected), and a timer that found Date.now() short of `until` left the buffer to the 60 s prune.
+   * @param {string} key
+   * @param {number} ms
+   * @return {ReturnType<typeof setTimeout>}
+   */
+  timerFor(key, ms) {
+    const timer = setTimeout(() => {
+      if (this.kept.get(key)?.timer === timer) this.flush(key);
+    }, ms);
+    return timer;
+  }
+
+  /** Lets go of every buffer whose time is up, at the alarm of an event page loaded again. */
   expire() {
     const now = Date.now();
     for (const [key, kept] of [...this.kept]) {
@@ -234,7 +248,7 @@ export class BufferStash {
       clearTimeout(kept.timer);
       const ms = Math.max(0, kept.since + BufferKeepMs - Date.now());
       kept.until = kept.since + BufferKeepMs;
-      kept.timer = setTimeout(() => this.expire(), ms);
+      kept.timer = this.timerFor(key, ms);
       return;
     }
     let total = kept.bytes;
@@ -335,7 +349,7 @@ export class BufferStash {
         continue;
       }
       this.kept.set(record.key, {handOff: {url: record.url, session, entries: record.entries}, until: record.until,
-        since, bytes: sizeOf(record.entries), onDisk: true, timer: setTimeout(() => this.expire(), record.until - now),
+        since, bytes: sizeOf(record.entries), onDisk: true, timer: this.timerFor(record.key, record.until - now),
         busy: Promise.resolve()});
     }
     this.schedule();

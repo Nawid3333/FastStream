@@ -39,6 +39,18 @@ describe('BufferStash', () => {
     expect(dropSession).toHaveBeenCalledExactlyOnceWith('fsblob-9-9');
   });
 
+  // reload-keeps-buffer.e2e on CI: the directory was still there at 22 s, as if the 20 s had never come.
+  it('flushes at its timer while the wall clock is behind it, as a clock being corrected is', async () => {
+    const dropSession = vi.fn();
+    const stash = new BufferStash({dropSession});
+    const key = bufferKey(where);
+    stash.put(key, handOff('fsblob-9-9'));
+    vi.setSystemTime(Date.now() - 50);
+    await vi.advanceTimersByTimeAsync(BufferKeepMs);
+    expect(stash.size).toBe(0);
+    expect(dropSession).toHaveBeenCalledExactlyOnceWith('fsblob-9-9');
+  });
+
   it('flushes an older hand-off of the same video and page when a newer comes', async () => {
     const dropSession = vi.fn();
     const stash = new BufferStash({dropSession});
