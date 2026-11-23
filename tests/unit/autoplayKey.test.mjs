@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 
-// Shift+A switches autoplay of the next video for this tab, as the autoplay switch does, and says the new state on the
+// Shift+A switches autoplay of the next video, saved as the autoplay switch is, and says the new state on the
 // video (the switch's own look changes only while the controls show).
 
 const osd = {textContent: '', classList: {add() {}, remove() {}}};
