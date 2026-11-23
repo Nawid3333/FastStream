@@ -140,12 +140,22 @@ describe('update-local.ps1', () => {
     expect([...text].filter((c) => c.charCodeAt(0) > 127)).toEqual([]);
   });
 
+  // One PowerShell for the three scripts' parse errors: each start can be slow on a CI runner.
+  /** @type {Object<string, string>} */
+  let parseErrors = {};
+  beforeAll(() => {
+    if (process.platform !== 'win32') return;
+    const files = [script, helper, elevated];
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', files.map((file) =>
+      `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${file}', [ref]$null, [ref]$e); $e.Count`,
+    ).join('; ')], {encoding: 'utf8', windowsHide: true, timeout: 120000});
+    const counts = (r.stdout || '').trim().split(/\r?\n/);
+    parseErrors = Object.fromEntries(files.map((file, i) => [file, counts[i]]));
+  }, 150000);
+
   it.runIf(process.platform === 'win32').each([script, helper, elevated])('%s parses in Windows PowerShell', (file) => {
-    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-      `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${file}', [ref]$null, [ref]$e); $e.Count`],
-    {encoding: 'utf8', windowsHide: true});
-    expect(r.stdout.trim()).toBe('0');
-  }, 30000);
+    expect(parseErrors[file]).toBe('0');
+  });
 
   // The Node.js installer's staging folder, run for real in Windows PowerShell 5.1, the one
   // update-local.cmd starts.
