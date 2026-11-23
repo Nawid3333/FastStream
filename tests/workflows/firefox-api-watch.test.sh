@@ -70,6 +70,7 @@ fixtures() {
   echo '{"bugs": []}' > "$FIX/src/webextensions-161.json"
   echo '{"bugs": []}' > "$FIX/src/core-161.json"
   echo '{"bugs": []}' > "$FIX/src/android-161.json"
+  echo '{"bugs": []}' > "$FIX/src/firefox-161.json"
   echo '<rss><channel></channel></rss>' > "$FIX/src/feed.xml"
   export FFW_FIXTURES="$FIX/src"
   unset DRY_RUN FROM

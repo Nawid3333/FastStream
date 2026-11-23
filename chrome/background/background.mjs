@@ -3396,7 +3396,7 @@ chrome.webRequest.onHeadersReceived.addListener(
       if (frame.hasPlayer()) return;
       const found = classifyResponse(details, tab.redirectOrigin(details.requestId), CustomSourcePatternsMatcher);
       if (found.kind === 'subtitles') {
-        VpnMirror.noteSource(details);
+        VpnMirror.noteSource(details, {stream: false});
         handleSubtitles(details.url, frame, tab.requestHeaders.get(details.requestId));
       } else if (found.kind === 'source') {
         VpnMirror.noteSource(details);

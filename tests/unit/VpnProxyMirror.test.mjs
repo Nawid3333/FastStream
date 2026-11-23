@@ -300,6 +300,118 @@ describe('VpnProxyMirror', () => {
   });
 });
 
+// Firefox 161's site rules: a frame's own loads go the way its site's rule says, its document
+// load the way its embedder's does (IPPChannelFilter: the loading principal decides).
+describe('VpnProxyMirror, a video in a frame whose site goes another way than the page', () => {
+  const EMBED = 'https://embed.example/e/123';
+  const inFrame = (url, proxyInfo, extra = {}) =>
+    pageRequest(url, proxyInfo, {frameId: 5, originUrl: EMBED, documentUrl: EMBED, ...extra});
+  const fromPlayer = (url) => ownRequest(url, {frameId: 9, parentFrameId: 5});
+  const SEGMENT = 'https://seg.example/seg-1.ts';
+
+  it('goes direct as the frame did, though the page uses the VPN (only the page\'s site included)', () => {
+    const {mirror, current} = setup();
+    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    mirror.noteRequest(pageRequest(EMBED, vpn(), {type: 'sub_frame', frameId: 5}));
+    mirror.noteRequest(inFrame('https://embed.example/player.js', null, {type: 'script'}));
+    mirror.noteRequest(inFrame(CDN, null));
+    mirror.noteSource(inFrame(CDN, null));
+    // The frame's document again: the page's load, through the VPN; not the frame's way.
+    mirror.noteRequest(pageRequest('https://embed.example/e/123?autoplay=1', vpn(), {type: 'sub_frame', frameId: 5}));
+
+    expect(mirror.status(CDN, false, 3)).toEqual({proxied: false, copyable: false, permitted: true});
+    mirror.noteRequest(fromPlayer(CDN));
+    mirror.noteRequest(fromPlayer(SEGMENT));
+    expect(current()).toBeNull();
+    expect(mirror.proxyFor(fromPlayer(CDN))).toBeUndefined();
+    expect(mirror.throughBrowserVpn(CDN, false)).toBe(false);
+  });
+
+  it('follows the frame through the VPN, though the page goes direct (only the player\'s site included)', () => {
+    const {mirror, current} = setup();
+    mirror.noteRequest(pageRequest(PAGE, null, {type: 'main_frame'}));
+    mirror.noteRequest(pageRequest(EMBED, null, {type: 'sub_frame', frameId: 5}));
+    mirror.noteRequest(inFrame('https://embed.example/player.js', vpn(), {type: 'script'}));
+    mirror.noteRequest(inFrame(CDN, vpn()));
+    mirror.noteSource(inFrame(CDN, vpn()));
+    mirror.noteRequest(pageRequest('https://video.example/app.js', null, {type: 'script'}));
+
+    expect(mirror.status(CDN, false, 3)).toEqual({proxied: true, copyable: true, permitted: true});
+    // Segments on a host the page's player never reached go the frame's way too.
+    mirror.noteRequest(fromPlayer(SEGMENT));
+    expect(current().urls).toEqual(['*://cdn.example/*', '*://seg.example/*']);
+    expect(mirror.proxyFor(fromPlayer(SEGMENT))?.host).toBe('muc139.m1.fastly-masque.net');
+  });
+
+  it('follows the frame\'s own loads from then on, not a direct fetch a content script may have made', () => {
+    const {mirror} = setup();
+    mirror.noteRequest(pageRequest(PAGE, null, {type: 'main_frame'}));
+    mirror.noteSource(inFrame(CDN, vpn()));
+    expect(mirror.status(SEGMENT, false, 3).proxied).toBe(true);
+    mirror.noteRequest(inFrame('https://subs.example/en.vtt', null));
+    mirror.noteRequest(pageRequest('https://embed.example/e/456', null, {type: 'sub_frame', frameId: 5}));
+    expect(mirror.status('https://seg2.example/seg-1.ts', false, 3).proxied).toBe(true);
+    // The VPN turned off for the frame's site.
+    mirror.noteRequest(inFrame('https://embed.example/poster.jpg', null, {type: 'image'}));
+    expect(mirror.status('https://seg3.example/seg-1.ts', false, 3).proxied).toBe(false);
+    mirror.noteRequest(inFrame('https://embed.example/stats', vpn('Bearer two', 'iso2')));
+    expect(mirror.proxyForUrl('https://seg4.example/seg-1.ts', false, 3)?.proxyAuthorizationHeader).toBe('Bearer two');
+  });
+
+  it('starts over with the tab\'s next page', () => {
+    const {mirror} = setup();
+    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    mirror.noteSource(inFrame(CDN, null));
+    expect(mirror.status(CDN, false, 3).proxied).toBe(false);
+    mirror.noteRequest(pageRequest('https://video.example/watch/2', vpn(), {type: 'main_frame'}));
+    expect(mirror.status(SEGMENT, false, 3).proxied).toBe(true);
+  });
+
+  it('takes no way from a subtitle file: a content script\'s fetch of it goes direct by itself', () => {
+    const {mirror} = setup();
+    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    mirror.noteSource(pageRequest(CDN, vpn()));
+    mirror.noteSource(pageRequest('https://subs.example/en.vtt', null), {stream: false});
+    expect(mirror.status(SEGMENT, false, 3).proxied).toBe(true);
+  });
+
+  it('keeps each frame\'s way when a newer stream comes from a frame that goes the other way', () => {
+    const {mirror, current} = setup();
+    const CDN1 = 'https://cdn1.example/a/master.m3u8';
+    const CDN2 = 'https://cdn2.example/b/master.m3u8';
+    mirror.noteRequest(pageRequest(PAGE, null, {type: 'main_frame'}));
+    mirror.noteSource(inFrame(CDN1, null));
+    mirror.noteSource(inFrame(CDN2, vpn(), {frameId: 7}));
+    // The first video's player (in frame 5) and its stream stay direct.
+    expect(mirror.status(CDN1, false, 3).proxied).toBe(false);
+    mirror.noteRequest(ownRequest(CDN1, {frameId: 9, parentFrameId: 5}));
+    mirror.noteRequest(ownRequest('https://seg1.example/1.ts', {frameId: 9, parentFrameId: 5}));
+    expect(current().urls).toEqual(['*://cdn2.example/*']);
+    // The second video's player (in frame 7) follows its frame through the VPN.
+    mirror.noteRequest(ownRequest('https://seg2.example/1.ts', {frameId: 11, parentFrameId: 7}));
+    expect(current().urls).toEqual(['*://cdn2.example/*', '*://seg2.example/*']);
+  });
+
+  it('keeps the video\'s way when an advert\'s frame then loads a video directly', () => {
+    const {mirror} = setup();
+    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    mirror.noteSource(pageRequest(CDN, vpn()));
+    mirror.noteSource(pageRequest('https://ads.example/spot.mp4', null, {frameId: 8, type: 'media'}));
+    expect(mirror.status(CDN, false, 3).proxied).toBe(true);
+    mirror.noteRequest(ownRequest(SEGMENT, {frameId: 9, parentFrameId: 0}));
+    expect(mirror.proxyFor(ownRequest(SEGMENT))?.host).toBe('muc139.m1.fastly-masque.net');
+  });
+
+  it('remembers a bounded number of a page\'s stream frames, the newest always', () => {
+    const {mirror} = setup();
+    for (let i = 1; i <= 40; i++) mirror.noteSource(inFrame(`https://cdn${i}.example/a.m3u8`, i === 40 ? vpn() : null, {frameId: i}));
+    const tab = mirror.sources.get(3);
+    expect(tab.ways.size).toBe(32);
+    expect(tab.hosts.size).toBe(32);
+    expect(mirror.status(SEGMENT, false, 3).proxied).toBe(true);
+  });
+});
+
 // Every proxy ever seen stayed for the event page's life: a VPN's servers change, and the map
 // only grew. Only those no host and no tab names any more go, and never the one just seen.
 describe('VpnProxyMirror, the proxies it remembers', () => {
@@ -318,5 +430,17 @@ describe('VpnProxyMirror, the proxies it remembers', () => {
     expect(current().listener(ownRequest(CDN)).host).toBe('muc139.m1.fastly-masque.net');
     // The newest proxy is kept for the call that just saw it.
     expect(mirror.proxies.has(mirror.rememberProxy({...vpn(), host: 'newest.vpn.example'}))).toBe(true);
+  });
+
+  it('keeps the proxy a stream\'s frame goes through, though no host names it', () => {
+    const {mirror} = setup();
+    mirror.noteSource(pageRequest(CDN, null, {tabId: 7, frameId: 5}));
+    mirror.noteRequest(pageRequest('https://embed.example/a.js', {...vpn(), host: 'frame.vpn.example'},
+        {tabId: 7, frameId: 5, type: 'script'}));
+    for (let i = 0; i < 450; i++) {
+      mirror.noteRequest(pageRequest(`https://other${i}.example/`, {...vpn(), host: `srv${i}.vpn.example`},
+          {tabId: 100 + i, type: 'image', frameId: 1}));
+    }
+    expect(mirror.proxyForUrl('https://seg.example/seg-1.ts', false, 7)?.host).toBe('frame.vpn.example');
   });
 });

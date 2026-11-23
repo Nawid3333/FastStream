@@ -162,6 +162,7 @@ function sources({current = 161, mdn = {161: notes(161)}, status = {}, log = [],
     if (url.startsWith(Urls.bugzilla)) {
       const v = Number(/cf_status_firefox(\d+)/.exec(url)?.[1]);
       if (url.includes('product=Firefox%20for%20Android&component=WebExtensions&')) return json(bugzilla(v).android ?? {bugs: []});
+      if (url.includes('product=Firefox&component=IP%20Protection&')) return json(bugzilla(v).firefox ?? {bugs: []});
       return json(url.includes('product=WebExtensions') ? bugzilla(v).webext : bugzilla(v).core);
     }
     if (url === Urls.feed) return new Response(feed, {status: 200});
@@ -254,12 +255,15 @@ describe('reading the sources', () => {
       fs.writeFileSync(path.join(dir, 'versions.json'), '{"a": 1}');
       fs.writeFileSync(path.join(dir, '161.md'), 'notes');
       fs.writeFileSync(path.join(dir, 'core-161.json'), '{"bugs": []}');
+      fs.writeFileSync(path.join(dir, 'firefox-161.json'), '{"bugs": [1]}');
       const fetchImpl = fixtureFetch(dir);
       expect(await (await fetchImpl(Urls.versions)).text()).toBe('{"a": 1}');
       expect(await (await fetchImpl(Urls.mdn(161))).text()).toBe('notes');
       expect((await fetchImpl(Urls.mdn(160))).status).toBe(404);
       const core = `${Urls.bugzilla}?product=Core&component=x&resolution=FIXED&f1=cf_status_firefox161&o1=anyexact`;
       expect(await (await fetchImpl(core)).text()).toBe('{"bugs": []}');
+      const firefox = `${Urls.bugzilla}?product=Firefox&component=IP%20Protection&resolution=FIXED&f1=cf_status_firefox161&o1=anyexact`;
+      expect(await (await fetchImpl(firefox)).text()).toBe('{"bugs": [1]}');
       expect((await fetchImpl('https://example.test/versions.json')).status).toBe(404);
     } finally {
       fs.rmSync(dir, {recursive: true, force: true});
@@ -322,7 +326,7 @@ describe('MDN notes', () => {
 
   it('keeps the topics\' patterns as RegExp literals, without the g flag', () => {
     const patterns = [...Topics.topics.flatMap((t) => t.keywords), Topics.bugzilla.coreSummary, Topics.bugzilla.excludeSummary,
-      Topics.bugzilla.android, Topics.excludeText, Topics.androidText];
+      Topics.bugzilla.android, Topics.bugzilla.firefoxSummary, Topics.bugzilla.firefoxExcludeSummary, Topics.excludeText, Topics.androidText];
     expect(patterns.length).toBeGreaterThan(100);
     for (const pattern of patterns) {
       expect(pattern).toBeInstanceOf(RegExp);
@@ -394,6 +398,22 @@ describe('Bugzilla and the blog', () => {
     const items = bugzillaItems({bugs: [...bugs(161).webext.bugs, ...bugs(161).core.bugs]}, config.bugzilla, new Set(['tabs']));
     expect(items.map((i) => i.bugs[0])).toEqual([161003, 161007]);
     expect(items[1].identifiers).toContain('mediaCapabilities.decodingInfo');
+  });
+
+  it('reports Firefox VPN\'s changes to which requests it carries, not its interface\'s', () => {
+    const vpnBugs = [
+      {id: 2086696, summary: 'Flip browser.ipProtection.features.siteInclusions to true by default', product: 'Firefox', component: 'IP Protection', keywords: []},
+      {id: 2083737, summary: 'Add per-tab IP Protection site rules', product: 'Firefox', component: 'IP Protection', keywords: []},
+      {id: 2086176, summary: 'Update website rules icon', product: 'Firefox', component: 'IP Protection', keywords: []},
+      {id: 2074574, summary: 'Add dialog for creating a site inclusion or exclusion rule in VPN settings', product: 'Firefox', component: 'IP Protection', keywords: []},
+      {id: 2086250, summary: 'Intermittent TV browser_ipprotection_alert_manager.js | test_pending_error_shown_on_switch_to_included_tab', product: 'Firefox', component: 'IP Protection', keywords: []},
+      {id: 2090001, summary: 'Sidebar mode for the new tab page', product: 'Firefox', component: 'New Tab Page', keywords: []},
+    ];
+    const items = bugzillaItems({bugs: vpnBugs}, config.bugzilla, new Set());
+    expect(items.map((i) => i.bugs[0])).toEqual([2086696, 2083737]);
+    const findings = relevantFindings(items, config, index());
+    expect(findings.map((f) => f.areas)).toEqual([['Firefox VPN (IP Protection)'], ['Firefox VPN (IP Protection)']]);
+    expect(findings[0].modules).toContain('chrome/background/VpnProxyMirror.mjs');
   });
 
   it('takes the posts that name the release', () => {

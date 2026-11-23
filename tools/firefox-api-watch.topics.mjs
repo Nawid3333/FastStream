@@ -494,8 +494,30 @@ export default {
         'tests/e2e/',
       ],
     },
+    {
+      // Which requests Firefox VPN carries: FastStream copies its proxy for its own (VpnProxyMirror.mjs).
+      id: 'firefox-vpn',
+      area: 'Firefox VPN (IP Protection)',
+      priority: 'high',
+      kind: 'Compatibility risk',
+      keywords: [
+        /\bIP Protection\b/i,
+        /\bFirefox(?:'s)? (?:built-in )?VPN\b/i,
+      ],
+      bcd: [],
+      modules: [
+        'chrome/background/VpnProxyMirror.mjs',
+        'chrome/player/ui/VpnPrompt.mjs',
+      ],
+    },
   ],
   bugzilla: {
+    // Firefox VPN's bugs about which requests it carries (product Firefox); the rest of them are its own interface.
+    firefoxComponents: [
+      'IP Protection',
+    ],
+    firefoxSummary: /inclusion|exclusion|\b(site|tab) ?rules?\b|\bper[- ]tab\b|\bmodes?\b|principal|channel ?filter|\bproxy|\bMASQUE\b|\bCONNECT\b|\badd-?ons?\b|extension|webRequest|isolation/i,
+    firefoxExcludeSummary: /\b(copy|strings?|wording|dialogs?|icons?|panel|settings|onboarding|hint|CFRs?|promo|messag(e|ing)|toolbar|a11y|buttons?|callout|infobar|contrast|dark mode|focus|animations?)\b/i,
     // WebExtensions bugs are all read; Core media bugs only with a docs or compat keyword or a high-priority term.
     coreComponents: [
       'Audio/Video',
