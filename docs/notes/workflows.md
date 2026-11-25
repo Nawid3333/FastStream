@@ -875,11 +875,21 @@
 
 ## Firefox API watch
 
-`firefox-api-watch.yml` (daily, 07:40 UTC) tells the owner what each new Firefox Stable release
-changed that could break or improve FastStream. It sits beside `firefox-stable.yml`/`firefox-beta.yml`,
+`firefox-api-watch.yml` (once a quarter: 07:40 UTC on each of the first seven days of January,
+April, July and October) tells the owner what each new Firefox Stable release changed that could
+break or improve FastStream. It sits beside `firefox-stable.yml`/`firefox-beta.yml`,
 which run the e2e suites on a new Firefox and open an issue when they fail: those catch what
 broke, this one what changed. The logic is `tools/firefox-api-watch.mjs`; what counts as
 relevant is `tools/firefox-api-watch.topics.mjs`.
+
+- **Once a quarter, not once a release** (the owner, 2026-11-25): an issue every four weeks was
+  too often for what is information, not breakage. A quarter's run reviews the current release
+  and the four before it (`DefaultLookback` 5: a quarter holds up to four releases, and one whose
+  notes were still in progress at the last run comes too); what was posted is never repeated.
+  The first day does the review; the next six stop after the version check (the cache entry),
+  unless a source was down or the newest release's notes were still in progress, so an outage
+  costs a day, and a "Firefox API watch failed" issue it opened closes with the next clean run.
+  Run it by hand (Actions, "Firefox API watch") for a review in between.
 
 - **Sources, all machine-readable** (checked 2026-11-13): product-details
   (`firefox_versions.json` for the current Stable, `firefox_history_major_releases.json` for the
