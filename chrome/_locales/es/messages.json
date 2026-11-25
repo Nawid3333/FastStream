@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "allí espera en pausa; $1 sigue reproduciéndose"
     },
+    "mpv_offer_queue_title": {
+        "message": "Añadir a la cola"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "se reproduce después de $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "se reproduce después de los $1 de la cola"
+    },
     "player_mpv_declined": {
         "message": "No enviado: mpv sigue reproduciendo lo que tenía"
     },

@@ -42,6 +42,14 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 33 (2026-11-25, mpv-config's queue; RequiredHostVersion 33).** A `play` may carry `queue: true` for a window
+that is open (with `window`, never `newWindow` or `fullscreen`): the helper hands the stream and its per-file options
+to mpv-config's `queue` script (`script-message-to queue add-stream <target> <options JSON>`) instead of a `loadfile`,
+so the stream waits behind what plays ("The queue" below). No mpv on the helper's pipe: a fresh one plays it, as any
+play. A queued private window's playlists and subtitles stay while the mpv they wait in runs, a day at most
+(`markQueuedFolders` writes `queued-<pid>` into both folders; mpv-config's `faststream-private.lua` removes them once
+the stream left the playlist). The capability list names `queue`.
+
 **Host 32 (2026-11-21, the latest helper only; RequiredHostVersion 32).** The owner supports only the
 latest Firefox and the latest mpv helper, so no code for older helpers is kept. The helper drops the
 `open`, `status` and `watch` messages of extensions before host 15 (`launchMpv`, `loadIntoExisting`,
@@ -1249,13 +1257,17 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
 `MpvOffer.mjs`, mpv-config's `faststream-offer.lua`):
 - The window is the tab's own while it is followed, else the one that got the last stream (`targetFor`; the helper
   does not let the extension read mpv's `focused`). It is asked over its relay: `idle-active`, `eof-reached`, `path`,
-  `media-title` and `user-data/faststream/offer`, which faststream-offer.lua sets. Idle, at its end, playing this
+  `media-title`, `user-data/faststream/offer`, which faststream-offer.lua sets, and `user-data/faststream/queue/count`
+  (mpv-config's queue, "The queue" below). Idle, at its end, playing this
   stream, without the script (an older mpv setup) or with no reply within 2 s, it takes the stream at once, as before.
 - Else `script-message faststream-offer <id> 15 <here title> <here detail> <window title> <window detail>` (texts one
   line, titles cut to 60), a `raise`, and the page is paused at once, as after a hand-off; FastStream's player, which
-  PAUSE_MEDIA does not reach, pauses on `MPV_ASKING` when its MPV button sent the stream. The answer is the
-  broadcast `faststream-choice <id> here|window|none`; FastStream's own offer comes back as a client-message too,
-  and is no answer. 17 s without one is none (`faststream-offer-cancel <id>` takes the banners down); a newer
+  PAUSE_MEDIA does not reach, pauses on `MPV_ASKING` when its MPV button sent the stream. Where mpv has the queue,
+  two more texts make a third banner, "Add to queue" (8 arguments; an mpv setup without the queue shows two). The
+  answer is the broadcast `faststream-choice <id> here|queue|window|none`; FastStream's own offer comes back as a client-message too,
+  and is no answer. mpv-config answers by itself when its 15 s are up: `queue` while the queue banner shows (the
+  owner, 2026-11-25: what comes while he watches waits in the queue, and its x there takes it out), else `none`.
+  17 s without any answer is none (`faststream-offer-cancel <id>` takes the banners down); a newer
   stream's offer replaces the one up, whose answer is then none. mpv-config answers here by itself when what played
   ends while the banners are up: the same path as a click.
 - A window is asked about one stream at a time (`placementTurn`, a chain on its `MpvWatch`, gone with it): the next
@@ -1277,6 +1289,30 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
 **Tests.** `MpvOffer.test.mjs` (texts and questions against the helper's allowlist, which answer counts),
 `MpvRelayWatch.test.mjs` (ask, command, the choice event), `MpvBackend.test.mjs` (newWindow with paused, raise),
 `backgroundMpvThin.test.mjs` ("the offer"), `SaveManager.test.mjs` (declined, the 30 s wait).
+
+### The queue
+
+The owner's wish (2026-11-25): a stream for a window that plays can wait behind what plays, as a playlist. mpv-config's
+`Scripts/queue/` owns the queue: its order, a countdown before each queued item (Space stops it), the "Up next" panel
+(click to play, x to remove, Clear, drag to reorder), and putting the items back after a `loadfile replace`.
+- The offer's third answer, `queue` (above): `play` with `window` and `queue: true`, which the helper hands to the
+  queue (host 33). The window stays the tab's that plays there; the queued stream is noted on its `MpvWatch`
+  (`noteQueued`, at most 50) with its tab, and once mpv's `path` is that stream the window follows its tab, as after
+  a send (`followQueued`). A tab closed meanwhile: the window plays it without a page, as a tab that left it, and the
+  tab before lets go of the window.
+- Queue before autoplay (the owner's rule: "when the playlist exists, it just has to default to the playlist"): the
+  relay observes `user-data/faststream/queue/count`, and an end while it is above 0 starts no autoplay countdown and
+  asks no page. The queue's last item's end counts down to its tab's next episode, as any stream. No banner says
+  autoplay waited. Something queued during autoplay's countdown (a file from Explorer) stops it; a queue emptied while
+  mpv still stands at an end autoplay left to it (cleared, or its stream could not load) counts down after all
+  (`resumeHeldEnd` asks mpv's `path` and `eof-reached` first: the queue also empties as its last stream starts).
+- The queue counts down as long as autoplay: `state()` sends `user-data/faststream/countdown` with the autoplay
+  switch.
+- A window without the queue (an older mpv setup): no count, no third banner, and a `queue` answer is none.
+
+**Tests.** `MpvOffer.test.mjs` (the count, the texts), `MpvRelayWatch.test.mjs` (the count event, the answer, the
+countdown seconds), `mpvThinHost.test.mjs` (`loadInto` and `playMpv` with queue, `checkPlayMessage`),
+`mpvHlsHelper.test.mjs` (queued private folders), `backgroundMpvThin.test.mjs` ('"Add to queue"').
 
 ## Background: reasons behind the code
 

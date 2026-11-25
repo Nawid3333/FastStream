@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "it waits there paused; $1 plays on"
     },
+    "mpv_offer_queue_title": {
+        "message": "Add to queue"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "plays after $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "plays after the $1 in the queue"
+    },
     "player_mpv_declined": {
         "message": "Not sent: mpv keeps playing what it had"
     },

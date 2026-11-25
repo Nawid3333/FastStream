@@ -1,5 +1,6 @@
 // @ts-check
 
+import {QueueCountProperty} from './MpvOffer.mjs';
 import {cutToLength} from './MpvTarget.mjs';
 
 /**
@@ -11,6 +12,8 @@ import {cutToLength} from './MpvTarget.mjs';
 export const ConnectedProperty = 'user-data/faststream/connected';
 export const HeartbeatProperty = 'user-data/faststream/heartbeat';
 export const AutoplayProperty = 'user-data/faststream/autoplay';
+// The autoplay countdown's seconds: mpv-config's queue counts down as long before a queued stream.
+export const CountdownProperty = 'user-data/faststream/countdown';
 
 // mpv's setup hides the episode buttons once the heartbeat stood still for 90 s.
 export const HeartbeatMs = 30000;
@@ -61,11 +64,12 @@ export const EpisodeMessages = {
 
 // mpv-config's faststream-offer.lua answers an offer with faststream-choice <id> <choice>.
 const ChoiceMessage = 'faststream-choice';
-const Choices = new Set(['here', 'window', 'none']);
+const Choices = new Set(['here', 'queue', 'window', 'none']);
 
 const PathId = 1;
 const EofId = 2;
 const PauseId = 3;
+const QueueId = 4;
 const DecoderBaseId = 10;
 
 /**
@@ -97,7 +101,7 @@ function noticeText(text) {
  * ask: mpv's replies in order; every one an error when the helper refused it, none came in time, or the watch ended.
  * command: sent without a reply.
  * @typedef {{notify: (title: string, detail?: string, seconds?: number) => void,
- *   hide: () => void, state: (state: {autoplay: boolean}) => void, stop: () => void,
+ *   hide: () => void, state: (state: {autoplay: boolean, countdown?: number}) => void, stop: () => void,
  *   ask: (commands: Array<Array<*>>, timeoutMs: number) => Promise<Array<MpvReply>>,
  *   command: (command: Array<*>) => void}} MpvWatcher
  */
@@ -294,6 +298,9 @@ export function relayWatch(port, onEvent, {decoderProperties = [], window = ''} 
       } else if (name === ChoiceMessage && typeof id === 'string' && id && Choices.has(choice)) {
         onEvent({type: 'choice', id, choice});
       }
+    } else if (event.event === 'property-change' && event.name === QueueCountProperty) {
+      // No data: no queue in this mpv, or nothing published yet.
+      onEvent({type: 'queued', count: Number.isSafeInteger(event.data) && event.data > 0 ? event.data : 0});
     } else if (event.event === 'property-change' && decoderProperties.includes(event.name)) {
       // No data: unavailable (no video decoder loaded, between two files).
       decoderValues[event.name] = event.data;
@@ -323,6 +330,8 @@ export function relayWatch(port, onEvent, {decoderProperties = [], window = ''} 
       post({type: 'mpv', command: ['observe_property', PathId, 'path']});
       post({type: 'mpv', command: ['observe_property', EofId, 'eof-reached']});
       post({type: 'mpv', command: ['observe_property', PauseId, 'pause']});
+      // mpv-config's queue: what waits there plays before autoplay's next episode. Observed, so an end needs no question.
+      post({type: 'mpv', command: ['observe_property', QueueId, QueueCountProperty]});
       decoderProperties.forEach((name, i) => post({type: 'mpv', command: ['observe_property', DecoderBaseId + i, name]}));
       // The helper clears it when this port closes (onStop).
       post({type: 'mpv', command: ['set_property', ConnectedProperty, true]});
@@ -375,6 +384,9 @@ export function relayWatch(port, onEvent, {decoderProperties = [], window = ''} 
         send(['set_property', AutoplayProperty, state.autoplay]);
         autoplay = state.autoplay;
         followKeepOpen();
+      }
+      if (state && Number.isFinite(state.countdown)) {
+        send(['set_property', CountdownProperty, state.countdown]);
       }
     },
     stop() {

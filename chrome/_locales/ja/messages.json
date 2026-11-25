@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "そこで一時停止して待機します。$1 は再生を続けます"
     },
+    "mpv_offer_queue_title": {
+        "message": "キューに追加"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "$1 の後に再生します"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "キュー内の $1 件の後に再生します"
+    },
     "player_mpv_declined": {
         "message": "送信しませんでした: mpv はそのまま再生を続けます"
     },

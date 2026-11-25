@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "ia menunggu di sana dalam keadaan dijeda; $1 terus dimainkan"
     },
+    "mpv_offer_queue_title": {
+        "message": "Tambah ke baris gilir"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "dimainkan selepas $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "dimainkan selepas $1 dalam baris gilir"
+    },
     "player_mpv_declined": {
         "message": "Tidak dihantar: mpv terus memainkan yang sebelumnya"
     },

@@ -29,8 +29,8 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // chrome/background/MpvBackend.mjs to the same; then put the new values here (a failure
 // prints the hashes).
 const RECORDED = {
-  version: 32,
-  host: '75e41ed8ac4c905f71f094f84bf15f1e68e5726f5de6c976c85ad0842a1bd808',
+  version: 33,
+  host: 'b7b116e0a932744298990f5cb8ea206e2684ca97808642c1fc8edc7c9788a621',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
@@ -64,7 +64,7 @@ describe('the mpv host\'s version', () => {
   it('goes out with every answer', () => {
     // With the messages it understands, which an extension from before host 32 looks for.
     expect(withHostVersion({ok: true, mpv: false}))
-        .toEqual({ok: true, mpv: false, hostVersion: HostVersion, capabilities: ['play', 'ipc', 'relay', 'hls', 'windows']});
+        .toEqual({ok: true, mpv: false, hostVersion: HostVersion, capabilities: ['play', 'ipc', 'relay', 'hls', 'windows', 'queue']});
     expect(withHostVersion({ok: false, error: 'unknown message'}))
         .toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion, capabilities: [...Capabilities]});
   });

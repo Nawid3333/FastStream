@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "оно ждёт там на паузе; $1 продолжает играть"
     },
+    "mpv_offer_queue_title": {
+        "message": "Добавить в очередь"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "воспроизведётся после $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "воспроизведётся после $1 в очереди"
+    },
     "player_mpv_declined": {
         "message": "Не отправлено: mpv продолжает воспроизводить прежнее"
     },

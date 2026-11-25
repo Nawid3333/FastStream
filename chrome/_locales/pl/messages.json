@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "czeka tam wstrzymane; $1 gra dalej"
     },
+    "mpv_offer_queue_title": {
+        "message": "Dodaj do kolejki"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "odtworzy się po $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "odtworzy się po $1 w kolejce"
+    },
     "player_mpv_declined": {
         "message": "Nie wysłano: mpv odtwarza dalej to, co miał"
     },

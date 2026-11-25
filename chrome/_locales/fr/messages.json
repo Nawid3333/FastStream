@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "il y attend en pause ; $1 continue"
     },
+    "mpv_offer_queue_title": {
+        "message": "Ajouter à la file d'attente"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "passe après $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "passe après les $1 de la file d'attente"
+    },
     "player_mpv_declined": {
         "message": "Non envoyé : mpv continue de lire ce qu'il avait"
     },

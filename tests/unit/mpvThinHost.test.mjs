@@ -13,6 +13,7 @@ import {
   MaxRelayLineBytes,
   MaxTargetBytes,
   PipeWaitMs,
+  QueueScript,
   checkPlayMessage,
   freshMpvArgs,
   ipcPipeFor,
@@ -171,6 +172,36 @@ describe('loadInto', () => {
       {command: {name: 'loadfile', url: 'https://cdn.test/v.m3u8#fs-id=1', flags: 'replace', options: {'force-media-title': 't'}}},
       {command: ['get_property', 'pid']},
     ]);
+  });
+
+  it('queues the target behind what plays: mpv-config\'s queue loads it, with the same options; no loadfile', async () => {
+    let sent;
+    const options = {'force-media-title': 'Show - Episode 4', 'http-header-fields': 'Referer: https://site.test/'};
+    const result = await loadInto('https://cdn.test/v.m3u8#fs-id=1', options, false, async (commands) => {
+      sent = commands;
+      return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, error: 'success', data: 9}]};
+    }, true);
+    expect(result).toEqual({ok: true, pid: 9});
+    expect(sent).toEqual([
+      {command: ['script-message-to', QueueScript, 'add-stream', 'https://cdn.test/v.m3u8#fs-id=1', JSON.stringify(options)]},
+      {command: ['get_property', 'pid']},
+    ]);
+    // An mpv without the script refuses the message: the stream went nowhere.
+    expect(await loadInto('https://cdn.test/v.m3u8', {}, false, async () => ({ok: true,
+      replies: [{request_id: 1, error: 'invalid parameter'}, {request_id: 2, error: 'success', data: 9}]}), true))
+        .toEqual({ok: false, refused: true, error: 'invalid parameter'});
+  });
+
+  it('takes a queue only for a window that is open, as a yes or no', () => {
+    const message = {type: 'play', target: 'https://cdn.test/v.m3u8'};
+    expect(checkPlayMessage(message).ok && checkPlayMessage(message).play.queue).toBe(false);
+    const queued = checkPlayMessage({...message, queue: true, window: '0a1b2c3d4e5f6a7b'});
+    expect(queued.ok && queued.play.queue).toBe(true);
+    expect(checkPlayMessage({...message, queue: true, newWindow: true}))
+        .toEqual({ok: false, error: 'only a stream for an open window is queued'});
+    expect(checkPlayMessage({...message, queue: true, fullscreen: true}))
+        .toEqual({ok: false, error: 'only a stream for an open window is queued'});
+    expect(checkPlayMessage({...message, queue: 'yes'})).toEqual({ok: false, error: 'queue is a yes or no'});
   });
 });
 
@@ -533,6 +564,23 @@ describe('playMpv', () => {
     await playMpv('mpv.exe', play({newWindow: true}), {ipcToken: token}, plain);
     expect(plain.record.started[0].args.some((arg) => /pause|minimized/.test(arg))).toBe(false);
     expect(plain.record.raised).toEqual([true]);
+  });
+
+  it('queues into an open window behind what it plays: its queue gets it, nothing is loaded or started', async () => {
+    const id = '0a1b2c3d4e5f6a7b';
+    const io = stand({running: [basePipe, `${basePipe}-${id}`]});
+    expect(await playMpv('mpv.exe', play({window: id, queue: true}), {ipcToken: token}, io))
+        .toStrictEqual({ok: true, window: id, reused: true, focus: 'True', foreground: 'True'});
+    expect(io.record.asks.map((ask) => ask.pipe)).toEqual([`${basePipe}-${id}`]);
+    expect(io.record.asks[0].commands[0]).toEqual(['script-message-to', QueueScript, 'add-stream', target,
+      JSON.stringify({'http-header-fields': '', 'force-media-title': 'Show - Episode 3'})]);
+    expect(loadfiles(io.record)).toEqual([]);
+    expect(io.record.started).toEqual([]);
+    // With no mpv on the helper's pipe there is nothing to queue behind: a fresh one plays it, by loadfile.
+    const fresh = stand();
+    expect((await playMpv('mpv.exe', play({queue: true}), {ipcToken: token}, fresh)).ok).toBe(true);
+    expect(fresh.record.started.length).toBe(1);
+    expect(loadfiles(fresh.record).map((load) => load.command.flags)).toEqual(['replace']);
   });
 
   it('plays into an open window by its id: its pipe only, raised, never a start', async () => {

@@ -5,7 +5,7 @@
 // capabilities.
 //
 // Messages:
-//   {type: 'play', target, title?, start?, headers?, subtitles?, fullscreen?, newWindow?, paused?, window?,
+//   {type: 'play', target, title?, start?, headers?, subtitles?, fullscreen?, newWindow?, paused?, window?, queue?,
 //     mpvPath?} -> {ok, window, error?, reused?, closed?, focus?, foreground?} (checkPlayMessage, playMpv)
 //   {type: 'ipc', commands (at most MaxIpcCommands), window?} -> {ok: true, replies: [{error, data}, ...]}
 //     | {ok: false, error, busy?} | {ok: false, error: 'refused', index, reason} (runIpc)
@@ -17,7 +17,8 @@
 //   {type: 'ping', mpvPath?} -> {ok, mpv, path}
 // window: which of the helper's mpv windows, by the id play's answer named; none or '' is the one on
 //   the helper's own pipe. newWindow starts one with an id of its own (paused: it waits, paused and minimized,
-//   not raised); play into a window that is gone answers closed and starts none.
+//   not raised); play into a window that is gone answers closed and starts none. queue: an open window's mpv
+//   puts the stream behind what it plays (mpv-config's queue script) instead of replacing that.
 // Any other message is answered {ok: false, error: 'unknown message'}.
 //
 // focus and foreground (Windows only): how raising mpv's window went at that moment (focusOutcome).
@@ -38,11 +39,14 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 // The extension sends nothing but a ping to a helper below its RequiredHostVersion (chrome/background/MpvBackend.mjs).
 // Raise it with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
-export const HostVersion = 32;
+export const HostVersion = 33;
 
 // The messages the extension may send, named in every answer: an extension from before host 32 sends play, ipc and
 // relay only to a helper that names them.
-export const Capabilities = Object.freeze(['play', 'ipc', 'relay', 'hls', 'windows']);
+export const Capabilities = Object.freeze(['play', 'ipc', 'relay', 'hls', 'windows', 'queue']);
+
+// mpv-config's script that takes a queued stream (Scripts/queue/main.lua, script-message add-stream).
+export const QueueScript = 'queue';
 
 // No mpv path from the environment: an unchecked path would reach statSync (path injection).
 const DefaultMpvPaths = [
@@ -626,9 +630,73 @@ export function subtitlesOf(message) {
       .map((s) => ({srt: s.srt, label: typeof s.label === 'string' ? s.label : ''}));
 }
 
+// A private window's folder for a queued stream: mpv reads it only when the stream's turn comes, so it stays while that
+// mpv runs (its pid in the mark's name; mpv-config's faststream-private.lua removes it and the mark), a day at most.
+const QueuedMark = /^queued-(\d{1,10})$/;
+const QueuedDirMaxAgeMs = 24 * 60 * 60 * 1000;
+
+/**
+ * Marks the private folders of a stream just queued in the mpv with that pid (QueuedMark).
+ * @param {{target: string}} play
+ * @param {string} entry - The URL, or the playlist file of the stream's package.
+ * @param {Array<string>} subFiles - Its subtitle files.
+ * @param {number|undefined} pid - The mpv's.
+ */
+export function markQueuedFolders(play, entry, subFiles, pid) {
+  if (!isPrivateTarget(play.target) || pid === undefined || !Number.isSafeInteger(pid) || pid <= 0) return;
+  const folders = [];
+  if (entry !== play.target) folders.push(path.dirname(entry));
+  if (subFiles.length > 0) folders.push(path.dirname(subFiles[0]));
+  for (const dir of folders) {
+    try {
+      fs.writeFileSync(path.join(dir, `queued-${pid}`), '');
+    } catch (e) {
+      // Without its mark the folder goes by the private age: the stream may then not play from the queue.
+    }
+  }
+}
+
+/**
+ * Whether a private folder waits for a queued stream in an mpv that still runs.
+ * @param {string} dir
+ * @return {boolean}
+ */
+function queuedInRunningMpv(dir) {
+  let names = [];
+  try {
+    names = fs.readdirSync(dir);
+  } catch (e) {
+    return false;
+  }
+  return names.some((name) => {
+    const match = QueuedMark.exec(name);
+    if (!match) return false;
+    try {
+      process.kill(Number(match[1]), 0);
+      return true;
+    } catch (e) {
+      // EPERM: it runs, as another user's process.
+      return /** @type {{code?: string}} */ (e).code === 'EPERM';
+    }
+  });
+}
+
+/**
+ * The age past which a folder of the helper's goes.
+ * @param {string} dir
+ * @param {boolean} isPrivate
+ * @param {number} privateMaxAge
+ * @param {number} maxAge
+ * @return {number}
+ */
+function folderMaxAge(dir, isPrivate, privateMaxAge, maxAge) {
+  if (!isPrivate) return maxAge;
+  return queuedInRunningMpv(dir) ? QueuedDirMaxAgeMs : privateMaxAge;
+}
+
 /**
  * Removes the subtitle folders past their age: a day, a private window's two minutes (as its playlists: mpv has
- * read them by then). One that cannot be removed (another user's) stays.
+ * read them by then), or while queued as long as its mpv runs. One that cannot be removed (another user's) stays.
  * @param {string} [base] - The folder they are in; the temp folder by default.
  * @param {number} [now]
  */
@@ -642,7 +710,8 @@ export function removeOldSubtitleDirs(base = os.tmpdir(), now = Date.now()) {
   for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.startsWith(SubtitleDirPrefix)) continue;
     const dir = path.join(base, entry.name);
-    const maxAge = entry.name.startsWith(PrivateSubtitleDirPrefix) ? PrivateSubtitleDirMaxAgeMs : SubtitleDirMaxAgeMs;
+    const maxAge = folderMaxAge(dir, entry.name.startsWith(PrivateSubtitleDirPrefix), PrivateSubtitleDirMaxAgeMs,
+        SubtitleDirMaxAgeMs);
     try {
       if (now - fs.statSync(dir).mtimeMs > maxAge) fs.rmSync(dir, {recursive: true, force: true});
     } catch (e) {
@@ -903,7 +972,7 @@ export function removeOldHlsPackages(base = os.tmpdir(), now = Date.now()) {
   for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.startsWith(HlsDirPrefix)) continue;
     const dir = path.join(base, entry.name);
-    const maxAge = entry.name.startsWith(PrivateHlsDirPrefix) ? PrivateHlsDirMaxAgeMs : HlsDirMaxAgeMs;
+    const maxAge = folderMaxAge(dir, entry.name.startsWith(PrivateHlsDirPrefix), PrivateHlsDirMaxAgeMs, HlsDirMaxAgeMs);
     try {
       if (now - fs.statSync(dir).mtimeMs > maxAge) fs.rmSync(dir, {recursive: true, force: true});
     } catch (e) {
@@ -1048,31 +1117,37 @@ export function perFileOptions(headerFields, title, extras = {}, delimiter = pat
 }
 
 /**
- * Loads a URL with its per-file options into the mpv on a pipe (playMpv).
+ * Loads a URL with its per-file options into the mpv on a pipe (playMpv), or queues it there behind what plays.
  * @param {string} target - The URL for mpv.
  * @param {Object<string, string>} options - loadfile's options (perFileOptions).
  * @param {boolean} fullscreen - Whether to make the window fullscreen first.
  * @param {(commands: Array<Object>) => ReturnType<typeof mpvIpcRequest>} ipcRequest - The
  *   transport, bound to its pipe.
+ * @param {boolean} [queue] - Behind what plays: mpv-config's queue script loads it, with the same options, and keeps
+ *   it there through a replace of what plays (which a loadfile of the helper's would not survive).
  * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, stalled?: boolean, refused?: boolean,
  *   error?: string}>} ok:false when no mpv answered on the pipe, unless busy: one answered and did
  *   not confirm the load in time; or refused: one refused the command (error is mpv's reason); or
  *   stalled: nothing was written.
  */
-export async function loadInto(target, options, fullscreen, ipcRequest) {
+export async function loadInto(target, options, fullscreen, ipcRequest, queue = false) {
   /** @type {Array<{command: *}>} */
   const commands = [];
   if (fullscreen) {
     commands.push({command: ['set_property', 'fullscreen', true]});
   }
-  // Named arguments and no index: loadfile's options follow its index from mpv 0.38 on, and an
-  // mpv before 0.38 (Ubuntu 24.04: 0.37) refuses a command with one.
-  commands.push({command: {
-    name: 'loadfile',
-    url: target,
-    flags: 'replace',
-    options,
-  }});
+  if (queue) {
+    commands.push({command: ['script-message-to', QueueScript, 'add-stream', target, JSON.stringify(options)]});
+  } else {
+    // Named arguments and no index: loadfile's options follow its index from mpv 0.38 on, and an
+    // mpv before 0.38 (Ubuntu 24.04: 0.37) refuses a command with one.
+    commands.push({command: {
+      name: 'loadfile',
+      url: target,
+      flags: 'replace',
+      options,
+    }});
+  }
   commands.push({command: ['get_property', 'pid']});
 
   const result = await ipcRequest(commands);
@@ -1081,7 +1156,7 @@ export async function loadInto(target, options, fullscreen, ipcRequest) {
     return result.busy ? {ok: false, busy: true} : {ok: false, ...(result.error === StalledError ? {stalled: true} : {})};
   }
 
-  // The loadfile reply decides: mpvIpcRequest's timeout resolves ok with any reply in. Without it
+  // The loadfile's (or the queue's) reply decides: mpvIpcRequest's timeout resolves ok with any reply in. Without it
   // the load is unconfirmed, and ours runs (it answered): busy, not "start another".
   const replies = /** @type {Array<{request_id: number, error?: string, data?: *}>} */ (result.replies || []);
   const loadReply = replies.find((r) => r.request_id === commands.length - 1);
@@ -1683,6 +1758,7 @@ const PlayHeader = /^(referer|origin|user-agent): [ -~]{1,4096}$/i;
  * @property {boolean} newWindow - A window of its own, not the one on the helper's pipe.
  * @property {boolean} paused - newWindow's waits, paused and minimized, not raised.
  * @property {string} window - The window to play in (WindowId), '' for the one on the helper's pipe.
+ * @property {boolean} queue - Behind what that open window plays (loadInto); with no mpv open, it simply plays.
  * @property {string|undefined} mpvPath - The options page's mpv path: resolveMpvPath accepts
  *   only an mpv executable or its folder, so it names no program but mpv.
  * @property {Array<{name: string, text: string}>|undefined} hls - The stream's playlists, played from files
@@ -1761,6 +1837,13 @@ export function checkPlayMessage(message) {
   if (window.window && newWindow) {
     return refuse('a new window is not one that is open');
   }
+  const queue = message.queue ?? false;
+  if (typeof queue !== 'boolean') {
+    return refuse('queue is a yes or no');
+  }
+  if (queue && (newWindow || fullscreen)) {
+    return refuse('only a stream for an open window is queued');
+  }
 
   const mpvPath = isPlainText(message.mpvPath, 4096) ? message.mpvPath : undefined;
 
@@ -1776,7 +1859,7 @@ export function checkPlayMessage(message) {
   return {
     ok: true,
     play: {target, title, start, headerFields: [...headers], subtitles: subtitlesOf({subtitles}), fullscreen, newWindow,
-      paused, window: window.window, mpvPath, hls},
+      paused, window: window.window, queue, mpvPath, hls},
   };
 }
 
@@ -2073,13 +2156,16 @@ async function playWindow(mpvPath, play, config, io, entry, subFiles, window) {
   /**
    * @param {string} pipe
    * @param {boolean} fullscreen
+   * @param {boolean} [queue] - Behind what plays (only an mpv that was open: a fresh one's scripts may not be up yet).
    * @return {ReturnType<typeof loadInto>}
    */
-  const load = (pipe, fullscreen) => loadInto(entry, options, fullscreen,
-      (commands) => ipcRequest(commands, undefined, undefined, pipe));
+  const load = (pipe, fullscreen, queue = false) => loadInto(entry, options, fullscreen,
+      (commands) => ipcRequest(commands, undefined, undefined, pipe), queue);
 
   if (!play.newWindow) {
-    const loaded = await load(window ? ipcPipeFor(config, platform, undefined, window) : basePipe, play.fullscreen);
+    const loaded = await load(window ? ipcPipeFor(config, platform, undefined, window) : basePipe, play.fullscreen,
+        play.queue);
+    if (loaded.ok && play.queue) markQueuedFolders(play, entry, subFiles, loaded.pid);
     const answer = await answerOfOpenMpv(loaded, focus, config, platform);
     if (answer) return loaded.busy ? {...answer, busy: true} : answer;
     if (window) {

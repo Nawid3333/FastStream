@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "lì attende in pausa; $1 continua"
     },
+    "mpv_offer_queue_title": {
+        "message": "Aggiungi alla coda"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "parte dopo $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "parte dopo i $1 in coda"
+    },
     "player_mpv_declined": {
         "message": "Non inviato: mpv continua a riprodurre ciò che aveva"
     },

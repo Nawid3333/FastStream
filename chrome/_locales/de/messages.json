@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "dort wartet es pausiert; $1 läuft weiter"
     },
+    "mpv_offer_queue_title": {
+        "message": "Zur Warteschlange hinzufügen"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "läuft nach $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "läuft nach den $1 in der Warteschlange"
+    },
     "player_mpv_declined": {
         "message": "Nicht gesendet: mpv spielt weiter, was es hatte"
     },

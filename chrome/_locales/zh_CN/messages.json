@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "它在那里暂停等待；$1 继续播放"
     },
+    "mpv_offer_queue_title": {
+        "message": "加入队列"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "在 $1 之后播放"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "在队列中的 $1 项之后播放"
+    },
     "player_mpv_declined": {
         "message": "未发送：mpv 继续播放原来的内容"
     },

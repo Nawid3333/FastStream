@@ -375,20 +375,20 @@ describe('checkPlayMessage', () => {
     })).toEqual({ok: true, play: {
       target, title: 'Show - Episode 3', start: '754.123',
       headerFields: ['Referer: https://site.test/a?b=1,2', 'Origin: https://site.test', 'User-Agent: UA (x, y)'],
-      subtitles, fullscreen: true, newWindow: true, paused: false, window: '',
+      subtitles, fullscreen: true, newWindow: true, paused: false, window: '', queue: false,
     }});
   });
 
   it('fills in what is missing: the host name as the title, no start, headers or subtitles, one window', () => {
     expect(checkPlayMessage({type: 'play', target})).toEqual({ok: true, play: {
       target, title: 'cdn.test', start: undefined, headerFields: [], subtitles: [], fullscreen: false, newWindow: false,
-      paused: false, window: '',
+      paused: false, window: '', queue: false,
     }});
     for (const title of [undefined, null, '']) {
       expect(checkPlayMessage({target, title}).play.title).toBe('cdn.test');
     }
     expect(checkPlayMessage({target, start: null, headers: null, subtitles: null, fullscreen: null, newWindow: null,
-      paused: null, window: null}).ok)
+      paused: null, window: null, queue: null}).ok)
         .toBe(true);
   });
 
@@ -396,8 +396,8 @@ describe('checkPlayMessage', () => {
     const checked = checkPlayMessage({target, url: 'file:///x', extra: 1});
     expect(checked.ok).toBe(true);
     expect(Object.keys(checked.play).sort())
-        .toEqual(['fullscreen', 'headerFields', 'hls', 'mpvPath', 'newWindow', 'paused', 'start', 'subtitles', 'target',
-          'title', 'window']);
+        .toEqual(['fullscreen', 'headerFields', 'hls', 'mpvPath', 'newWindow', 'paused', 'queue', 'start', 'subtitles',
+          'target', 'title', 'window']);
     expect(JSON.stringify(checked)).not.toContain('file:');
   });
 

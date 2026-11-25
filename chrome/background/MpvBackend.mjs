@@ -11,7 +11,7 @@ const NativeHostName = 'com.faststream.mpv';
 
 // The helper this extension speaks to, at least: an older one gets no stream, only the update message (checkHost).
 // HostVersion in native-host/faststream-mpv-host.mjs; mpvHostVersion.test.mjs keeps it no higher.
-export const RequiredHostVersion = 32;
+export const RequiredHostVersion = 33;
 
 // The host's MaxMessageBytes, of the UTF-8 JSON: a bigger message is answered with an error.
 export const HostMaxMessageBytes = 16 * 1024 * 1024;
@@ -47,15 +47,16 @@ const OutdatedUnixError = 'The mpv helper on this computer is out of date: updat
  */
 
 /**
- * choice: mpv-config's answer to an offer (MpvOffer.mjs).
+ * choice: mpv-config's answer to an offer (MpvOffer.mjs); queued: how many wait in mpv-config's queue.
  * @typedef {{type: 'watching'}|{type: 'path'|'ended', path: *}|{type: 'request', action: *}|
- *   {type: 'closed', reason: *}|{type: 'decoder', decoder: ?MpvDecoder}|{type: 'choice', id: string, choice: string}} MpvWatchEvent
+ *   {type: 'closed', reason: *}|{type: 'decoder', decoder: ?MpvDecoder}|{type: 'choice', id: string, choice: string}|
+ *   {type: 'queued', count: number}} MpvWatchEvent
  */
 
 /**
  * @typedef {{type: 'watching'}|{type: 'path'|'ended', path: string}|{type: 'request', action: string}|
  *   {type: 'closed', reason: string}|{type: 'decoder-replies', replies: Array<{error: string, data?: *}>}|
- *   {type: 'choice', id: string, choice: string}} RelayEvent
+ *   {type: 'choice', id: string, choice: string}|{type: 'queued', count: number}} RelayEvent
  */
 
 const FormatNames = new Map([
@@ -77,7 +78,7 @@ function messageBytes(message) {
 
 /**
  * @typedef {{type: 'play', target: string, title: string, start?: string, headers?: Array<string>,
- *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean, paused?: boolean, window?: string,
+ *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean, paused?: boolean, window?: string, queue?: boolean,
  *   subtitles?: Array<{label: string, srt: string}>, hls?: {files: Array<{name: string, text: string}>}}} PlayMessage
  */
 
@@ -121,7 +122,7 @@ function addSubtitles(message, subtitles) {
  *   subtitles?: Array<{label: string, srt: string}>,
  *   qualities?: Array<{url: string, label: string, height: number}>,
  *   hls?: {files: Array<{name: string, text: string}>}, window?: string, newWindow?: boolean,
- *   paused?: boolean}}} MpvStream
+ *   paused?: boolean, queue?: boolean}}} MpvStream
  */
 
 /**
@@ -509,8 +510,15 @@ export class MpvBackend {
         message.paused = true;
         delete message.fullscreen;
       }
-    } else if (extras.window) {
-      message.window = extras.window;
+    } else {
+      if (extras.window) {
+        message.window = extras.window;
+      }
+      if (extras.queue) {
+        // Behind what that open window plays (mpv-config's queue): it is not made fullscreen for it.
+        message.queue = true;
+        delete message.fullscreen;
+      }
     }
 
     if (extras.hls) {
