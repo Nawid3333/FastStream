@@ -420,10 +420,11 @@ export function tabSources(tab) {
 /**
  * One mpv window's: window is the helper's id for it ('' for the one on its own pipe); tabId is NoTab once the tab's
  * stream went to another window; usedAt when it last got a stream; offer the one up in it (MpvOffer.mjs); queued the
- * streams sent to its queue, oldest first; mpvQueued how many wait in mpv-config's queue, as mpv last said.
+ * streams sent to its queue, oldest first; mpvQueued how many wait in mpv-config's queue, as mpv last said; heldEnd
+ * whether the end of the window's stream was left to that queue (resumeHeldEnd).
  * @typedef {{window: string, tabId: number, url: string, qualities: ?Array<{url: string}>, local: ?string,
  *   usedAt: number, offer: ?import('./MpvOffer.mjs').PendingOffer, placing: Promise<void>, queued: Array<QueuedStream>,
- *   mpvQueued: number, alive: boolean, going: boolean, countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
+ *   mpvQueued: number, heldEnd: boolean, alive: boolean, going: boolean, countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
  *   links: ?EpisodeLinksOfTab, closedTab: ?{links: EpisodeLinksOfTab, windowId: number, windowClosing: boolean},
  *   site: string, watcher: ?import('./MpvRelayWatch.mjs').MpvWatcher}} MpvWatch
@@ -623,6 +624,7 @@ export function watchMpvFor(tab, url, qualities = null, local = null, window = '
   tab.mpvWindow = window;
   if (current?.alive) {
     current.usedAt = Date.now();
+    current.heldEnd = false;
     if (current.stalled) clearTimeout(current.stalled);
     current.stalled = null;
     cancelMpvCountdown(current);
@@ -639,7 +641,7 @@ export function watchMpvFor(tab, url, qualities = null, local = null, window = '
   }
   /** @type {MpvWatch} */
   const state = {window, tabId: tab.tabId, url, qualities, local, usedAt: Date.now(), offer: null,
-    placing: Promise.resolve(), queued: [], mpvQueued: 0, alive: true, going: false, countdown: null, countdownAsks: 0, stalled: null,
+    placing: Promise.resolve(), queued: [], mpvQueued: 0, heldEnd: false, alive: true, going: false, countdown: null, countdownAsks: 0, stalled: null,
     links: null,
     closedTab: null, site: siteOf(tab.url), watcher: null};
   mpvWindows.add(state);
@@ -708,9 +710,29 @@ function followQueued(state, item) {
   }
   tabLeftWindow(Tabs.getTab(state.tabId), state.window);
   letGoOfTab(state);
+  state.heldEnd = false;
   state.url = item.url;
   state.qualities = item.qualities;
   state.local = item.local;
+}
+
+/**
+ * mpv-config's queue emptied while mpv may still stand at the end autoplay left to it (the user cleared it, its stream
+ * could not load): autoplay counts down after all, as with no queue. mpv is asked where it stands, since the queue also
+ * empties as its last stream starts.
+ * @param {MpvWatch} state
+ * @return {Promise<void>}
+ */
+async function resumeHeldEnd(state) {
+  state.heldEnd = false;
+  if (!state.watcher || !Options.mpvAutoplayNext) return;
+  const replies = await state.watcher.ask([['get_property', 'path'], ['get_property', 'eof-reached']], WindowAskMs);
+  const value = (/** @type {number} */ i) => replies?.[i]?.error === 'success' ? replies[i].data : undefined;
+  const path = value(0);
+  if (value(1) !== true || !state.alive || state.mpvQueued > 0 || state.countdown) return;
+  if (isSentStream(path, state.url, state.qualities) || (state.local !== null && path === state.local)) {
+    startMpvCountdown(state);
+  }
 }
 
 /**
@@ -831,6 +853,7 @@ export function onMpvWatchEvent(state, event) {
     // The user opened another file in this mpv during the countdown: the next episode would replace it.
     if (!isSentStream(event.path, state.url, state.qualities) && !(state.local !== null && event.path === state.local)) {
       cancelMpvCountdown(state);
+      state.heldEnd = false;
     }
   } else if (event.type === 'request' && (event.action === 'next' || event.action === 'previous')) {
     // A key or a button: now, whatever the countdown says.
@@ -839,7 +862,15 @@ export function onMpvWatchEvent(state, event) {
   } else if (event.type === 'choice') {
     answerOffer(state, event.id, event.choice);
   } else if (event.type === 'queued') {
+    const before = state.mpvQueued;
     state.mpvQueued = event.count;
+    if (event.count > 0 && state.countdown) {
+      // Queued during the countdown (a file from Explorer): the queue goes first.
+      cancelMpvCountdown(state);
+      state.heldEnd = true;
+    } else if (event.count === 0 && before > 0 && state.heldEnd) {
+      resumeHeldEnd(state);
+    }
   } else if (event.type === 'request' && event.action === 'autoplay') {
     toggleMpvAutoplay(state);
   } else if (event.type === 'request' && event.action === 'pause') {
@@ -889,9 +920,13 @@ export async function nextEpisodeInPage(tab) {
  * @return {Promise<void>}
  */
 export async function startMpvCountdown(state) {
+  if (state.countdown) return;
   // What waits in mpv-config's queue plays first, after a countdown of its own: autoplay is not asked. The queue's last
-  // one's end counts down here again.
-  if (state.countdown || state.mpvQueued > 0) return;
+  // one's end counts down here again, and this end too if the queue is emptied while mpv stands at it (resumeHeldEnd).
+  if (state.mpvQueued > 0) {
+    state.heldEnd = true;
+    return;
+  }
   const seconds = autoplayCountdownSeconds();
   // A window the tab's stream left counts down to nothing: goToEpisode says so at once.
   if (seconds === 0 || state.tabId === NoTab) {
@@ -907,6 +942,10 @@ export async function startMpvCountdown(state) {
   const page = tab && !away && tab.isOn && tab.isMpv ? await nextEpisodeInPage(tab) :
     links?.seriesEnd ? 'series_end' : null;
   if (ask !== state.countdownAsks || state.countdown || !state.alive || !Options.mpvAutoplayNext) return;
+  if (state.mpvQueued > 0) {
+    state.heldEnd = true;
+    return;
+  }
   if (page === 'series_end') {
     notifySeriesEnd(state);
     return;

@@ -1301,7 +1301,9 @@ The owner's wish (2026-11-25): a stream for a window that plays can wait behind 
 - Queue before autoplay (the owner's rule: "when the playlist exists, it just has to default to the playlist"): the
   relay observes `user-data/faststream/queue/count`, and an end while it is above 0 starts no autoplay countdown and
   asks no page. The queue's last item's end counts down to its tab's next episode, as any stream. No banner says
-  autoplay waited.
+  autoplay waited. Something queued during autoplay's countdown (a file from Explorer) stops it; a queue emptied while
+  mpv still stands at an end autoplay left to it (cleared, or its stream could not load) counts down after all
+  (`resumeHeldEnd` asks mpv's `path` and `eof-reached` first: the queue also empties as its last stream starts).
 - The queue counts down as long as autoplay: `state()` sends `user-data/faststream/countdown` with the autoplay
   switch.
 - A window without the queue (an older mpv setup): no count, no third banner, and a `queue` answer is none.

@@ -955,7 +955,9 @@ describe('several mpv windows', () => {
             expect(countdowns(port)).toEqual([]);
             expect(navigations).toEqual([]);
 
-            // mpv plays the queued stream: the window is tab 2's now.
+            // mpv plays the queued stream: the window is tab 2's now. The queue empties as it starts: no countdown
+            // for tab 1's end, which mpv has left.
+            port.mpv = {[QueueCount]: 0, 'path': playOf(SX1).target, 'eof-reached': false};
             queued(port, 0);
             playing(port, playOf(SX1).target);
             await bg.wait(100);
@@ -967,6 +969,29 @@ describe('several mpv windows', () => {
             expect(countdowns(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
             await bg.wait(5000);
             expect(navigations).toEqual([{tabId: 2, direction: 'next'}]);
+          });
+
+      it('stops autoplay\'s countdown for what is queued during it, and counts down once more if the queue is emptied at that end',
+          async () => {
+            const port = await secondStream({[QueueCount]: 0});
+            choose(port, 'none');
+            await bg.wait(100);
+            ends(port, playOf(S1).target);
+            await bg.wait(1500);
+            expect(countdowns(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
+            // A file from Explorer goes to the window's queue (single-instance.lua) during the countdown.
+            queued(port, 1);
+            await bg.wait(100);
+            expect(commands(port)).toContainEqual(['script-message-to', 'notify', 'hide', 'faststream']);
+            await bg.wait(7000);
+            expect(navigations).toEqual([]);
+            // The user clears the queue while mpv still stands at that end: autoplay counts down after all.
+            port.mpv = {[QueueCount]: 0, 'path': playOf(S1).target, 'eof-reached': true};
+            queued(port, 0);
+            await bg.wait(1500);
+            expect(countdowns(port)).toHaveLength(2);
+            await bg.wait(5000);
+            expect(navigations).toEqual([{tabId: 1, direction: 'next'}]);
           });
 
       it('counts down again once the queue was emptied in mpv before the end', async () => {
