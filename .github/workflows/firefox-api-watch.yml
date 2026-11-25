@@ -14,9 +14,12 @@ name: Firefox API watch
 # What was reported is read back from hidden markers in the bot's own posts, open and closed
 # issues alike. Nothing is committed: a push to main releases.
 #
-# Once a day it reads the current Stable version (product-details). A release is reviewed once
+# Once a quarter (one review issue a quarter, not one a release; what a new
+# Firefox breaks, firefox-stable.yml and firefox-beta.yml report), on each of the first seven days
+# of January, April, July and October, it reads the current Stable version (product-details) and
+# reviews it and the four releases before it (DefaultLookback). A release is reviewed once
 # its MDN notes are no longer a work in progress (or 10 days after it shipped); a source that is
-# down leaves it for the next run. Once every release from the current one back was reviewed, the
+# down leaves it for the next day's run. Once every release from the current one back was reviewed, the
 # cache entry firefox-api-watch-<version> lets the following runs stop after the version check,
 # until the next release; losing that entry costs one more review, never a duplicate. The run
 # fails (and opens "Firefox API watch failed") when a source answers wrongly or a release could
@@ -27,7 +30,7 @@ name: Firefox API watch
 
 on:
   schedule:
-    - cron: '40 7 * * *'
+    - cron: '40 7 1-7 1,4,7,10 *'
   workflow_dispatch:
     inputs:
       dry_run:

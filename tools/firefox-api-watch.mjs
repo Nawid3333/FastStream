@@ -21,8 +21,11 @@ export const Prefix = 'Firefox API Watch: ';
 export const Bot = 'github-actions[bot]';
 /** The first release the watcher reports by itself; older ones are reviewed by hand with --from. */
 export const DefaultStart = 161;
-/** Releases looked at in one run: the current Stable and the ones before it. */
-export const DefaultLookback = 3;
+/**
+ * Releases looked at in one run: the current Stable and the ones before it. A quarter holds up to four
+ * four-week releases, one more for a release whose notes were still in progress at the last run.
+ */
+export const DefaultLookback = 5;
 /** Days after a release its notes may still be missing before the run fails. */
 export const GraceDays = 10;
 /** A post's largest size; GitHub's limit is 65536 characters. */
