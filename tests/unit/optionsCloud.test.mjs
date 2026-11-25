@@ -119,6 +119,12 @@ async function openOptionsPage({options = {}, sync = fakeStorageSync(), os = 'wi
     savedOptions: () => JSON.parse(local.options),
     click: async (id) => {
       byId(id).fire('click');
+      await page.idle();
+    },
+    // A cloud action hashes its copy with crypto.subtle, on another thread: no number of turns waits
+    // for that on a busy machine, its buttons coming back does (a click takes them at once).
+    idle: async () => {
+      await vi.waitFor(() => expect(byId('cloudexport').disabled).toBe(false), {timeout: 5000, interval: 5});
       await settle();
     },
     show: async () => {
@@ -187,7 +193,7 @@ describe('the cloud buttons', () => {
     page.byId('cloudexport').fire('click');
     page.byId('cloudexport').fire('click');
     page.byId('cloudimport').fire('click');
-    await settle();
+    await page.idle();
     expect(page.sync.calls.filter(([call]) => call === 'set')).toHaveLength(1);
     expect(page.question()).toBe(null);
     expect(page.byId('cloudexport').disabled).toBe(false);
