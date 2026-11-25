@@ -1265,7 +1265,9 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
   PAUSE_MEDIA does not reach, pauses on `MPV_ASKING` when its MPV button sent the stream. Where mpv has the queue,
   two more texts make a third banner, "Add to queue" (8 arguments; an mpv setup without the queue shows two). The
   answer is the broadcast `faststream-choice <id> here|queue|window|none`; FastStream's own offer comes back as a client-message too,
-  and is no answer. 17 s without one is none (`faststream-offer-cancel <id>` takes the banners down); a newer
+  and is no answer. mpv-config answers by itself when its 15 s are up: `queue` while the queue banner shows (the
+  owner, 2026-11-25: what comes while he watches waits in the queue, and its x there takes it out), else `none`.
+  17 s without any answer is none (`faststream-offer-cancel <id>` takes the banners down); a newer
   stream's offer replaces the one up, whose answer is then none. mpv-config answers here by itself when what played
   ends while the banners are up: the same path as a click.
 - A window is asked about one stream at a time (`placementTurn`, a chain on its `MpvWatch`, gone with it): the next
