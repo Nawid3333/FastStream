@@ -5,7 +5,8 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {
   HlsDirPrefix, checkHlsPackage, checkPlayMessage, ffmpegAttributes, hlsAddresses, hlsMasterIn, hlsPlayOptions,
-  launchLockFile, loggedMessage, playMpv, privatePackageWatch, removeOldHlsPackages, takeLaunchLock, writeHlsPackage,
+  launchLockFile, loggedMessage, markQueuedFolders, playMpv, privatePackageWatch, removeOldHlsPackages,
+  removeOldSubtitleDirs, takeLaunchLock, writeHlsPackage, writeSubtitleFiles,
 } from '../../native-host/faststream-mpv-host.mjs';
 
 // Helper 27: an HLS stream mpv cannot open from its address goes as its playlists, every address whole, and mpv
@@ -365,6 +366,35 @@ describe('writing the playlists', () => {
     expect(fs.existsSync(path.dirname(entry))).toBe(true);
     removeOldHlsPackages(base, Date.now() + 130 * 1000);
     expect(fs.existsSync(path.dirname(entry))).toBe(false);
+  });
+
+  it('keeps a queued private stream\'s folders while the mpv it waits in runs, then lets them go', () => {
+    const base = scratch();
+    const target = 'https://cdn.test/v#fs-id=ab&fs-private=1';
+    const entry = writeHlsPackage([{name: '0.m3u8', text: media()}], target, base);
+    const subs = writeSubtitleFiles([{srt: '1', label: 'English'}], base, true);
+    const later = Date.now() + 10 * 60 * 1000;
+    // This test's own process stands in for the mpv: it runs.
+    markQueuedFolders({target}, entry, subs, process.pid);
+    expect(fs.readdirSync(path.dirname(entry))).toContain(`queued-${process.pid}`);
+    removeOldHlsPackages(base, later);
+    removeOldSubtitleDirs(base, later);
+    expect(fs.existsSync(path.dirname(entry))).toBe(true);
+    expect(fs.existsSync(subs[0])).toBe(true);
+    // A day at most, whatever runs.
+    removeOldHlsPackages(base, Date.now() + 25 * 60 * 60 * 1000);
+    expect(fs.existsSync(path.dirname(entry))).toBe(false);
+
+    // Its mpv gone (no process has this pid): the private two minutes again.
+    const gone = writeHlsPackage([{name: '0.m3u8', text: media()}], target, base);
+    markQueuedFolders({target}, gone, [], 2147483646);
+    removeOldHlsPackages(base, later);
+    expect(fs.existsSync(path.dirname(gone))).toBe(false);
+
+    // Not private: no mark, its age as before.
+    const plain = writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v#fs-id=ab', base);
+    markQueuedFolders({target: 'https://cdn.test/v#fs-id=ab'}, plain, [], process.pid);
+    expect(fs.readdirSync(path.dirname(plain)).some((name) => name.startsWith('queued-'))).toBe(false);
   });
 
   it('removes a private window\'s folder once mpv moved on from it or closed, not when the extension let go', () => {

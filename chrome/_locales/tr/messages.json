@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "orada duraklatılmış olarak bekler; $1 oynamaya devam eder"
     },
+    "mpv_offer_queue_title": {
+        "message": "Sıraya ekle"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "$1 bittikten sonra oynatılır"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "sıradaki $1 öğeden sonra oynatılır"
+    },
     "player_mpv_declined": {
         "message": "Gönderilmedi: mpv mevcut içeriği oynatmaya devam ediyor"
     },

@@ -137,7 +137,8 @@ describe('MPV mode with the helper', () => {
     port.emit({type: 'relaying', ...Thin});
     await bg.wait(50);
     const observed = commands(port).filter((m) => m.command[0] === 'observe_property').map((m) => m.command[2]);
-    expect(observed).toEqual(['path', 'eof-reached', 'pause', 'hwdec-current', 'hwdec', 'video-format', 'width', 'height']);
+    expect(observed).toEqual(['path', 'eof-reached', 'pause', 'user-data/faststream/queue/count', 'hwdec-current', 'hwdec',
+      'video-format', 'width', 'height']);
     // mpv opening the stream: no decoder yet, then one, its format and size as they come.
     const decoder = (id, name, data) => port.emit({type: 'mpv', data: {event: 'property-change', id, name, data}});
     port.emit({type: 'mpv', data: {event: 'property-change', id: 10, name: 'hwdec-current'}});
@@ -162,6 +163,8 @@ describe('MPV mode with the helper', () => {
     await bg.wait(50);
     // mpv's autoplay switch shows the setting once the watch began.
     expect(commands(port).map((m) => m.command)).toContainEqual(['set_property', 'user-data/faststream/autoplay', true]);
+    // And its seconds, for mpv-config's queue to count down as long.
+    expect(commands(port).map((m) => m.command)).toContainEqual(['set_property', 'user-data/faststream/countdown', 5]);
     const sent = plays().at(-1).target;
     port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path', data: sent}});
     port.emit({type: 'mpv', data: {event: 'property-change', id: 2, name: 'eof-reached', data: false}});
@@ -904,6 +907,99 @@ describe('several mpv windows', () => {
       await bg.wait(1000);
       expect(offerCommands(port)).toHaveLength(2);
       expect(plays()).toHaveLength(1);
+    });
+
+    describe('"Add to queue" (mpv-config\'s queue)', () => {
+      const QueueCount = 'user-data/faststream/queue/count';
+      const queued = (port, count) => port.emit({type: 'mpv', data: {event: 'property-change', id: 4, name: QueueCount,
+        data: count}});
+      const playing = (port, target) => port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path',
+        data: target}});
+      const countdowns = (port) => notices(port).filter((text) => text.startsWith('next episode in'));
+
+      it('is offered only where mpv has the queue, saying what it waits behind', async () => {
+        let port = await secondStream({[QueueCount]: 0});
+        expect(offerCommands(port)[0].slice(4)).toEqual(['Play here', 'Other - Episode 1, in place of Show - Episode 1',
+          'Play in a new window', 'it waits there paused; Show - Episode 1 plays on', 'Add to queue',
+          'plays after Show - Episode 1']);
+        bg.unload();
+        port = await secondStream({[QueueCount]: 2});
+        expect(offerCommands(port)[0].slice(8)).toEqual(['Add to queue', 'plays after the 2 in the queue']);
+        bg.unload();
+        // No queue there (an older mpv-config): two banners, and a queue answer is none.
+        port = await secondStream();
+        expect(offerCommands(port)[0]).toHaveLength(8);
+        choose(port, 'queue');
+        await bg.wait(100);
+        expect(playOf(SX1)).toBeUndefined();
+        expect(bg.badges.get(2)).not.toBe('!');
+      });
+
+      it('queues the stream behind what plays: no autoplay while it waits, its tab followed once it plays, then autoplay',
+          async () => {
+            const port = await secondStream({[QueueCount]: 0});
+            choose(port, 'queue');
+            await bg.wait(100);
+            expect(playOf(SX1)).toMatchObject({window: WindowB, queue: true});
+            expect(playOf(SX1)).not.toHaveProperty('newWindow');
+            expect(playOf(SX1)).not.toHaveProperty('fullscreen');
+            // Tab 1's stream plays on in the window, which still follows it.
+            expect((await tabState(1)).mpvWindow).toBe(WindowB);
+            expect((await tabState(2)).mpvWindow).not.toBe(WindowB);
+            expect(bg.ports).toHaveLength(1);
+            queued(port, 1);
+
+            // Its end: the queue goes first (its own countdown, in mpv); autoplay's next episode is not asked.
+            ends(port, playOf(S1).target);
+            await bg.wait(7000);
+            expect(countdowns(port)).toEqual([]);
+            expect(navigations).toEqual([]);
+
+            // mpv plays the queued stream: the window is tab 2's now.
+            queued(port, 0);
+            playing(port, playOf(SX1).target);
+            await bg.wait(100);
+            expect((await tabState(2)).mpvWindow).toBe(WindowB);
+            expect((await tabState(1)).mpvWindow).toBe(null);
+            // The queue's last one's end: autoplay goes on in its tab, as for any stream.
+            ends(port, playOf(SX1).target);
+            await bg.wait(1500);
+            expect(countdowns(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
+            await bg.wait(5000);
+            expect(navigations).toEqual([{tabId: 2, direction: 'next'}]);
+          });
+
+      it('counts down again once the queue was emptied in mpv before the end', async () => {
+        const port = await secondStream({[QueueCount]: 0});
+        choose(port, 'queue');
+        await bg.wait(100);
+        queued(port, 1);
+        // The user took it out of the queue (its x, or Clear): tab 1's episode goes on.
+        queued(port, 0);
+        ends(port, playOf(S1).target);
+        await bg.wait(1500);
+        expect(countdowns(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
+        await bg.wait(5000);
+        expect(navigations).toEqual([{tabId: 1, direction: 'next'}]);
+      });
+
+      it('plays a queued stream whose tab closed meanwhile without a page: its end says the episode is unavailable',
+          async () => {
+            const port = await secondStream({[QueueCount]: 0});
+            choose(port, 'queue');
+            await bg.wait(100);
+            queued(port, 1);
+            await bg.closed(2);
+            queued(port, 0);
+            playing(port, playOf(SX1).target);
+            await bg.wait(100);
+            // Tab 1 no longer follows a window that plays another page's stream.
+            expect((await tabState(1)).mpvWindow).toBe(null);
+            ends(port, playOf(SX1).target);
+            await bg.wait(6500);
+            expect(notices(port)).toContain('its tab is closed, or not in MPV mode');
+            expect(navigations).toEqual([]);
+          });
     });
   });
 });

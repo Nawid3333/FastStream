@@ -3,8 +3,9 @@
 import {cutToLength} from './MpvTarget.mjs';
 
 /**
- * A stream for an mpv window that plays: mpv-config's faststream-offer.lua shows two banners, "Play here" and "Play in a
- * new window", and answers with the one clicked (docs/notes/mpv.md "The offer").
+ * A stream for an mpv window that plays: mpv-config's faststream-offer.lua shows the banners "Play here", "Add to
+ * queue" (where mpv-config's queue runs) and "Play in a new window", and answers with the one clicked
+ * (docs/notes/mpv.md "The offer", "The queue").
  */
 
 export const OfferSeconds = 15;
@@ -14,15 +15,21 @@ export const OfferWaitMs = 17000;
 export const WindowAskMs = 2000;
 // mpv-config sets it while faststream-offer.lua runs.
 export const OfferProperty = 'user-data/faststream/offer';
+// mpv-config's queue (Scripts/queue/) publishes how many wait behind what plays; absent, there is no queue.
+export const QueueCountProperty = 'user-data/faststream/queue/count';
 // A title in a banner: two of them share one line.
 export const MaxTitleChars = 60;
 // The helper's limit for a script-message's text.
 const MaxTextChars = 2048;
 
-/** @typedef {'here'|'window'|'none'|'closed'} OfferChoice */
+/** @typedef {'here'|'queue'|'window'|'none'|'closed'} OfferChoice */
 /** @typedef {{id: string, settle: (choice: OfferChoice) => void}} PendingOffer */
 /** @typedef {{offer: ?PendingOffer}} OfferHolder */
-/** @typedef {{hereTitle: string, hereDetail: string, windowTitle: string, windowDetail: string}} OfferTexts */
+/**
+ * queueTitle and queueDetail only where the window queues: the third banner.
+ * @typedef {{hereTitle: string, hereDetail: string, windowTitle: string, windowDetail: string, queueTitle?: string,
+ *   queueDetail?: string}} OfferTexts
+ */
 
 export const WindowQuestions = Object.freeze([
   ['get_property', 'idle-active'],
@@ -30,13 +37,14 @@ export const WindowQuestions = Object.freeze([
   ['get_property', 'path'],
   ['get_property', 'media-title'],
   ['get_property', OfferProperty],
+  ['get_property', QueueCountProperty],
 ]);
 
 /**
  * What the window's replies to WindowQuestions say; null when it did not answer (mpv always has idle-active).
- * free: nothing to lose there, idle or at its end.
+ * free: nothing to lose there, idle or at its end. queued: how many wait in its queue, null without a queue.
  * @param {Array<{error: string, data?: *}>} replies
- * @return {?{free: boolean, path: ?string, title: string, offers: boolean}}
+ * @return {?{free: boolean, path: ?string, title: string, offers: boolean, queued: ?number}}
  */
 export function readWindow(replies) {
   if (!Array.isArray(replies) || replies.length !== WindowQuestions.length || replies[0]?.error !== 'success') {
@@ -50,6 +58,7 @@ export function readWindow(replies) {
     path,
     title: typeof value(3) === 'string' ? value(3) : '',
     offers: value(4) === 1 || value(4) === true,
+    queued: Number.isSafeInteger(value(5)) && value(5) >= 0 ? value(5) : null,
   };
 }
 
@@ -73,8 +82,12 @@ export function offerText(text, max = MaxTextChars) {
  * @return {Array<string>}
  */
 export function offerCommand(id, texts) {
-  return ['script-message', 'faststream-offer', id, String(OfferSeconds), offerText(texts.hereTitle),
+  const command = ['script-message', 'faststream-offer', id, String(OfferSeconds), offerText(texts.hereTitle),
     offerText(texts.hereDetail), offerText(texts.windowTitle), offerText(texts.windowDetail)];
+  if (texts.queueTitle !== undefined) {
+    command.push(offerText(texts.queueTitle), offerText(texts.queueDetail));
+  }
+  return command;
 }
 
 // This background's: an answer to an offer of one before it never matches.
@@ -118,7 +131,7 @@ export function offerStream(holder, watcher, texts) {
  * @param {string} choice
  */
 export function answerOffer(holder, id, choice) {
-  if (holder.offer?.id === id && (choice === 'here' || choice === 'window' || choice === 'none')) {
+  if (holder.offer?.id === id && (choice === 'here' || choice === 'queue' || choice === 'window' || choice === 'none')) {
     holder.offer.settle(choice);
   }
 }

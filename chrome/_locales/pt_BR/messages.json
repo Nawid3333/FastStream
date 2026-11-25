@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "ele espera lá pausado; $1 continua tocando"
     },
+    "mpv_offer_queue_title": {
+        "message": "Adicionar à fila"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "toca depois de $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "toca depois dos $1 na fila"
+    },
     "player_mpv_declined": {
         "message": "Não enviado: o mpv continua tocando o que tinha"
     },

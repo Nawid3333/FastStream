@@ -102,6 +102,8 @@ describe('the relay watch', () => {
     for (const name of ['path', 'eof-reached', 'pause', ...DecoderProperties]) {
       expect(ReadableProperties.has(name)).toBe(true);
     }
+    // mpv-config's queue count: FastStream's user-data.
+    expect(ipcCommandRefusal(['observe_property', 4, 'user-data/faststream/queue/count'])).toBeNull();
   });
 
   it('keeps within the helper\'s limits', () => {
@@ -143,6 +145,8 @@ describe('the relay watch', () => {
       {type: 'mpv', command: ['observe_property', 2, 'eof-reached']},
       // A pause at the end is an end too.
       {type: 'mpv', command: ['observe_property', 3, 'pause']},
+      // What waits in mpv-config's queue plays before the next episode.
+      {type: 'mpv', command: ['observe_property', 4, 'user-data/faststream/queue/count']},
       // The mpv setup's episode buttons show while this holds.
       {type: 'mpv', command: ['set_property', 'user-data/faststream/connected', true]},
     ]);
@@ -154,7 +158,7 @@ describe('the relay watch', () => {
     const events = [];
     relayWatch(port, (event) => events.push(event), {decoderProperties: ['hwdec-current', 'width']});
     port.emit({type: 'relaying'});
-    expect(commands(port).map((m) => m.command).slice(3, 5)).toEqual([
+    expect(commands(port).map((m) => m.command).slice(4, 6)).toEqual([
       ['observe_property', 10, 'hwdec-current'],
       ['observe_property', 11, 'width'],
     ]);
@@ -179,7 +183,7 @@ describe('the relay watch', () => {
     watch.hide();
     expect(port.sent).toEqual([RELAY]);
     port.emit({type: 'relaying'});
-    expect(commands(port).map((m) => m.command).slice(4)).toEqual([
+    expect(commands(port).map((m) => m.command).slice(5)).toEqual([
       ['set_property', 'user-data/faststream/autoplay', true],
       ['script-message-to', 'notify', 'hide', 'faststream'],
     ]);
@@ -463,14 +467,28 @@ describe('the relay watch', () => {
     mpv({event: 'client-message', args: ['faststream-choice', 'a1-1', 'here']});
     mpv({event: 'client-message', args: ['faststream-choice', 'a1-2', 'window']});
     mpv({event: 'client-message', args: ['faststream-choice', 'a1-3', 'none']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-6', 'queue']});
     mpv({event: 'client-message', args: ['faststream-choice', 'a1-4', 'elsewhere']});
     mpv({event: 'client-message', args: ['faststream-choice', '', 'here']});
     mpv({event: 'client-message', args: ['faststream-choice', 5, 'here']});
     mpv({event: 'client-message', args: ['faststream-choice', 'a1-5']});
     expect(events.filter((e) => e.type !== 'watching')).toEqual([
       {type: 'choice', id: 'a1-1', choice: 'here'}, {type: 'choice', id: 'a1-2', choice: 'window'},
-      {type: 'choice', id: 'a1-3', choice: 'none'},
+      {type: 'choice', id: 'a1-3', choice: 'none'}, {type: 'choice', id: 'a1-6', choice: 'queue'},
     ]);
+  });
+
+  it('tells how many wait in mpv-config\'s queue, as mpv publishes it; none published is none', () => {
+    const {events, mpv} = relaying();
+    const queued = (data) => mpv({event: 'property-change', id: 4, name: 'user-data/faststream/queue/count',
+      ...(data === undefined ? {} : {data})});
+    queued();
+    queued(2);
+    queued(0);
+    queued(-1);
+    queued('3');
+    queued(1.5);
+    expect(events.filter((e) => e.type === 'queued').map((e) => e.count)).toEqual([0, 2, 0, 0, 0, 0]);
   });
 
   it('asks mpv over the relay and gives its replies in order; a refused one, none in time or the end are errors', async () => {
@@ -579,9 +597,23 @@ describe('the relay watch', () => {
     watch.state({});
     watch.state(null);
     watch.state({autoplay: true});
-    expect(commands(port).slice(4).map((m) => m.command)).toEqual([
+    expect(commands(port).slice(5).map((m) => m.command)).toEqual([
       ['set_property', 'user-data/faststream/autoplay', false],
       ['set_property', 'user-data/faststream/autoplay', true],
+    ]);
+  });
+
+  it('tells mpv-config\'s queue the countdown\'s seconds, and only a number', () => {
+    const {port, watch} = relaying();
+    watch.state({autoplay: true, countdown: 5});
+    watch.state({autoplay: true, countdown: NaN});
+    watch.state({autoplay: false, countdown: 0});
+    expect(commands(port).slice(5).map((m) => m.command)).toEqual([
+      ['set_property', 'user-data/faststream/autoplay', true],
+      ['set_property', 'user-data/faststream/countdown', 5],
+      ['set_property', 'user-data/faststream/autoplay', true],
+      ['set_property', 'user-data/faststream/autoplay', false],
+      ['set_property', 'user-data/faststream/countdown', 0],
     ]);
   });
 

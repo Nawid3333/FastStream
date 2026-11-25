@@ -1418,6 +1418,15 @@
     "mpv_offer_window_detail": {
         "message": "het wacht daar gepauzeerd; $1 speelt verder"
     },
+    "mpv_offer_queue_title": {
+        "message": "Aan wachtrij toevoegen"
+    },
+    "mpv_offer_queue_detail": {
+        "message": "speelt na $1"
+    },
+    "mpv_offer_queue_detail_more": {
+        "message": "speelt na de $1 in de wachtrij"
+    },
     "player_mpv_declined": {
         "message": "Niet verzonden: mpv speelt verder wat het had"
     },

@@ -36,15 +36,37 @@ describe('the offer', () => {
     expect(ipcCommandRefusal(['script-message', 'faststream-offer-cancel', 'a-1'])).toBeNull();
   });
 
+  it('sends the queue\'s texts only where the window queues, still within what the helper takes', () => {
+    const texts = {hereTitle: 'Play here', hereDetail: 'B, in place of A', windowTitle: 'Play in a new window',
+      windowDetail: 'A plays on'};
+    expect(offerCommand('a-2', texts).length).toBe(8);
+    const command = offerCommand('a-2', {...texts, queueTitle: 'Add to\nqueue', queueDetail: 'plays after A'});
+    expect(command.slice(8)).toEqual(['Add to queue', 'plays after A']);
+    expect(ipcCommandRefusal(command)).toBeNull();
+  });
+
+  it('takes queue as an answer', async () => {
+    const holder = {offer: null};
+    const asked = offerStream(holder, relay(), {hereTitle: 'h', hereDetail: 'd', windowTitle: 'w',
+      windowDetail: 'd', queueTitle: 'q', queueDetail: 'd'});
+    answerOffer(holder, /** @type {*} */ (holder.offer).id, 'queue');
+    expect(await asked).toBe('queue');
+  });
+
   it('asks the window only what the helper lets it read', () => {
     for (const question of WindowQuestions) expect(ipcCommandRefusal([...question])).toBeNull();
   });
 
   it('reads whether the window plays, what, and whether it can offer', () => {
-    const replies = (idle, eof, path, title, offer) => [idle, eof, path, title, offer].map((data) =>
+    const replies = (idle, eof, path, title, offer, queued) => [idle, eof, path, title, offer, queued].map((data) =>
       data === undefined ? {error: 'property unavailable'} : {error: 'success', data});
     expect(readWindow(replies(false, false, 'https://cdn.test/a.m3u8', 'A', 1)))
-        .toEqual({free: false, path: 'https://cdn.test/a.m3u8', title: 'A', offers: true});
+        .toEqual({free: false, path: 'https://cdn.test/a.m3u8', title: 'A', offers: true, queued: null});
+    // mpv-config's queue: how many wait; none published, no queue.
+    expect(readWindow(replies(false, false, 'https://cdn.test/a.m3u8', 'A', 1, 0)).queued).toBe(0);
+    expect(readWindow(replies(false, false, 'https://cdn.test/a.m3u8', 'A', 1, 3)).queued).toBe(3);
+    expect(readWindow(replies(false, false, 'https://cdn.test/a.m3u8', 'A', 1, -1)).queued).toBeNull();
+    expect(readWindow(replies(false, false, 'https://cdn.test/a.m3u8', 'A', 1, '2')).queued).toBeNull();
     expect(readWindow(replies(true, undefined, undefined, undefined, 1)).free).toBe(true);
     expect(readWindow(replies(false, true, 'https://cdn.test/a.m3u8', 'A', 1)).free).toBe(true);
     expect(readWindow(replies(false, false, undefined, undefined, 1)).free).toBe(true);
