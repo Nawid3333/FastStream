@@ -11,7 +11,7 @@ import {
   Bot, Prefix, Urls, bcdChanges, bugzillaItems, codeIndex, escapeRegExp, feedItems, findUses, fixtureFetch, getUrl, ghClient,
   identifiersOfPath, stripComments, tempPath,
   mdnInline, md, mergeFindings, parseArgs, parseMdnNotes, productDetails, readTarFile, recordsOf, relevantFindings,
-  renderSection, run, safeUrl, underPrefix,
+  renderFinding, renderSection, run, safeUrl, underPrefix,
 } from '../../tools/firefox-api-watch.mjs';
 import Topics from '../../tools/firefox-api-watch.topics.mjs';
 
@@ -446,6 +446,49 @@ describe('what is relevant', () => {
     expect([...own.namespaces].sort()).toEqual(['commands', 'windows']);
     expect(findUses(['windows.create', 'commands.onCommand'], own.files, new Set(), own.namespaces))
         .toMatchObject({used: ['commands.onCommand', 'windows.create'], strong: true});
+  });
+
+  it('lists a fix to a part of a used API the code never calls with the low ones; a new part keeps its place', () => {
+    const webext = (/** @type {number} */ id, /** @type {string} */ summary) => ({id, summary, product: 'WebExtensions', component: 'Frontend', keywords: []});
+    const items = bugzillaItems({bugs: [
+      // Firefox 161's two, while the code calls tabs.sendMessage but never tabs.discard.
+      webext(2000401, 'Tab favicon not dimming when unloaded via browser.tabs.discard'),
+      webext(2085027, 'Closing a tab skips adjacent tabs discarded by an extension (tabs.discard) since bug 2000401'),
+      webext(2090001, 'tabs.sendMessage loses the frameId of a reloaded frame'),
+      webext(2090002, 'Support tabs.discard for the active tab'),
+      webext(2090003, 'tabs.Tab.discarded is wrong after a reload'),
+      webext(2090004, 'tabs.discard drops the storage.local data of its tab'),
+    ]}, config.bugzilla, idx.namespaces);
+    const findings = relevantFindings(items, config, idx);
+    const byBug = (/** @type {number} */ id) => findings.find((f) => f.aliases.includes(`bug:${id}`));
+    expect(byBug(2000401)).toMatchObject({kind: 'Bug fix', priority: 'low', uncalled: ['tabs.discard']});
+    expect(byBug(2085027)).toMatchObject({kind: 'Bug fix', priority: 'low', uncalled: ['tabs.discard']});
+    expect(renderFinding(/** @type {*} */ (byBug(2000401)))).toContain('FastStream: never calls `tabs.discard`; the area\'s code:');
+    // A new part it could start to use keeps its place, and says the code does not call it yet.
+    expect(byBug(2090002)).toMatchObject({kind: 'New feature', priority: 'medium', uncalled: ['tabs.discard']});
+    // Called, a type read through objects, one part called among others: as before.
+    for (const id of [2090001, 2090003, 2090004]) {
+      expect(byBug(id)).toMatchObject({priority: 'medium'});
+      expect(byBug(id)?.uncalled).toBeUndefined();
+    }
+    // MDN's add-on notes alike (Firefox 156's split-view notes): a new part keeps its place, a changed one goes low.
+    const mdn = relevantFindings(parseMdnNotes('## Changes for add-on developers\n\n' +
+      '- {{WebExtAPIRef("tabs.move()")}} can swap the tabs of a split view. ([Firefox bug 2016762](https://bugzil.la/2016762))\n' +
+      '- {{WebExtAPIRef("tabs.group()")}} now returns the split view\'s group instead of the tab\'s. ([Firefox bug 2029099](https://bugzil.la/2029099))\n', 156).items, config, idx);
+    expect(mdn.find((f) => f.title.includes('tabs.move'))).toMatchObject({kind: 'New feature', priority: 'medium', confidence: 'medium', uncalled: ['tabs.move']});
+    expect(mdn.find((f) => f.title.includes('tabs.group'))).toMatchObject({kind: 'Compatibility risk', priority: 'low', uncalled: ['tabs.group']});
+    // A part reached without its dotted name is called all the same: a cast, a destructured or a stored namespace.
+    for (const code of [
+      'const filter = /** @type {*} */ (chrome.tabs).discard;',
+      'const {discard} = browser.tabs;\ndiscard(tabId);',
+      'const tabs = chrome.tabs;\nawait tabs?.discard(tabId);',
+    ]) {
+      const own = codeIndex({files: new Map([['chrome/a.mjs', `chrome.tabs.query({});\n${code}`]])});
+      const found = relevantFindings(bugzillaItems({bugs: [webext(2000401, 'Tab favicon not dimming when unloaded via browser.tabs.discard')]},
+          config.bugzilla, own.namespaces), config, own);
+      expect(found[0], code).toMatchObject({priority: 'medium'});
+      expect(found[0]?.uncalled, code).toBeUndefined();
+    }
   });
 
   it('keeps the changes to what the extension uses, merges the same change from several sources, drops the rest', () => {

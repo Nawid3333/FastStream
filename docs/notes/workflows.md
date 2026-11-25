@@ -897,6 +897,14 @@ relevant is `tools/firefox-api-watch.topics.mjs`.
   tell, as in the WSL copy). A dotted name or a member with its interface in the same file is
   high confidence; a bare distinctive name medium; a topic keyword only, low. A WebExtensions
   note about an API the extension does not use (userScripts, themes, publicSuffix) is dropped.
+  One that names only parts of a used namespace the code never calls (`tabs.discard`, while it
+  calls `tabs.sendMessage`) says "never calls" them; a fix or change to such a part goes with
+  the low ones, a new part keeps its priority, as one the code could start to use. A type
+  (`tabs.Tab`) never counts as uncalled: the code reads it through the objects it is handed.
+  "Never calls" errs towards called: the part's name alone in a file that names the namespace
+  counts, as `background.mjs` reaches `(chrome.webRequest).filterResponseData` through a cast
+  and `menus` through a stored namespace (deepseek's review found the gap).
+  Firefox 161's review (2026-11-25) had two such bugs among its five medium findings.
   Items about the same bug, BCD feature or API merge into one finding. MDN's "Developer Tools"
   notes are skipped; its WebDriver notes count only when they can break the e2e harness. A dry
   run over 153-160 (2026-11-13) gave 96 findings for the eight releases: 6 high, 43 medium,

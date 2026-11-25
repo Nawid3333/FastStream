@@ -1492,3 +1492,17 @@ ping before every hand-off would start the helper twice per send.
 glm-5.3-flash found nothing: every message the extension still sends (`ping`, `play`, `ipc`,
 `raise`, the relay port's) has its handler in helper 32 with the fields the extension reads, a helper
 below 32 is sent nothing but a ping, and no removed name is used.
+
+## DeepSeek's review of the API watch's "never calls" (2026-11-25)
+
+deepseek-v4.1-flash read the diff that lowers a fix to a WebExtensions part the code never calls.
+Fixed, with a test that fails without it:
+
+- **A part reached without its dotted name counted as uncalled.** `const {discard} = browser.tabs`
+  never contains `tabs.discard`; FastStream's own `background.mjs` reaches
+  `(chrome.webRequest).filterResponseData` through a cast. The part's name in a file that names the
+  namespace now counts as a call.
+
+It found no crash and no unsafe text: a part's name is an identifier of a namespace the code uses.
+The dry run over Firefox 150-161 found one more before the review: an MDN note about a new part fell
+to low through its confidence (only "used" counted as medium). A new part keeps its priority now.

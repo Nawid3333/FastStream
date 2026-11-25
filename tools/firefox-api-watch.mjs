@@ -80,8 +80,9 @@ export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c',
  * @typedef {{
  *   title: string, detail: string, sources: string[], aliases: string[], mergeKeys: string[], areas: string[],
  *   kind: Kind, priority: Level, confidence: Level, files: string[], used: string[], modules: string[],
- *   links: Link[], experimental: boolean, members: string[][], android?: boolean,
+ *   links: Link[], experimental: boolean, members: string[][], android?: boolean, uncalled?: string[],
  * }} Finding
+ *   uncalled: the parts of used namespaces it names, none of them in the code (`tabs.discard`).
  *   members: each merged item's own keys (its bugs and BCD change, else its text's): a finding
  *   with an item that has a key not reported before is news, even when it merged with items
  *   that were reported. A note reworded under the same bug is not.
@@ -809,6 +810,7 @@ export function relevantFindings(items, config, index) {
     }
     matched.sort((a, b) => Levels.indexOf(b.priority) - Levels.indexOf(a.priority));
     const uses = findUses(item.identifiers, index.files, stop, index.namespaces);
+    const uncalled = webext === 'uncalled' && uses.used.length === 0 ? namedParts(item, index) : [];
     const priority = matched[0].priority;
     const bare = item.title.replace(/^Bug \d+: /, '');
     /** @type {Kind} */
@@ -816,13 +818,15 @@ export function relevantFindings(items, config, index) {
     if (breaking) kind = 'Compatibility risk';
     else if (/\b(CSP|Content Security Policy|security|sandbox(ed)?|hijack\w*|exploit\w*|overflow|use-after-free|spoof\w*)\b/i.test(text)) kind = 'Security change';
     else if (item.source === 'bugzilla') kind = /^(add|implement|support|expose|enable|ship)\b/i.test(bare) ? 'New feature' : 'Bug fix';
-    const confidence = /** @type {Level} */ (uses.strong ? 'high' : uses.used.length > 0 || webext === 'used' || item.flagged ? 'medium' : 'low');
+    const confidence = /** @type {Level} */ (uses.strong ? 'high' : uses.used.length > 0 || webext === 'used' || webext === 'uncalled' || item.flagged ? 'medium' : 'low');
     let finalPriority = priority;
     if (uses.strong && kind === 'Compatibility risk') finalPriority = 'high';
     else if (item.experimental && /\bNightly only\b|\benabled in Nightly\b/i.test(text)) finalPriority = 'low';
     // A WebExtensions bug that names no API (policies, browser UI, internals) is rarely about this
     // extension; MDN's curated notes keep their weight.
     else if (webext === 'general' && item.source === 'bugzilla') finalPriority = 'low';
+    // A fix or change to a part the code never calls cannot reach it; a new part is one it could start to use.
+    else if (uncalled.length > 0 && kind !== 'New feature' && kind !== 'Optimisation opportunity') finalPriority = 'low';
     else if (confidence === 'low' || item.experimental) finalPriority = shift(priority, -1);
     if (android) finalPriority = shift(finalPriority, -1);
     // A BCD entry's key is its change, so a later change to a reported feature is reported again.
@@ -841,6 +845,7 @@ export function relevantFindings(items, config, index) {
       kind, priority: finalPriority, confidence, files: uses.files, used: uses.used,
       modules: [...new Set(matched.flatMap((t) => t.modules))], links: [...item.links, ...item.bugs.map((b) => ({label: `Bug ${b}`, url: `https://bugzil.la/${b}`}))],
       experimental: item.experimental, members: [own.length > 0 ? own : aliases], ...(android ? {android: true} : {}),
+      ...(uncalled.length > 0 ? {uncalled} : {}),
     });
   }
   return mergeFindings(findings);
@@ -851,10 +856,11 @@ export function relevantFindings(items, config, index) {
  *   'none'   not a WebExtensions item;
  *   'unused' about namespaces, manifest keys or permissions the extension does not use (dropped);
  *   'used'   names one it uses;
+ *   'uncalled' names only parts of the namespaces it uses that the code never calls (`tabs.discard`);
  *   'general' a WebExtensions change that names none in particular.
  * @param {RawItem} item
  * @param {CodeIndex} index
- * @return {'none'|'unused'|'used'|'general'}
+ * @return {'none'|'unused'|'used'|'uncalled'|'general'}
  */
 export function webExtensionUse(item, index) {
   for (const at of item.bcd) {
@@ -879,8 +885,40 @@ export function webExtensionUse(item, index) {
   const specific = [...firsts.filter((n) => index.known.namespaces.has(n)), ...spans.filter((s) => index.known.manifestKeys.has(s)), ...words];
   const usedOnes = [...firsts.filter((n) => index.namespaces.has(n)), ...spans.filter((s) => index.manifestKeys.has(s)),
     ...words.filter((w) => index.namespaces.has(w) || index.manifestKeys.has(w))];
-  if (usedOnes.length > 0) return 'used';
-  return specific.length > 0 ? 'unused' : 'general';
+  if (usedOnes.length === 0) return specific.length > 0 ? 'unused' : 'general';
+  const parts = namedParts(item, index);
+  // A type (`tabs.Tab`) is read through the objects the code is handed, never by its name.
+  const callable = parts.length > 0 && parts.every((p) => /^[a-z]/.test(p.split('.')[1]));
+  const covered = usedOnes.every((n) => parts.some((p) => p.startsWith(`${n}.`)));
+  return callable && covered && !parts.some((p) => mayCall(p, index.files)) ? 'uncalled' : 'used';
+}
+
+/**
+ * Whether the code may call a part of a namespace: `tabs.discard` as written, or `discard` in a file that names
+ * `chrome.tabs`. Loose on purpose, as a cast (`(chrome.webRequest).filterResponseData`), a destructured or a
+ * stored namespace calls it too.
+ * @param {string} part
+ * @param {Map<string, string>} files
+ * @return {boolean}
+ */
+function mayCall(part, files) {
+  const [ns, member] = part.split('.').map(escapeRegExp);
+  const direct = new RegExp(`(?<![\\w$])${ns}\\)*\\??\\.${member}(?![\\w$])`);
+  const named = new RegExp(`\\b(?:chrome|browser)\\)?\\??\\.${ns}(?![\\w$])`);
+  const word = new RegExp(`(?<![\\w$])${member}(?![\\w$])`);
+  return [...files.values()].some((text) => direct.test(text) || (named.test(text) && word.test(text)));
+}
+
+/**
+ * The parts of the namespaces the code uses that an item names: `tabs.discard` of `browser.tabs.discard()`.
+ * @param {RawItem} item
+ * @param {CodeIndex} index
+ * @return {string[]}
+ */
+export function namedParts(item, index) {
+  const names = [...item.identifiers, ...namesIn(`${item.title} ${item.detail}`)];
+  return [...new Set(names.map((id) => id.replace(/\(\)$/, '').split('.'))
+      .filter((p) => p.length >= 2 && index.namespaces.has(p[0]) && /^[A-Za-z_$][\w$]*$/.test(p[1])).map((p) => `${p[0]}.${p[1]}`))];
 }
 
 /**
@@ -914,6 +952,7 @@ export function mergeFindings(findings) {
   });
   const sourceRank = ['mdn', 'blog', 'bcd', 'bugzilla'];
   return [...groups.values()].map((group) => {
+    const uncalled = [...new Set(group.flatMap((f) => f.uncalled ?? []))].sort();
     // Android's own change merged with the desktop's of the same API is shown, but weighs nothing.
     const ranked = group.some((f) => !f.android) ? group.filter((f) => !f.android) : group;
     const lead = [...ranked].sort((a, b) => sourceRank.indexOf(a.sources[0]) - sourceRank.indexOf(b.sources[0]))[0];
@@ -953,6 +992,7 @@ export function mergeFindings(findings) {
       experimental: group.every((f) => f.experimental),
       members: group.flatMap((f) => f.members),
       android: group.every((f) => f.android === true) || undefined,
+      uncalled: uncalled.length > 0 ? uncalled : undefined,
     };
   }).sort((a, b) => Levels.indexOf(b.priority) - Levels.indexOf(a.priority) ||
     KindOrder.indexOf(b.kind) - KindOrder.indexOf(a.kind) || a.title.localeCompare(b.title));
@@ -1037,7 +1077,8 @@ const AndroidAction = 'Check the code\'s checks for what Android lacks (`Android
 export function renderFinding(f) {
   const where = f.files.length > 0 ?
     `${f.files.slice(0, 6).map((file) => '`' + file + '`').join(', ')}${f.files.length > 6 ? ` and ${f.files.length - 6} more` : ''} (uses ${f.used.slice(0, 4).map((u) => '`' + u + '`').join(', ')})` :
-    `no direct use found; the area's code: ${f.modules.slice(0, 4).map((m) => '`' + m + '`').join(', ')}`;
+    `${f.uncalled?.length ? `never calls ${f.uncalled.slice(0, 4).map((u) => '`' + u + '`').join(', ')}` : 'no direct use found'}; ` +
+    `the area's code: ${f.modules.slice(0, 4).map((m) => '`' + m + '`').join(', ')}`;
   const evidence = f.links.length > 0 ?
     f.links.slice(0, 6).map((l) => `[${md(l.label, 60)}](${l.url})`).join(', ') : 'Mozilla release data (no link)';
   const lines = [
