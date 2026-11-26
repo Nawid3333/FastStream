@@ -1506,3 +1506,17 @@ Fixed, with a test that fails without it:
 It found no crash and no unsafe text: a part's name is an identifier of a namespace the code uses.
 The dry run over Firefox 150-161 found one more before the review: an MDN note about a new part fell
 to low through its confidence (only "used" counted as medium). A new part keeps its priority now.
+
+## DeepSeek's review of the Coloris 0.26.0 re-cut (#852, 2026-11-26)
+
+deepseek-v4.1-flash read the new patch, upstream's 0.25.2 -> 0.26.0 diff and the merged
+`configure()`/`init()`. Rejected:
+
+- **"`Coloris.bindElement` is never exported, so the subtitle colour inputs throw."** The patch
+  never carried the export: `tools/sync-vendor.mjs` appends `Coloris.bindElement = bindElement;`
+  when it unwraps the UMD (`docs/vendored-libraries.md`, "The module shape"), and the generated
+  `coloris.mjs` has it as before. The model was not given sync-vendor.mjs.
+
+It checked and cleared the rest: upstream's nested `configure()` runs after `case 'parent'` has
+set `container`, `formatChoice` is set before that call, and the DOMParser nodes and the unit
+test's stand-in for them behave as a browser's `append` does.

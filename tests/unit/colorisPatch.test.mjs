@@ -29,10 +29,23 @@ function runColoris(...calls) {
     },
     getContext: () => ({fillStyle: '', fillRect() {}, getImageData: () => ({data: [0, 0, 0, 255]})}),
   });
+  // init() parses the picker's markup (Coloris 0.26.0). The stand-in DOM has elements only,
+  // so childNodes are the elements, already in the page's document as append() would put them.
+  class DOMParser {
+    parseFromString(markup) {
+      const parsed = new FakeDocument(`<html><body>${markup}</body></html>`);
+      const adopt = (el) => {
+        el.ownerDocument = doc;
+        el.children.forEach(adopt);
+      };
+      parsed.body.children.forEach(adopt);
+      return {body: {childNodes: [...parsed.body.children]}};
+    }
+  }
   const win = {matchMedia: () => ({matches: true})};
   vm.runInNewContext(source, {
     window: win, document: doc, Math, NodeList: class {}, HTMLElement: FakeElement, Element,
-    CustomEvent: class {}, setTimeout,
+    CustomEvent: class {}, DOMParser, setTimeout,
   });
   const coloris = win.Coloris; // a plain function, despite the capital
   for (const options of calls) coloris(options);

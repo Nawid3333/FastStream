@@ -1,5 +1,5 @@
 diff --git a/dist/coloris.js b/dist/coloris.js
-index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f870daf666d 100644
+index 9cbf3fc48672af4686a6c35bc175a7b62a8ea252..8dfc2af392e7ee7e53873635cdd6a58b2caa04d4 100644
 --- a/dist/coloris.js
 +++ b/dist/coloris.js
 @@ -64,17 +64,18 @@
@@ -27,45 +27,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
              container.appendChild(picker);
              settings.parent = options.parent;
  
-@@ -177,7 +178,7 @@
-           if (typeof options.clearButton === 'object') {
-             if (options.clearButton.label) {
-               settings.clearLabel = options.clearButton.label;
--              clearButton.innerHTML = settings.clearLabel;
-+              clearButton.textContent = settings.clearLabel;
-             }
- 
-             options.clearButton = options.clearButton.show;
-@@ -188,7 +189,7 @@
-           break;
-         case 'clearLabel':
-           settings.clearLabel = options.clearLabel;
--          clearButton.innerHTML = settings.clearLabel;
-+          clearButton.textContent = settings.clearLabel;
-           break;
-         case 'closeButton':
-           settings.closeButton = !!options.closeButton;
-@@ -202,7 +203,7 @@
-           break;
-         case 'closeLabel':
-           settings.closeLabel = options.closeLabel;
--          closeButton.innerHTML = settings.closeLabel;
-+          closeButton.textContent = settings.closeLabel;
-           break;
-         case 'a11y':
-           var labels = options.a11y;
-@@ -221,8 +222,8 @@
-             var openLabel = getEl('clr-open-label');
-             var swatchLabel = getEl('clr-swatch-label');
- 
--            openLabel.innerHTML = settings.a11y.open;
--            swatchLabel.innerHTML = settings.a11y.swatch;
-+            openLabel.textContent = settings.a11y.open;
-+            swatchLabel.textContent = settings.a11y.swatch;
-             closeButton.setAttribute('aria-label', settings.a11y.close);
-             clearButton.setAttribute('aria-label', settings.a11y.clear);
-             hueSlider.setAttribute('aria-label', settings.a11y.hueSlider);
-@@ -324,11 +325,22 @@
+@@ -325,11 +326,22 @@
          addListener(field, 'input', updateColorPreview);
        });
      } else {
@@ -90,7 +52,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
    /**
     * Open the color picker.
     * @param {object} event The event that opens the color picker.
-@@ -455,7 +467,7 @@
+@@ -456,7 +468,7 @@
      } else if (Array.isArray(selector)) {
        selector.forEach(wrapColorField);
      } else {
@@ -99,7 +61,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
      }
    }
  
-@@ -602,7 +614,7 @@
+@@ -607,7 +619,7 @@
        settings.onChange.call(window, color, currentEl);
      }
  
@@ -108,7 +70,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
    }
  
    /**
-@@ -756,7 +768,7 @@
+@@ -761,7 +773,7 @@
  
  
      // Select the current format in the format switcher
@@ -117,10 +79,10 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
    }
  
    /**
-@@ -970,44 +982,64 @@
+@@ -975,8 +987,13 @@
     * Init the color picker.
     */
-   function init() {
+   function init() {var _picker;
 +    // FastStream: once. A second configure({parent}) built a second picker and bound every
 +    // listener again.
 +    if (picker) {
@@ -132,91 +94,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
      picker = document.createElement('div');
      picker.setAttribute('id', 'clr-picker');
      picker.className = 'clr-picker';
--    picker.innerHTML =
--    "<input id=\"clr-color-value\" name=\"clr-color-value\" class=\"clr-color\" type=\"text\" value=\"\" spellcheck=\"false\" aria-label=\"" + settings.a11y.input + "\">" + ("<div id=\"clr-color-area\" class=\"clr-gradient\" role=\"application\" aria-label=\"" +
--    settings.a11y.instruction + "\">") +
--    '<div id="clr-color-marker" class="clr-marker" tabindex="0"></div>' +
--    '</div>' +
--    '<div class="clr-hue">' + ("<input id=\"clr-hue-slider\" name=\"clr-hue-slider\" type=\"range\" min=\"0\" max=\"360\" step=\"1\" aria-label=\"" +
--    settings.a11y.hueSlider + "\">") +
--    '<div id="clr-hue-marker"></div>' +
--    '</div>' +
--    '<div class="clr-alpha">' + ("<input id=\"clr-alpha-slider\" name=\"clr-alpha-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" aria-label=\"" +
--    settings.a11y.alphaSlider + "\">") +
--    '<div id="clr-alpha-marker"></div>' +
--    '<span></span>' +
--    '</div>' +
--    '<div id="clr-format" class="clr-format">' +
--    '<fieldset class="clr-segmented">' + ("<legend>" +
--    settings.a11y.format + "</legend>") +
--    '<input id="clr-f1" type="radio" name="clr-format" value="hex">' +
--    '<label for="clr-f1">Hex</label>' +
--    '<input id="clr-f2" type="radio" name="clr-format" value="rgb">' +
--    '<label for="clr-f2">RGB</label>' +
--    '<input id="clr-f3" type="radio" name="clr-format" value="hsl">' +
--    '<label for="clr-f3">HSL</label>' +
--    '<span></span>' +
--    '</fieldset>' +
--    '</div>' +
--    '<div id="clr-swatches" class="clr-swatches"></div>' + ("<button type=\"button\" id=\"clr-clear\" class=\"clr-clear\" aria-label=\"" +
--    settings.a11y.clear + "\">" + settings.clearLabel + "</button>") +
--    '<div id="clr-color-preview" class="clr-preview">' + ("<button type=\"button\" id=\"clr-close\" class=\"clr-close\" aria-label=\"" +
--    settings.a11y.close + "\">" + settings.closeLabel + "</button>") +
--    '</div>' + ("<span id=\"clr-open-label\" hidden>" +
--    settings.a11y.open + "</span>") + ("<span id=\"clr-swatch-label\" hidden>" +
--    settings.a11y.swatch + "</span>");
-+    function mk(tag, attrs, children) {
-+      var node = document.createElement(tag);
-+      for (var attrName in attrs) {
-+        if (attrName === 'text') {
-+          node.textContent = attrs[attrName];
-+        } else {
-+          node.setAttribute(attrName, attrs[attrName]);
-+        }
-+      }
-+      (children || []).forEach(function (child) {
-+        node.appendChild(child);
-+      });
-+      return node;
-+    }
-+    picker.append(
-+      mk('input', {id: 'clr-color-value', name: 'clr-color-value', 'class': 'clr-color', type: 'text', value: '', spellcheck: 'false', 'aria-label': settings.a11y.input}),
-+      mk('div', {id: 'clr-color-area', 'class': 'clr-gradient', role: 'application', 'aria-label': settings.a11y.instruction}, [
-+        mk('div', {id: 'clr-color-marker', 'class': 'clr-marker', tabindex: '0'}),
-+      ]),
-+      mk('div', {'class': 'clr-hue'}, [
-+        mk('input', {id: 'clr-hue-slider', name: 'clr-hue-slider', type: 'range', min: '0', max: '360', step: '1', 'aria-label': settings.a11y.hueSlider}),
-+        mk('div', {id: 'clr-hue-marker'}),
-+      ]),
-+      mk('div', {'class': 'clr-alpha'}, [
-+        mk('input', {id: 'clr-alpha-slider', name: 'clr-alpha-slider', type: 'range', min: '0', max: '100', step: '1', 'aria-label': settings.a11y.alphaSlider}),
-+        mk('div', {id: 'clr-alpha-marker'}),
-+        mk('span', {}),
-+      ]),
-+      mk('div', {id: 'clr-format', 'class': 'clr-format'}, [
-+        mk('fieldset', {'class': 'clr-segmented'}, [
-+          mk('legend', {text: settings.a11y.format}),
-+          mk('input', {id: 'clr-f1', type: 'radio', name: 'clr-format', value: 'hex'}),
-+          mk('label', {'for': 'clr-f1', text: 'Hex'}),
-+          mk('input', {id: 'clr-f2', type: 'radio', name: 'clr-format', value: 'rgb'}),
-+          mk('label', {'for': 'clr-f2', text: 'RGB'}),
-+          mk('input', {id: 'clr-f3', type: 'radio', name: 'clr-format', value: 'hsl'}),
-+          mk('label', {'for': 'clr-f3', text: 'HSL'}),
-+          mk('span', {}),
-+        ]),
-+      ]),
-+      mk('div', {id: 'clr-swatches', 'class': 'clr-swatches'}),
-+      mk('button', {type: 'button', id: 'clr-clear', 'class': 'clr-clear', 'aria-label': settings.a11y.clear, text: settings.clearLabel}),
-+      mk('div', {id: 'clr-color-preview', 'class': 'clr-preview'}, [
-+        mk('button', {type: 'button', id: 'clr-close', 'class': 'clr-close', 'aria-label': settings.a11y.close, text: settings.closeLabel}),
-+      ]),
-+      mk('span', {id: 'clr-open-label', hidden: '', text: settings.a11y.open}),
-+      mk('span', {id: 'clr-swatch-label', hidden: '', text: settings.a11y.swatch})
-+    );
- 
-     // Append the color picker to the DOM
-     document.body.appendChild(picker);
-@@ -1034,7 +1066,7 @@
+@@ -1051,7 +1068,7 @@
      });
  
      addListener(colorArea, 'mousedown', function (event) {
@@ -225,7 +103,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
      });
  
      addListener(colorArea, 'contextmenu', function (event) {
-@@ -1042,15 +1074,15 @@
+@@ -1059,15 +1076,15 @@
      });
  
      addListener(colorArea, 'touchstart', function (event) {
@@ -244,7 +122,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
      });
  
      addListener(colorValue, 'change', function (event) {
-@@ -1062,6 +1094,11 @@
+@@ -1079,6 +1096,11 @@
        }
      });
  
@@ -256,7 +134,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
      addListener(clearButton, 'click', function (event) {
        pickColor('');
        closePicker();
-@@ -1087,21 +1124,21 @@
+@@ -1104,21 +1126,21 @@
        }
      });
  
@@ -284,7 +162,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
        var key = event.key;
        var target = event.target;
        var shiftKey = event.shiftKey;
-@@ -1131,14 +1168,16 @@
+@@ -1148,14 +1170,16 @@
          if (shiftKey && target === firstFocusable) {
            lastFocusable.focus();
            event.preventDefault();
@@ -302,7 +180,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
        // Reset any previously set per-instance options
        if (hasInstance) {
          resetVirtualInstance();
-@@ -1159,6 +1198,37 @@
+@@ -1176,6 +1200,37 @@
        if (Object.keys(movements).includes(event.key)) {
          moveMarkerOnKeydown.apply(void 0, movements[event.key]);
          event.preventDefault();
@@ -340,7 +218,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
        }
      });
  
-@@ -1184,7 +1254,7 @@
+@@ -1201,7 +1256,7 @@
     * @return {object} The DOM element with the provided id.
     */
    function getEl(id) {
@@ -349,7 +227,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
    }
  
    /**
-@@ -1203,7 +1273,7 @@
+@@ -1220,7 +1275,7 @@
          if (matches.call(event.target, selector)) {
            fn.call(event.target, event);
          }
@@ -358,7 +236,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
  
        // If the selector is not a string then it's a function
        // in which case we need a regular event listener
-@@ -1250,11 +1320,7 @@
+@@ -1267,11 +1322,7 @@
      function Coloris(options) {
        DOMReady(function () {
          if (options) {
@@ -371,7 +249,7 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
          }
        });
      }var _loop2 = function _loop2(
-@@ -1269,6 +1335,6 @@
+@@ -1286,6 +1337,6 @@
    }();
  
    // Init the color picker when the DOM is ready
@@ -379,3 +257,4 @@ index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f87
 +  // DOMReady(init);
  
  })(window, document, Math);
+\ No newline at end of file
