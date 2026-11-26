@@ -85,7 +85,7 @@ async function openPlayerTab(source) {
   const handles = await browser.getWindowHandles();
   await browser.switchToWindow(handles[0]);
   await browser.url(OPENER_URL);
-  await browser.execute((url) => window.open(url, '_blank'), target);
+  await browser.execute((url) => void window.open(url, '_blank'), target);
   let found = null;
   await browser.waitUntil(async () => {
     for (const handle of await browser.getWindowHandles()) {

@@ -28,7 +28,7 @@ export async function openExtensionPage(pagePath) {
   }
   await browser.switchToWindow(handlesBefore[0]);
   await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
+  await browser.execute((u) => void window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
 
   // A replace takes more than a round to show in the URL: the target is sent again only after 2 s.
   /** @type {Map<string, number>} */
@@ -89,7 +89,7 @@ export async function addSourceInPlayer(url) {
 export async function inExtensionPage(fn, arg) {
   const opener = await browser.getWindowHandle();
   await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
+  await browser.execute((u) => void window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
   let handle;
   await browser.waitUntil(async () => {
     for (const h of await browser.getWindowHandles()) {

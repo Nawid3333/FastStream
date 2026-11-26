@@ -149,11 +149,17 @@ module.exports = [
     // fc.assert of an async property returns a promise. Left unawaited, the test ends
     // before the runs do, and a failing run surfaces as an unhandled rejection that names
     // no test (#250).
+    // A script the driver runs that returns the tab window.open() made: WebdriverIO
+    // serialises the return value, and from Firefox 162 that throws on a tab still loading
+    // (#847).
     files: ['tests/**/*.mjs'],
     rules: {
       'no-restricted-syntax': ['error', {
         selector: 'ExpressionStatement > CallExpression[callee.object.name="fc"][callee.property.name="assert"][arguments.0.callee.property.name="asyncProperty"]',
         message: 'await (or return) fc.assert of an fc.asyncProperty, or its failures name no test.',
+      }, {
+        selector: 'CallExpression[callee.property.name=/^execute/] > ArrowFunctionExpression > CallExpression.body[callee.object.name="window"][callee.property.name="open"]',
+        message: 'Return nothing from window.open() in a driver script: (u) => void window.open(u, \'_blank\'). Serialising the new tab fails in Firefox 162 (#847).',
       }],
     },
   },

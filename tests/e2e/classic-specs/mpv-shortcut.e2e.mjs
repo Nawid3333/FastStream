@@ -351,7 +351,7 @@ async function replaceSiteTab() {
   const old = siteHandle;
   const handles = await browser.getWindowHandles();
   await browser.switchToWindow(extHandle);
-  await browser.execute((u) => window.open(u, '_blank'), OPENER_URL);
+  await browser.execute((u) => void window.open(u, '_blank'), OPENER_URL);
   await browser.waitUntil(async () => (await browser.getWindowHandles()).length > handles.length, {
     timeout: 10000,
     timeoutMsg: 'no new tab opened',
@@ -612,7 +612,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     });
 
     await browser.url(OPENER_URL);
-    await browser.execute((u) => window.open(u, '_blank'),
+    await browser.execute((u) => void window.open(u, '_blank'),
         ORIGIN + '/player/index.html');
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {

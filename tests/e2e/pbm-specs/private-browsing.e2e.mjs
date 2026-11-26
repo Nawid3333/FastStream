@@ -28,7 +28,7 @@ async function openExtensionPage(pagePath) {
   const target = ORIGIN + pagePath;
   await browser.switchToWindow((await browser.getWindowHandles())[0]);
   await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), target);
+  await browser.execute((u) => void window.open(u, '_blank'), target);
 
   await browser.waitUntil(async () => {
     for (const handle of await browser.getWindowHandles()) {

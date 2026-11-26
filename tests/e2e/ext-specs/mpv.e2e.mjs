@@ -168,7 +168,7 @@ describe('MPV mode, end to end', function() {
         // 1. Turn on MPV mode and allowlist the test server, then make the
         //    background re-read options.
         await browser.url(OPENER_URL);
-        await browser.execute((u) => window.open(u, '_blank'),
+        await browser.execute((u) => void window.open(u, '_blank'),
             ORIGIN + '/player/index.html');
         // the extension window by its URL: handle order is not guaranteed
         await browser.waitUntil(async () => {
@@ -307,7 +307,7 @@ describe('MPV mode, end to end', function() {
       async function() {
         // MPV is allowlisted for SITE_B only; SITE is merely auto-enabled.
         await browser.url(OPENER_URL);
-        await browser.execute((u) => window.open(u, '_blank'),
+        await browser.execute((u) => void window.open(u, '_blank'),
             ORIGIN + '/player/index.html');
         await browser.waitUntil(async () => {
           for (const handle of await browser.getWindowHandles()) {
@@ -380,7 +380,7 @@ describe('MPV mode, end to end', function() {
       async function() {
         const since = Date.now();
         await browser.url(OPENER_URL);
-        await browser.execute((u) => window.open(u, '_blank'),
+        await browser.execute((u) => void window.open(u, '_blank'),
             ORIGIN + '/player/index.html');
         await browser.waitUntil(async () => {
           for (const handle of await browser.getWindowHandles()) {
