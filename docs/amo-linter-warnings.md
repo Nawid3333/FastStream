@@ -45,9 +45,9 @@ proven to change nothing (below).
 |---|---|---|
 | `UNSAFE_VAR_ASSIGNMENT` | `player/players/PlayerLoader.mjs` | `import(this.players[mode])` over a path registry became a `switch` with literal specifiers |
 | `UNSUPPORTED_API` | `player/modules/gif/gif.mjs` line 26 | renamed a function-scoped variable that happened to be called `browser` (see below) |
-| `UNSAFE_VAR_ASSIGNMENT` x5 | `player/modules/coloris.mjs` lines 174, 185, 199, 218, 219 | `innerHTML` → `textContent` for four static-label writes (see below) |
+| `UNSAFE_VAR_ASSIGNMENT` x5 | `player/modules/coloris.mjs` lines 174, 185, 199, 218, 219 | `innerHTML` → `textContent` for four static-label writes (see below); upstream itself since 0.26.0, no longer in our patch |
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` (swatch-list builder) | fixed upstream itself as of 0.25.0 - no longer in our patch at all (see below) |
-| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 977 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below) |
+| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 977 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below); since 0.26.0 upstream parses fixed markup with `DOMParser`, no longer in our patch |
 | `DANGEROUS_EVAL` | `player/modules/sweetalert.mjs` line 3685 | the `new Function(...)` call replaced with an explanatory `throw` (see below); gone with sweetalert2 since 2026-10-09 |
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/vtt.mjs` line 1181 | the cue-text entity decoder: a textarea `innerHTML` write became `DOMParser` on a textarea with every `<` escaped (2026-10-27, see below) |
 | `DANGEROUS_EVAL` | `player/modules/dash.mjs` line 81180 | webpack's unreachable `new Function('return this')` became `globalThis` in `patches/dashjs@*.patch` (5.2.1 then, 2026-10-27, see below) |
@@ -151,6 +151,14 @@ strings the source assigns (`'33.33333333333333%'` reads back as
 `'33.3333%'`, `'hsl(120, 100%, 50%)'` reads back as `'rgb(0, 255, 0)'`) —
 expected browser behaviour, not a bug, and adjusted for after seeing the
 actual values rather than guessing them.
+
+**Both now upstream (Coloris 0.26.0, 2026-11-26, #848).** Upstream removed every
+`innerHTML` write for web-ext lint's warnings: the label writes became `textContent`, and
+`init()` parses the skeleton from fixed markup with no values in it through `DOMParser`,
+then sets the labels with `configure({a11y, clearLabel, closeLabel})`. The re-cut patch
+drops our `mk()` skeleton and the four label hunks for upstream's code (14.8 KB to 8.4 KB);
+`lint:amo` and `lint:github` stayed at 0 errors, 0 notices, 0 warnings, and the e2e
+assertions above run against upstream's skeleton.
 
 ## The last 2, fixed 2026-10-27
 

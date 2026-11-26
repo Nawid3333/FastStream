@@ -62,7 +62,7 @@
     "@wdio/local-runner": "^10.2.0",
     "@wdio/mocha-framework": "^10.2.0",
     "@wdio/spec-reporter": "^10.2.0",
-    "Coloris": "github:mdbassit/Coloris#v0.25.2",
+    "Coloris": "github:mdbassit/Coloris#v0.26.0",
     "acorn": "8.19.0",
     "dashjs": "5.3.0",
     "eslint": "^10.15.0",

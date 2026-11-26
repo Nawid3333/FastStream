@@ -441,7 +441,7 @@ what can actually change behaviour.
 | mediabunny | 1.60.0 | none - the unmodified npm bundle; only `normaliseText` (line endings, final newline) | **migrated 2026-09-30, replaces mp4-muxer 4.3.3** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
-| coloris | 0.25.0, git tag (not on npm) | 14 KB patch (`patches/Coloris@<version>.patch`, renamed with each version); one deliberate bug fix on top | **migrated** |
+| coloris | 0.26.0, git tag (not on npm) | 8 KB patch (`patches/Coloris@<version>.patch`, renamed with each version; 14 KB until 0.26.0); one deliberate bug fix on top | **migrated** |
 | coloris (CSS) | 0.25.0 | none - `dist/coloris.css` as published; only `normaliseText` | **generated since 2026-10-03** (was upstream's re-minified 0.21.x copy) |
 | jswebm | 0.1.2 | - | **removed 2026-09-30** with the re-encoder: Mediabunny reads WebM |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus its listed changes (`tools/verify-vtt.mjs`) | **verified** |
@@ -896,6 +896,17 @@ warnings), and real e2e - `modules.e2e.mjs`'s colour-picker test on both
 Firefox and Chromium/Edge (confirms `parent` resolves to `.mainplayer`,
 swatches render, hue slider positions correctly), plus the full extension
 e2e suite (8 spec files) on Firefox.
+
+#### Re-cut to 0.26.0 (2026-11-26, #848)
+
+`tools/recut-patch.mjs` stopped on two conflicts, both in `init()`: upstream replaced the
+skeleton's `innerHTML` with fixed markup parsed by `DOMParser` and now applies the labels
+through `configure()`. Kept: the run-once guard (with upstream's new `var _picker`). Taken
+from upstream instead of ours: the skeleton (our `mk()` builder is gone) and the four
+`textContent` label writes, which 0.26.0 makes itself. Every change in the table above is
+still in the patch (8.4 KB, was 14.8 KB). Upstream's nested `configure()` call runs inside
+our `case 'parent'`, after `container` is set, so `getEl()` and the delegated listeners find
+the picker. `tests/unit/colorisPatch.test.mjs` gives its stand-in DOM a `DOMParser`.
 
 ### sweetalert.css follows the script since 2026-09-30
 
