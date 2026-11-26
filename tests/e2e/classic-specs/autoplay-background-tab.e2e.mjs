@@ -110,7 +110,7 @@ describe('Autoplay next in a tab in the background', function() {
     await setOptions({autoEnableURLs: [SITE], autoplayNext: true});
     // The extension's page in a tab of its own: shown, it puts the site's tab in the background.
     await browser.url(OPENER_URL);
-    await browser.execute((u) => window.open(u, '_blank'), ORIGIN + '/player/index.html');
+    await browser.execute((u) => void window.open(u, '_blank'), ORIGIN + '/player/index.html');
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {
         await browser.switchToWindow(handle);

@@ -145,7 +145,7 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
     });
 
     await browser.url(OPENER_URL);
-    await browser.execute((u) => window.open(u, '_blank'),
+    await browser.execute((u) => void window.open(u, '_blank'),
         ORIGIN + '/player/index.html');
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {

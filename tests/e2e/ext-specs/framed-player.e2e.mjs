@@ -163,7 +163,7 @@ describe('A page framing FastStream\'s pages', function() {
 
   it('plays a source a page put in a player tab it opened, without the page\'s headers', async function() {
     await browser.url(OPENER_URL);
-    await browser.execute((u) => window.open(u, '_blank'), playerWithSource('page-tab'));
+    await browser.execute((u) => void window.open(u, '_blank'), playerWithSource('page-tab'));
     await browser.waitUntil(() => requests.has('/page-tab.mp4'), {
       timeout: 20000, interval: 200, timeoutMsg: 'the player tab never requested its source',
     });

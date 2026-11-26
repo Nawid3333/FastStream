@@ -176,3 +176,8 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
 - **mozLog.mjs** - The MOZ_LOG variables go into the wdio worker's own environment, which
   geckodriver and Firefox inherit; `moz:firefoxOptions.env` took the capability and Firefox wrote
   no log (geckodriver 0.37.1, Firefox 156).
+- **extension-page.mjs** and every spec that opens a tab (`(u) => void window.open(u, '_blank')`) -
+  WebdriverIO serialises what a driver script returns. From Firefox 162 (162.0b2) walking the tab
+  window.open() returns, still loading, throws `NS_ERROR_MALFORMED_URI`, and every spec that
+  opened an extension page failed (#847). The scripts return nothing; an ESLint rule in
+  `eslint.config.js` keeps it so.
