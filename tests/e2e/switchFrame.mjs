@@ -39,12 +39,21 @@ export function restoreSwitchFrame(browser) {
     await element.waitForExist({
       timeoutMsg: `Can't switch to frame with selector ${element.selector} because it doesn't exist`,
     });
-    const frame = await browser.execute((iframe) => iframe.contentWindow, element);
-    if (!frame?.context) {
+    // Straight to BiDi: execute() would run WebdriverIO's serialiser over the window in the
+    // page, which throws on a srcdoc frame or a refused one from Firefox 162 (#847).
+    const result = await browser.scriptCallFunction({
+      functionDeclaration: '(iframe) => iframe.contentWindow',
+      awaitPromise: false,
+      arguments: [{sharedId: element.elementId}],
+      target: {context: await contexts.getCurrentContext()},
+    });
+    const context = result.type === 'success' && result.result.type === 'window' ?
+      result.result.value.context : undefined;
+    if (!context) {
       throw new Error(`switchFrame: ${element.selector} has no browsing context (not a frame?)`);
     }
-    contexts.setCurrentContext(frame.context);
+    contexts.setCurrentContext(context);
     await browser.switchToFrame({[ELEMENT_KEY]: element.elementId});
-    return frame.context;
+    return context;
   });
 }

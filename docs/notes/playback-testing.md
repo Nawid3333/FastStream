@@ -180,4 +180,7 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
   WebdriverIO serialises what a driver script returns. From Firefox 162 (162.0b2) walking the tab
   window.open() returns, still loading, throws `NS_ERROR_MALFORMED_URI`, and every spec that
   opened an extension page failed (#847). The scripts return nothing; an ESLint rule in
-  `eslint.config.js` keeps it so.
+  `eslint.config.js` keeps it so. The same walk threw on a srcdoc frame's window and on a frame
+  whose page Firefox refused, so `switchFrame.mjs` reads a frame's browsing context through
+  `browser.scriptCallFunction` directly, which leaves the window to Firefox's own BiDi
+  serialiser.
