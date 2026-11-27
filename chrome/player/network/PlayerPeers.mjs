@@ -4,8 +4,8 @@
 
 import {mustWait} from './PlayerTurns.mjs';
 
-const CHANNEL = 'faststream-players-v1';
-const VERSION = 1;
+export const CHANNEL = 'faststream-players-v1';
+export const VERSION = 1;
 // A hidden page's timers run up to 15 s late: a peer is forgotten only after this long.
 export const PEER_TIMEOUT_MS = 20000;
 // Short of video: less than this many seconds downloaded ahead of the playhead...

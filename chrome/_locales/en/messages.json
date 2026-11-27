@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "Thank you for installing FastStream! Please let us know if you have any issues or suggestions."
     },
-    "welcome_page_ram_header": {
-        "message": "This computer's memory"
-    },
-    "welcome_page_ram_question": {
-        "message": "How much memory (RAM) does this computer have? FastStream keeps part of each video in RAM and the rest on disk; your answer sets how much RAM it may use."
-    },
-    "welcome_page_ram_set": {
-        "message": "Set: FastStream keeps up to $1 of video in RAM, the rest on disk. You can change it in the options, under \"General Options\"."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Set: FastStream keeps up to $1 of video in RAM; what does not fit is downloaded again when needed. You can change it in the options, under \"General Options\"."
-    },
     "welcome_page_keybinds_header": {
         "message": "Default Keyboard Controls"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "Download paused: press $1 to resume"
     },
-    "player_wait_speed_zero": {
-        "message": "The video waits for data because \"Target download speed of predownloader\" is 0: nothing is downloaded ahead. Leave that setting empty for no limit."
-    },
     "player_wait_speed_low": {
-        "message": "The video waits for data because \"Target download speed of predownloader\" ($1 Mbit/s) is below what this video needs (about $2 Mbit/s): little is downloaded ahead. Raise that setting, or leave it empty for no limit."
-    },
-    "player_wait_ahead_zero": {
-        "message": "The video waits for data because \"Seconds to keep buffered ahead\" is 0: nothing is kept ahead. Raise that setting."
+        "message": "The video waits for data because \"Download speed limit\" ($1 Mbit/s) is below what this video needs (about $2 Mbit/s): little is downloaded ahead. Pick a higher limit there, or \"No limit\"."
     },
     "player_wait_ram_zero": {
         "message": "The video waits for data: nothing is kept on the disk here, and \"Disk only\" keeps only 64 MB in RAM. Choose another mode under \"Where to keep downloaded video\" to keep more ahead."
@@ -696,13 +678,13 @@
         "message": "(unknown)"
     },
     "player_buffer_size_warning": {
-        "message": "This video (about $1) is larger than the setting \"Maximum size of predownloaded video\" ($2), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead. To predownload it whole, raise that setting or leave it empty."
+        "message": "This video (about $1) is larger than \"Largest video loaded whole\" ($2), so it is not loaded whole. It still plays normally and keeps loading up to $3 ahead. To load it whole, pick a larger size there, or \"No limit\"."
     },
     "player_buffer_private_warning": {
-        "message": "In a private window FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for buffered video\" FastStream may use for it ($2), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead."
+        "message": "In a private window FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for video\" FastStream may use for it ($2), so it is not loaded whole. It still plays normally and keeps loading up to $3 ahead."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Where to keep downloaded video\" is \"RAM only\", so FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for buffered video\" FastStream may use for it ($2). It is not predownloaded whole, but still plays normally and keeps loading up to $3 ahead. To predownload it whole, choose \"RAM, then disk\" there."
+        "message": "\"Where to keep downloaded video\" is \"RAM only\", so FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for video\" FastStream may use for it ($2). It is not loaded whole, but still plays normally and keeps loading up to $3 ahead. To load it whole, choose \"RAM, then disk\" there."
     },
     "player_buffer_disk_warning": {
         "message": "This video (about $1) is larger than the disk space Firefox gives FastStream ($2 free), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead. Freeing disk space helps."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Zoom the picture, or delay it against the sound. The zoom does not apply in picture-in-picture."
     },
+    "options_playback_header": {
+        "message": "Playback"
+    },
+    "options_storage_header": {
+        "message": "Download and storage"
+    },
+    "options_subtitles_header": {
+        "message": "Subtitles"
+    },
+    "options_mouse_header": {
+        "message": "Mouse and window"
+    },
+    "options_opening_header": {
+        "message": "Opening videos"
+    },
+    "options_section_reset": {
+        "message": "Reset this section"
+    },
+    "options_changed": {
+        "message": "Changed from the default"
+    },
     "options_video_zoom": {
         "message": "Video Zoom"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Video Delay"
     },
-    "options_general_header": {
-        "message": "General Options"
-    },
-    "options_general_predownload": {
-        "message": "Predownload entire video in the background if possible"
-    },
     "options_general_targetspeed": {
-        "message": "Target download speed of predownloader"
+        "message": "Download speed limit"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Loading ahead pauses while it is faster than this; what playback needs right now always loads."
     },
     "options_general_maxsize": {
-        "message": "Maximum size of predownloaded video (used only when predownload is on)"
+        "message": "Largest video loaded whole"
+    },
+    "options_general_maxsize_desc": {
+        "message": "A larger video loads as much as fits. Only with \"Whole video\"."
     },
     "options_general_rambudget": {
-        "message": "RAM for buffered video (all tabs)"
+        "message": "RAM for video (all tabs)"
+    },
+    "options_storage_ram_auto": {
+        "message": "Automatic: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Not used"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Set only with \"RAM only\"."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB or more only on computers with 16 GB of memory or more."
     },
     "options_general_nolimit": {
         "message": "No limit"
     },
-    "options_general_targetspeed_zero": {
-        "message": "0: nothing is downloaded ahead of playback, so videos may stop to load. Leave the field empty for no limit."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: nothing is predownloaded; only the seconds set below are kept ahead. Leave the field empty for no limit."
-    },
-    "options_general_maxsize_none": {
-        "message": "No limit: as much as fits in RAM and in the room Firefox gives FastStream on the disk."
-    },
-    "options_general_rambudget_none": {
-        "message": "No limit: all downloaded video stays in RAM. A long video can take more memory than the computer has and freeze it."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "Recommended for $1: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Pick this computer's memory above to see the recommended amount."
-    },
-    "options_general_rambudget_use": {
-        "message": "Use $1"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Not taken: for no video in RAM choose \"Disk only\" above; \"No limit\" is only for \"RAM only\"."
-    },
-    "options_general_rambudget_high": {
-        "message": "This much video in RAM can freeze a computer: the system and Firefox need most of its memory. A smaller amount plays the same, because the rest of the video goes to the disk or is downloaded again when needed."
-    },
-    "options_general_ramsize": {
-        "message": "This computer's memory (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Picking a size puts the recommended amount into the RAM field below."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Not set"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 or more"
-    },
     "options_list_ignored_lines": {
         "message": "Left out, not a valid entry: line $1"
     },
-    "options_general_bufferahead": {
-        "message": "Seconds to keep buffered ahead of playback when the whole video is not predownloaded (0 to 3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: nothing is kept buffered ahead, so the video stops to load often."
-    },
     "options_general_bufferbehind": {
-        "message": "Seconds to keep buffered behind playback before trimming"
+        "message": "Keep video already played"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "Seeking back within it is instant; older parts load again when needed."
     },
     "options_general_bufferkeep": {
-        "message": "How long the downloaded video is kept after a reload or a closed tab (until Firefox closes at the latest)"
+        "message": "Keep video after a reload or closed tab"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "So a reload does not download it again. Until Firefox closes at the latest."
+    },
+    "options_storage_stored": {
+        "message": "Stored now: $1 on disk · $2 in RAM · open videos: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "A video's data is deleted when its tab closes, or after the time above. What Firefox leaves behind when it closes goes a minute after its next start."
     },
     "options_general_bufferkeep_off": {
         "message": "Off"
@@ -924,7 +906,7 @@
         "message": "Where to keep downloaded video"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM, then disk"
+        "message": "RAM, then disk (recommended)"
     },
     "options_general_storage_ramonly": {
         "message": "RAM only"
@@ -933,49 +915,85 @@
         "message": "Disk only"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Recommended. Video stays in RAM up to the amount below; what does not fit goes to the disk and plays the same. Private windows never write to the disk: there it is RAM only."
+        "message": "Up to $1 stays in RAM for all tabs together; the rest goes to the disk and plays the same. Private windows never write to the disk: there it is RAM only."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Nothing is written to the disk. What does not fit in the RAM below is let go of and downloaded again when needed."
+        "message": "Nothing is written to the disk; what does not fit in the limit below is downloaded again when needed."
     },
     "options_general_storage_disk_hint": {
         "message": "For computers with little memory: the video goes to the disk as it arrives, and only the part playing now stays in RAM. Private windows, which write nothing to the disk, keep 64 MB in RAM."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: played video is dropped at once; seeking back loads it again. Leave the field empty for no limit."
+    "options_storage_whole": {
+        "message": "Whole video"
     },
-    "options_general_bufferbehind_none": {
-        "message": "No limit: everything already played is kept, in RAM or on the disk as chosen below."
+    "options_storage_all": {
+        "message": "All"
+    },
+    "options_storage_ahead": {
+        "message": "Load ahead"
+    },
+    "options_storage_ahead_desc": {
+        "message": "The whole video, so every spot plays at once; or a fixed time ahead of where it plays."
     },
     "options_general_blockpopups": {
-        "message": "Block popups/popunders opened right after clicking the player"
+        "message": "Block pop-ups right after a click on the player"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Many sites open an ad tab on a click: FastStream closes a tab the page opens right after a click on the player."
     },
     "options_general_previewenabled": {
-        "message": "Show preview when hovering over the timeline"
+        "message": "Preview pictures on the timeline"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Shows the picture under the mouse; a second, small player loads the video for it."
     },
     "options_general_decodingawarequality": {
-        "message": "Prefer the version your graphics card can decode (hardware decoding), then a higher frame rate and more efficient codecs such as AV1. Never lowers the chosen resolution"
+        "message": "Prefer a version the graphics card can decode"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Among versions of the chosen resolution: first one this computer's graphics card decodes, then a higher frame rate and more efficient codecs such as AV1. Never lowers the resolution."
     },
     "options_general_storeprogress": {
-        "message": "Play videos from last watched position"
+        "message": "Continue where you stopped"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Remembers where you stopped in each video, on this computer."
     },
     "options_general_autosub": {
-        "message": "Automatically enable best found subtitle track\n(Change default language in subtitle settings)"
+        "message": "Turn on the best subtitle track"
+    },
+    "options_general_autosub_desc": {
+        "message": "In the language set in the player's subtitle settings."
     },
     "options_general_cyclesubs": {
-        "message": "The subtitles key goes through the tracks one by one, then off\n(Unchecked: it turns subtitles on and off)"
+        "message": "The subtitles key goes through the tracks"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "One track after another, then off. Unticked: the key turns subtitles on and off."
     },
     "options_general_stream": {
-        "message": "Use player to play HLS/DASH streams when opening playlist URLs (.m3u8/.mpd)"
+        "message": "Open stream links (.m3u8, .mpd) in FastStream"
+    },
+    "options_general_stream_desc": {
+        "message": "A link straight to a stream plays in the player instead of downloading the playlist file."
     },
     "options_general_mp4": {
-        "message": "Use player to play MP4 videos when opening video URLs (.mp4)"
+        "message": "Open .mp4 links in FastStream"
+    },
+    "options_general_mp4_desc": {
+        "message": "Unticked: Firefox plays them itself."
     },
     "options_general_seekstep": {
-        "message": "Arrow key seek step (seconds)"
+        "message": "Seek step, in seconds"
+    },
+    "options_general_seekstep_desc": {
+        "message": "How far one press of a seek key jumps (by default the left and right arrows)."
     },
     "options_general_replace_delay": {
-        "message": "Delay before auto-replacing player (ms)"
+        "message": "Wait before the player takes over, in ms"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "When FastStream is on for a page, how long a found video waits before the player replaces the site's."
     },
     "options_general_maxdownloaders": {
         "message": "Downloads at the same time (1 to 6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Default video quality"
+    },
+    "options_general_quality_desc": {
+        "message": "Auto: the highest the video offers. A height: that one, else the nearest above it, else the highest below it."
     },
     "options_general_clickaction": {
         "message": "Single click action"
@@ -1017,16 +1038,19 @@
         "message": "Hide player"
     },
     "options_general_vischangeaction": {
-        "message": "When player visibility changes"
+        "message": "When the player is out of sight"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Scrolled out of view, or its tab in the background; not in fullscreen or picture-in-picture."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Do nothing"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Toggle play/pause"
+        "message": "Pause, play on when back"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Toggle miniplayer"
+        "message": "Show a miniplayer"
     },
     "options_general_minipos": {
         "message": "Miniplayer position"
@@ -1048,6 +1072,9 @@
     },
     "options_general_color_theme": {
         "message": "Player color theme"
+    },
+    "options_general_color_theme_desc": {
+        "message": "The colours of the player's controls and menus."
     },
     "options_general_color_theme_default": {
         "message": "Default Dark"
@@ -1386,7 +1413,10 @@
         "message": "its tab is closed, or not in MPV mode"
     },
     "options_general_autoplay_countdown": {
-        "message": "Countdown before the next episode, in seconds (0: none)"
+        "message": "Countdown before the next episode, in seconds"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "In the player and in MPV. 0: the next episode starts at once."
     },
     "options_mpv_autoplaynext": {
         "message": "Autoplay next episode in mpv (the autoplay button in mpv switches it too)"
@@ -1433,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "the page brought no stream within a minute; open it in the browser to see why"
     },
-    "options_problems_title": {
-        "message": "Sites where autoplay got stuck"
-    },
-    "options_problems_note": {
-        "message": "FastStream notes here where autoplay could not go on, so you can report the site. A report opens a GitHub issue for you to check first: issues are public, so remove what you don't want to share."
-    },
-    "options_problems_none": {
-        "message": "None so far."
-    },
-    "options_problems_no_next": {
-        "message": "no next episode found (the last one, or a page FastStream can't read yet)"
-    },
-    "options_problems_no_stream": {
-        "message": "the next episode's page brought no video"
-    },
-    "options_problems_mode_player": {
-        "message": "in the player"
-    },
-    "options_problems_mode_mpv": {
-        "message": "in MPV mode"
-    },
-    "options_problems_seen": {
-        "message": "$1 times, last on $2"
-    },
-    "options_problems_report": {
-        "message": "Report on GitHub"
-    },
-    "options_problems_clear": {
-        "message": "Clear the list"
-    },
     "player_nextvideo_cancel": {
         "message": "Stop autoplay for this tab"
     },
@@ -1479,7 +1479,10 @@
         "message": "Quality lowered to $1: this computer dropped $2% of the frames at $3. Choose $3 in the quality menu to keep it."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Lower the video quality when this computer cannot show all frames in time (the player tells you each time)"
+        "message": "Lower the quality when frames are dropped"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "When this computer cannot show a fifth of the frames in time, the next lower version plays. The player says so each time."
     },
     "menu_play_in_faststream": {
         "message": "Play in FastStream"
@@ -1521,7 +1524,7 @@
         "message": "Keep long videos on your disk"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Without it, Firefox lets an add-on store at most 10 GB, so a long video could not be predownloaded whole even with no limit in FastStream's settings. FastStream still keeps no more than its \"Maximum size of predownloaded video\" setting, and deletes the video when the player closes. A video kept after a reload or a closed tab is deleted once the time set for it is up. Firefox does not ask about this permission."
+        "message": "Without it, Firefox lets an add-on store at most 10 GB, so a long video could not be loaded whole even with no limit in FastStream's settings. FastStream still keeps no more than its \"Largest video loaded whole\" setting, and deletes the video when the player closes. A video kept after a reload or a closed tab is deleted once the time set for it is up. Firefox does not ask about this permission."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Delete kept videos on time"

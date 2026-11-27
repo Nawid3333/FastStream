@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "Danke fürs Installieren von FastStream! Bitte lass uns wissen, falls du irgendwelche Probleme oder Vorschläge hast."
     },
-    "welcome_page_ram_header": {
-        "message": "Arbeitsspeicher dieses Computers"
-    },
-    "welcome_page_ram_question": {
-        "message": "Wie viel Arbeitsspeicher (RAM) hat dieser Computer? FastStream behält einen Teil jedes Videos im Arbeitsspeicher und den Rest auf der Festplatte; deine Antwort legt fest, wie viel Arbeitsspeicher es nutzen darf."
-    },
-    "welcome_page_ram_set": {
-        "message": "Eingestellt: FastStream behält bis zu $1 Video im Arbeitsspeicher, den Rest auf der Festplatte. Du kannst das in den Einstellungen unter „Allgemeine Einstellungen“ ändern."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Festgelegt: FastStream behält bis zu $1 des Videos im Arbeitsspeicher; was nicht hineinpasst, wird bei Bedarf erneut heruntergeladen. Du kannst das in den Optionen unter „Allgemeine Einstellungen“ ändern."
-    },
     "welcome_page_keybinds_header": {
         "message": "Standard-Tastatursteuerung"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "Download pausiert: $1 drücken, um fortzufahren"
     },
-    "player_wait_speed_zero": {
-        "message": "Das Video wartet auf Daten, weil „Zielgeschwindigkeit fürs Vorladen“ auf 0 steht: Es wird nichts im Voraus geladen. Lass das Feld leer, um keine Grenze zu setzen."
-    },
     "player_wait_speed_low": {
-        "message": "Das Video wartet auf Daten, weil „Zielgeschwindigkeit fürs Vorladen“ ($1 Mbit/s) unter dem liegt, was dieses Video braucht (etwa $2 Mbit/s): Es wird wenig im Voraus geladen. Erhöhe die Einstellung oder lass das Feld leer, um keine Grenze zu setzen."
-    },
-    "player_wait_ahead_zero": {
-        "message": "Das Video wartet auf Daten, weil „Sekunden, die im Voraus gepuffert bleiben“ auf 0 steht: Es wird nichts im Voraus gehalten. Erhöhe die Einstellung."
+        "message": "Das Video wartet auf Daten, weil „Download-Geschwindigkeit begrenzen“ ($1 Mbit/s) unter dem liegt, was dieses Video braucht (etwa $2 Mbit/s): Es wird wenig im Voraus geladen. Wähle dort eine höhere Grenze oder „Keine Begrenzung“."
     },
     "player_wait_ram_zero": {
         "message": "Das Video wartet auf Daten: Hier wird nichts auf der Festplatte gehalten, und „Nur Festplatte“ behält nur 64 MB im Arbeitsspeicher. Wähle unter „Wo das heruntergeladene Video gespeichert wird“ einen anderen Modus, um mehr im Voraus zu halten."
@@ -696,13 +678,13 @@
         "message": "(unbekannt)"
     },
     "player_buffer_size_warning": {
-        "message": "Dieses Video (etwa $1) ist größer als die Einstellung „Maximale Größe für vorgeladene Videos“ ($2) und wird daher nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus. Um es vollständig vorzuladen, erhöhe diese Einstellung oder lass das Feld leer."
+        "message": "Dieses Video (etwa $1) ist größer als „Größtes Video, das ganz geladen wird“ ($2), deshalb wird es nicht ganz geladen. Es spielt trotzdem normal und lädt bis zu $3 im Voraus. Um es ganz zu laden, wähle dort eine größere Größe oder „Keine Begrenzung“."
     },
     "player_buffer_private_warning": {
-        "message": "In einem privaten Fenster hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für gepuffertes Video“, den FastStream dafür nutzen darf ($2). Daher wird es nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus."
+        "message": "In einem privaten Fenster hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für Video“, den FastStream dafür nutzen darf ($2). Daher wird es nicht ganz geladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus."
     },
     "player_buffer_ram_warning": {
-        "message": "„Wo das heruntergeladene Video gespeichert wird“ steht auf „Nur Arbeitsspeicher“, daher hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für gepuffertes Video“, den FastStream dafür nutzen darf ($2). Es wird nicht vollständig vorgeladen, spielt aber trotzdem normal ab und lädt bis zu $3 im Voraus. Um es vollständig vorzuladen, wähle dort „Arbeitsspeicher, dann Festplatte“."
+        "message": "„Wo das heruntergeladene Video gespeichert wird“ steht auf „Nur Arbeitsspeicher“, daher hält FastStream Videos nur im Arbeitsspeicher, und dieses Video (etwa $1) ist größer als der Teil von „Arbeitsspeicher für Video“, den FastStream dafür nutzen darf ($2). Es wird nicht ganz geladen, spielt aber trotzdem normal ab und lädt bis zu $3 im Voraus. Um es ganz zu laden, wähle dort „Arbeitsspeicher, dann Festplatte“."
     },
     "player_buffer_disk_warning": {
         "message": "Dieses Video (etwa $1) ist größer als der Speicherplatz, den Firefox FastStream auf der Festplatte gibt ($2 frei), und wird daher nicht vollständig vorgeladen. Es spielt trotzdem normal ab und lädt bis zu $3 im Voraus. Speicherplatz freizugeben hilft."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Vergrößern Sie das Bild oder passen Sie die Videoverzögerung gegenüber dem Ton an. Die Videovergrößerung funktioniert nicht im Bild-in-Bild-Modus."
     },
+    "options_playback_header": {
+        "message": "Wiedergabe"
+    },
+    "options_storage_header": {
+        "message": "Laden und Speicher"
+    },
+    "options_subtitles_header": {
+        "message": "Untertitel"
+    },
+    "options_mouse_header": {
+        "message": "Maus und Fenster"
+    },
+    "options_opening_header": {
+        "message": "Videos öffnen"
+    },
+    "options_section_reset": {
+        "message": "Diesen Abschnitt zurücksetzen"
+    },
+    "options_changed": {
+        "message": "Vom Standard geändert"
+    },
     "options_video_zoom": {
         "message": "Videovergrößerung"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Videoverzögerung"
     },
-    "options_general_header": {
-        "message": "Allgemeine Einstellungen"
-    },
-    "options_general_predownload": {
-        "message": "Lade das gesamte Video im Hintergrund vor, falls möglich"
-    },
     "options_general_targetspeed": {
-        "message": "Zielgeschwindigkeit fürs Vorladen"
+        "message": "Download-Geschwindigkeit begrenzen"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Vorausladen pausiert, solange es schneller ist; was die Wiedergabe gerade braucht, lädt immer."
     },
     "options_general_maxsize": {
-        "message": "Maximale Größe für vorgeladene Videos (nur bei aktiviertem Vorab-Laden)"
+        "message": "Größtes Video, das ganz geladen wird"
+    },
+    "options_general_maxsize_desc": {
+        "message": "Ein größeres Video lädt so viel, wie passt. Nur bei „Ganzes Video“."
     },
     "options_general_rambudget": {
-        "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
+        "message": "Arbeitsspeicher für Video (alle Tabs)"
+    },
+    "options_storage_ram_auto": {
+        "message": "Automatisch: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Nicht genutzt"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Einstellbar nur bei „Nur Arbeitsspeicher“."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB oder mehr nur bei Computern mit 16 GB Arbeitsspeicher oder mehr."
     },
     "options_general_nolimit": {
         "message": "Keine Begrenzung"
     },
-    "options_general_targetspeed_zero": {
-        "message": "0: Es wird nichts vorab heruntergeladen, daher können Videos anhalten, um zu laden. Lass das Feld leer, um keine Begrenzung festzulegen."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: Es wird nichts vorab geladen; nur die unten eingestellte Anzahl von Sekunden wird im Voraus zwischengespeichert. Lass das Feld leer, um keine Begrenzung festzulegen."
-    },
-    "options_general_maxsize_none": {
-        "message": "Keine Begrenzung: So viel, wie in den Arbeitsspeicher und in den Platz passt, den Firefox FastStream auf der Festplatte gibt."
-    },
-    "options_general_rambudget_none": {
-        "message": "Keine Begrenzung: Das gesamte heruntergeladene Video bleibt im Arbeitsspeicher. Ein langes Video kann mehr Arbeitsspeicher belegen, als der Computer hat, und ihn einfrieren."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "Empfohlen für $1: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Wähle oben den Arbeitsspeicher dieses Computers, um die empfohlene Menge zu sehen."
-    },
-    "options_general_rambudget_use": {
-        "message": "$1 verwenden"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Nicht übernommen: Wähle oben „Nur Festplatte“, damit kein Video im Arbeitsspeicher bleibt; „Keine Begrenzung“ gibt es nur bei „Nur Arbeitsspeicher“."
-    },
-    "options_general_rambudget_high": {
-        "message": "So viel Video im Arbeitsspeicher kann einen Computer einfrieren: Das System und Firefox brauchen den Großteil des Arbeitsspeichers. Eine kleinere Menge spielt genauso, weil der Rest des Videos auf die Festplatte geht oder bei Bedarf erneut heruntergeladen wird."
-    },
-    "options_general_ramsize": {
-        "message": "Arbeitsspeicher dieses Computers (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Beim Auswählen einer Größe wird die empfohlene Menge in das Arbeitsspeicher-Feld unten eingetragen."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Nicht angegeben"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 oder mehr"
-    },
     "options_list_ignored_lines": {
         "message": "Ausgelassen, kein gültiger Eintrag: Zeile $1"
     },
-    "options_general_bufferahead": {
-        "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben, wenn das Video nicht vollständig vorgeladen ist (0 bis 3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: Nichts wird im Voraus gepuffert, daher bleibt das Video oft zum Laden stehen."
-    },
     "options_general_bufferbehind": {
-        "message": "Sekunden, die hinter der Wiedergabeposition gepuffert bleiben, bevor sie verworfen werden"
+        "message": "Schon Gesehenes behalten"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "Zurückspulen darin geht sofort; Älteres wird bei Bedarf neu geladen."
     },
     "options_general_bufferkeep": {
-        "message": "Wie lange das heruntergeladene Video nach Neuladen oder Schließen des Tabs behalten wird (höchstens bis Firefox geschlossen wird)"
+        "message": "Video nach Neuladen oder geschlossenem Tab behalten"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "Damit ein Neuladen es nicht neu herunterlädt. Längstens bis Firefox geschlossen wird."
+    },
+    "options_storage_stored": {
+        "message": "Gerade gespeichert: $1 auf der Festplatte · $2 im Arbeitsspeicher · offene Videos: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "Die Daten eines Videos werden gelöscht, wenn sein Tab schließt, oder nach der Zeit oben. Was Firefox beim Schließen zurücklässt, geht eine Minute nach dem nächsten Start."
     },
     "options_general_bufferkeep_off": {
         "message": "Aus"
@@ -924,7 +906,7 @@
         "message": "Wo das heruntergeladene Video gespeichert wird"
     },
     "options_general_storage_ramdisk": {
-        "message": "Arbeitsspeicher, dann Festplatte"
+        "message": "Arbeitsspeicher, dann Festplatte (empfohlen)"
     },
     "options_general_storage_ramonly": {
         "message": "Nur Arbeitsspeicher"
@@ -933,49 +915,85 @@
         "message": "Nur Festplatte"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Empfohlen. Das Video bleibt bis zur unten angegebenen Menge im Arbeitsspeicher; was nicht hineinpasst, geht auf die Festplatte und spielt genauso. Private Fenster schreiben nie auf die Festplatte: dort bleibt das Video nur im Arbeitsspeicher."
+        "message": "Bis zu $1 bleiben im Arbeitsspeicher, für alle Tabs zusammen; der Rest kommt auf die Festplatte und spielt genauso. Private Fenster schreiben nie auf die Festplatte: Dort gilt nur Arbeitsspeicher."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Auf die Festplatte wird nichts geschrieben. Was nicht in den unten angegebenen Arbeitsspeicher passt, wird verworfen und bei Bedarf erneut heruntergeladen."
+        "message": "Nichts wird auf die Festplatte geschrieben; was nicht in die Grenze unten passt, wird bei Bedarf neu geladen."
     },
     "options_general_storage_disk_hint": {
         "message": "Für Computer mit wenig Arbeitsspeicher: Das Video geht beim Eintreffen auf die Festplatte, und nur der gerade abgespielte Teil bleibt im Arbeitsspeicher. Private Fenster, die nichts auf die Festplatte schreiben, behalten 64 MB im Arbeitsspeicher."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: Bereits abgespieltes Video wird sofort verworfen; beim Zurückspulen wird es neu geladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    "options_storage_whole": {
+        "message": "Ganzes Video"
     },
-    "options_general_bufferbehind_none": {
-        "message": "Keine Begrenzung: Alles, was bereits abgespielt wurde, bleibt erhalten – im Arbeitsspeicher oder auf der Festplatte, wie unten ausgewählt."
+    "options_storage_all": {
+        "message": "Alles"
+    },
+    "options_storage_ahead": {
+        "message": "Im Voraus laden"
+    },
+    "options_storage_ahead_desc": {
+        "message": "Das ganze Video, dann spielt jede Stelle sofort; oder eine feste Zeit vor der Wiedergabeposition."
     },
     "options_general_blockpopups": {
-        "message": "Popups/Pop-unders blockieren, die direkt nach dem Klick auf den Player geöffnet werden"
+        "message": "Pop-ups direkt nach einem Klick auf den Player blockieren"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Viele Seiten öffnen beim Klick einen Werbe-Tab: FastStream schließt einen Tab, den die Seite direkt nach einem Klick auf den Player öffnet."
     },
     "options_general_previewenabled": {
-        "message": "Vorschau beim Überfahren der Zeitleiste anzeigen"
+        "message": "Vorschaubilder auf der Zeitleiste"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Zeigt das Bild unter der Maus; dafür lädt ein zweiter, kleiner Player das Video."
     },
     "options_general_decodingawarequality": {
-        "message": "Die Version bevorzugen, die deine Grafikkarte dekodieren kann (Hardware-Dekodierung), danach eine höhere Bildrate und effizientere Codecs wie AV1. Senkt nie die gewählte Auflösung"
+        "message": "Version bevorzugen, die die Grafikkarte dekodieren kann"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Unter Versionen der gewählten Auflösung: zuerst eine, die die Grafikkarte dieses Computers dekodiert, dann höhere Bildrate und effizientere Codecs wie AV1. Senkt nie die Auflösung."
     },
     "options_general_storeprogress": {
-        "message": "Spiele Videos von der zuletzt angesehenen Position ab"
+        "message": "Dort weitermachen, wo du aufgehört hast"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Merkt sich auf diesem Computer, wo du in jedem Video aufgehört hast."
     },
     "options_general_autosub": {
-        "message": "Aktiviere automatisch die beste gefundene Untertitelspur\n(Ändere die Standardsprache in den Untertitel-Einstellungen)"
+        "message": "Beste Untertitelspur einschalten"
+    },
+    "options_general_autosub_desc": {
+        "message": "In der Sprache aus den Untertitel-Einstellungen des Players."
     },
     "options_general_cyclesubs": {
-        "message": "Die Untertitel-Taste geht die Spuren der Reihe nach durch, danach aus\n(Nicht angehakt: schaltet Untertitel ein und aus)"
+        "message": "Die Untertitel-Taste geht durch die Spuren"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "Eine Spur nach der anderen, dann aus. Ohne Haken: Die Taste schaltet Untertitel ein und aus."
     },
     "options_general_stream": {
-        "message": "Den Player verwenden, um HLS/DASH-Streams beim Öffnen von Playlist-URLs (.m3u8/.mpd) abzuspielen"
+        "message": "Stream-Links (.m3u8, .mpd) in FastStream öffnen"
+    },
+    "options_general_stream_desc": {
+        "message": "Ein direkter Link auf einen Stream spielt im Player, statt die Playlist-Datei herunterzuladen."
     },
     "options_general_mp4": {
-        "message": "Den Player verwenden, um MP4-Videos beim Öffnen von Video-URLs (.mp4) abzuspielen"
+        "message": ".mp4-Links in FastStream öffnen"
+    },
+    "options_general_mp4_desc": {
+        "message": "Ohne Haken: Firefox spielt sie selbst ab."
     },
     "options_general_seekstep": {
-        "message": "Spulschritt der Pfeiltasten (Sekunden)"
+        "message": "Sprungweite, in Sekunden"
+    },
+    "options_general_seekstep_desc": {
+        "message": "Wie weit ein Druck auf eine Spultaste springt (standardmäßig die Pfeiltasten links und rechts)."
     },
     "options_general_replace_delay": {
-        "message": "Verzögerung vor dem automatischen Ersetzen des Players (ms)"
+        "message": "Warten, bevor der Player übernimmt, in ms"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "Wenn FastStream für eine Seite an ist: wie lange ein gefundenes Video wartet, bevor der Player den der Seite ersetzt."
     },
     "options_general_maxdownloaders": {
         "message": "Maximale Anzahl gleichzeitiger Downloads (1 bis 6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Standard-Videoqualität"
+    },
+    "options_general_quality_desc": {
+        "message": "Automatisch: die höchste, die das Video bietet. Eine Höhe: genau diese, sonst die nächsthöhere, sonst die höchste darunter."
     },
     "options_general_clickaction": {
         "message": "Einfachklick-Aktion"
@@ -1017,16 +1038,19 @@
         "message": "Player verstecken"
     },
     "options_general_vischangeaction": {
-        "message": "Wenn sich die Sichtbarkeit des Players ändert"
+        "message": "Wenn der Player nicht zu sehen ist"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Weggescrollt oder sein Tab im Hintergrund; nicht im Vollbild oder Bild-im-Bild."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Nichts machen"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Abspielen/Pausieren umschalten"
+        "message": "Pausieren, beim Zurückkommen weiterspielen"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Miniplayer umschalten"
+        "message": "Miniplayer zeigen"
     },
     "options_general_minipos": {
         "message": "Miniplayer-Position"
@@ -1048,6 +1072,9 @@
     },
     "options_general_color_theme": {
         "message": "Farbthema des Players"
+    },
+    "options_general_color_theme_desc": {
+        "message": "Die Farben der Bedienelemente und Menüs des Players."
     },
     "options_general_color_theme_default": {
         "message": "Standard Dunkel"
@@ -1386,7 +1413,10 @@
         "message": "dessen Tab ist geschlossen oder nicht im MPV-Modus"
     },
     "options_general_autoplay_countdown": {
-        "message": "Countdown bis zur nächsten Episode in Sekunden (0: keiner)"
+        "message": "Countdown vor der nächsten Folge, in Sekunden"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "Im Player und in MPV. 0: Die nächste Folge startet sofort."
     },
     "options_mpv_autoplaynext": {
         "message": "Nächste Episode in mpv automatisch abspielen (der Autoplay-Schalter in mpv schaltet dies ebenfalls um)"
@@ -1433,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "die Seite lieferte innerhalb einer Minute keinen Stream; öffne sie im Browser, um den Grund zu sehen"
     },
-    "options_problems_title": {
-        "message": "Seiten, auf denen Autoplay hängengeblieben ist"
-    },
-    "options_problems_note": {
-        "message": "FastStream merkt sich hier, wo Autoplay nicht weiterging, damit du die Seite melden kannst. Ein Bericht öffnet ein GitHub-Issue, das du vorher prüfen kannst: Issues sind öffentlich, lösche also, was du nicht teilen möchtest."
-    },
-    "options_problems_none": {
-        "message": "Bisher keine."
-    },
-    "options_problems_no_next": {
-        "message": "keine nächste Folge gefunden (die letzte Folge oder eine Seite, die FastStream noch nicht lesen kann)"
-    },
-    "options_problems_no_stream": {
-        "message": "die Seite der nächsten Folge enthielt kein Video"
-    },
-    "options_problems_mode_player": {
-        "message": "im Player"
-    },
-    "options_problems_mode_mpv": {
-        "message": "im MPV-Modus"
-    },
-    "options_problems_seen": {
-        "message": "$1 Mal, zuletzt am $2"
-    },
-    "options_problems_report": {
-        "message": "Auf GitHub melden"
-    },
-    "options_problems_clear": {
-        "message": "Liste leeren"
-    },
     "player_nextvideo_cancel": {
         "message": "Autoplay für diesen Tab stoppen"
     },
@@ -1479,7 +1479,10 @@
         "message": "Qualität auf $1 gesenkt: Dieser Computer hat $2% der Bilder bei $3 ausgelassen. Wähle $3 im Qualitätsmenü, um dabei zu bleiben."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Videoqualität senken, wenn dieser Computer nicht alle Bilder rechtzeitig anzeigen kann (der Player informiert dich jedes Mal)"
+        "message": "Qualität senken, wenn Bilder ausfallen"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "Kann dieser Computer ein Fünftel der Bilder nicht rechtzeitig zeigen, spielt die nächstniedrigere Version. Der Player sagt es jedes Mal."
     },
     "menu_play_in_faststream": {
         "message": "In FastStream abspielen"
@@ -1521,7 +1524,7 @@
         "message": "Lange Videos auf der Festplatte speichern"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Ohne sie lässt Firefox ein Add-on höchstens 10 GB speichern, sodass ein langes Video selbst ohne Begrenzung in den Einstellungen von FastStream nicht vollständig vorgeladen werden könnte. FastStream speichert trotzdem nicht mehr als die Einstellung „Maximale Größe für vorgeladene Videos“ erlaubt und löscht das Video, wenn der Player geschlossen wird. Ein nach Neuladen oder Schließen des Tabs behaltenes Video wird gelöscht, sobald die dafür eingestellte Zeit abgelaufen ist. Firefox fragt nach dieser Berechtigung nicht."
+        "message": "Ohne sie lässt Firefox ein Add-on höchstens 10 GB speichern, sodass ein langes Video selbst ohne Begrenzung in den Einstellungen von FastStream nicht ganz geladen werden könnte. FastStream speichert trotzdem nicht mehr als die Einstellung „Größtes Video, das ganz geladen wird“ erlaubt und löscht das Video, wenn der Player geschlossen wird. Ein nach Neuladen oder Schließen des Tabs behaltenes Video wird gelöscht, sobald die dafür eingestellte Zeit abgelaufen ist. Firefox fragt nach dieser Berechtigung nicht."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Behaltene Videos pünktlich löschen"

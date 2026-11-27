@@ -45,16 +45,18 @@ export const DefaultOptions = {
   sizesVersion: 1,
   // Utils.migrateClickActions.
   clickActionsVersion: 1,
+  // StorageMode.migrateStorage.
+  storageVersion: 1,
   videoZoom: 1,
   videoAspectRatio: AspectRatios.AUTO,
+  // Each of these on a step of its picker (SettingSteps.mjs).
   maxSpeed: -1,
   maxVideoSize: 5000000000,
-  ramBudget: 1000000000, // all players together; beyond it: the storage mode (StorageMode.mjs)
-  computerMemory: 0, // GB, as the user gave it (0: not given): sets ramBudget, and when its field warns
+  ramBudget: 1000000000, // all players together: "RAM, then disk"'s automatic amount, or "RAM only"'s limit (StorageMode.mjs)
   bufferToDisk: true, // false: beyond the RAM budget let go, downloaded again when needed
   bufferKeep: BufferKeepDefault, // seconds a gone player's buffer waits for the next player of its video (BufferKeep.mjs); 0: none
-  bufferAhead: 300, // seconds, when predownloading is off or unavailable
-  bufferBehind: 20, // seconds to keep buffered behind playback before trimming
+  bufferAhead: 300, // seconds; with downloadAll, what a video too large for the room keeps at least
+  bufferBehind: 20, // seconds kept behind playback; -1: all
   seekStepSize: DEFAULT_SEEK_STEP_SIZE,
   singleClickAction: ClickActions.PLAY_PAUSE,
   doubleClickAction: ClickActions.FULLSCREEN,

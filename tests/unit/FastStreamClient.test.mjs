@@ -1265,12 +1265,6 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
           .toHaveBeenCalledWith(expect.anything(), 'player_buffer_size_warning', 'info', 12000);
     });
 
-    it('says nothing for a maximum size of 0: nothing predownloaded is what was asked', () => {
-      const client = movie({maxVideoSize: 0}, 900 * GB);
-      expect(client.hasDownloadSpace).toBe(false);
-      expect(said(client)).toEqual([]);
-    });
-
     it('says nothing when nothing is kept ahead: a RAM limit too small for a second of it', () => {
       // "It still plays normally and keeps loading 0 s ahead" would not hold.
       const client = movie({bufferToDisk: false, ramBudget: 1}, 900 * GB);
@@ -1426,12 +1420,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     return client;
   }
 
-  it('predownloads nothing with a maximum size of 0, and all of it with no limit', () => {
-    const none = clientWithVideo({downloadAll: true, maxVideoSize: 0});
-    none.updateHasDownloadSpace();
-    expect(none.hasDownloadSpace).toBe(false);
-    expect(none.shouldDownloadAll()).toBeFalsy();
-
+  it('predownloads all of it with no limit', () => {
     const unlimited = clientWithVideo({downloadAll: true, maxVideoSize: -1});
     unlimited.updateHasDownloadSpace();
     expect(unlimited.hasDownloadSpace).toBe(true);

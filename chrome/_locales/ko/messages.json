@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "FastStream을 설치해 주셔서 감사합니다! 문제나 제안이 있으면 알려주세요."
     },
-    "welcome_page_ram_header": {
-        "message": "이 컴퓨터의 메모리"
-    },
-    "welcome_page_ram_question": {
-        "message": "이 컴퓨터의 메모리(RAM)는 얼마나 되나요? FastStream은 각 동영상의 일부를 RAM에, 나머지를 디스크에 보관합니다. 답에 따라 사용할 수 있는 RAM 양이 정해집니다."
-    },
-    "welcome_page_ram_set": {
-        "message": "설정됨: FastStream은 RAM에 동영상을 최대 $1까지 두고 나머지는 디스크에 보관합니다. 옵션의 \"일반 옵션\"에서 바꿀 수 있습니다."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "설정됨: FastStream은 비디오를 최대 $1까지 RAM에 보관합니다. 들어가지 않는 부분은 필요할 때 다시 다운로드됩니다. 옵션의 \"일반 옵션\"에서 변경할 수 있습니다."
-    },
     "welcome_page_keybinds_header": {
         "message": "기본 키보드 단축키"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "다운로드 일시 중지됨: $1 키를 누르면 다시 시작합니다"
     },
-    "player_wait_speed_zero": {
-        "message": "\"사전 다운로드의 목표 속도\"가 0이어서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 것이 없습니다. 제한을 없애려면 이 설정을 비워 두세요."
-    },
     "player_wait_speed_low": {
-        "message": "\"사전 다운로드의 목표 속도\"($1 Mbit/s)가 이 동영상에 필요한 속도(약 $2 Mbit/s)보다 낮아서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 양이 적습니다. 이 설정을 높이거나 비워 두어 제한을 없애세요."
-    },
-    "player_wait_ahead_zero": {
-        "message": "\"재생 지점 이후 구간을 버퍼에 유지할 초 수\"가 0이어서 동영상이 데이터를 기다리고 있습니다. 앞부분이 전혀 유지되지 않습니다. 이 설정을 높이세요."
+        "message": "\"다운로드 속도 제한\"($1 Mbit/s)이 이 동영상에 필요한 속도(약 $2 Mbit/s)보다 낮아서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 양이 적습니다. 거기서 더 높은 제한을 고르거나 \"제한 없음\"을 선택하세요."
     },
     "player_wait_ram_zero": {
         "message": "동영상이 데이터를 기다리고 있습니다. 여기서는 디스크에 아무것도 보관하지 않고, \"디스크만\"은 RAM에 64 MB만 보관합니다. 더 많이 미리 유지하려면 \"다운로드한 비디오의 저장 위치\"에서 다른 모드를 선택하세요."
@@ -696,13 +678,13 @@
         "message": "(알 수 없음)"
     },
     "player_buffer_size_warning": {
-        "message": "이 비디오(약 $1)는 \"사전 다운로드할 비디오의 최대 크기\" 설정($2)보다 커서 전체가 사전 다운로드되지 않습니다. 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 전체를 사전 다운로드하려면 이 설정을 늘리거나 칸을 비워 두세요."
+        "message": "이 비디오(약 $1)는 \"전체를 불러오는 최대 비디오 크기\" 설정($2)보다 커서 전체로 불러오지는 않습니다. 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 전체를 불러오려면 거기서 더 큰 크기를 고르거나 \"제한 없음\"을 선택하세요."
     },
     "player_buffer_private_warning": {
-        "message": "사생활 보호 창에서는 FastStream이 비디오를 RAM에만 보관하며, 이 비디오(약 $1)는 \"버퍼링된 동영상에 쓰는 RAM\" 중 FastStream이 쓸 수 있는 몫($2)보다 커서 전체가 사전 다운로드되지 않습니다. 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다."
+        "message": "사생활 보호 창에서는 FastStream이 비디오를 RAM에만 보관하며, 이 비디오(약 $1)는 \"비디오에 쓰는 RAM\" 중 FastStream이 쓸 수 있는 몫($2)보다 커서 전체로 불러오지는 않습니다. 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다."
     },
     "player_buffer_ram_warning": {
-        "message": "\"다운로드한 비디오의 저장 위치\"가 \"RAM만\"이어서 FastStream이 비디오를 RAM에만 보관하며, 이 비디오(약 $1)는 \"버퍼링된 동영상에 쓰는 RAM\" 중 FastStream이 쓸 수 있는 몫($2)보다 큽니다. 전체가 사전 다운로드되지는 않지만 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 전체를 사전 다운로드하려면 거기서 \"RAM 후 디스크\"를 선택하세요."
+        "message": "\"다운로드한 비디오의 저장 위치\"가 \"RAM만\"이어서 FastStream이 비디오를 RAM에만 보관하며, 이 비디오(약 $1)는 \"비디오에 쓰는 RAM\" 중 FastStream이 쓸 수 있는 몫($2)보다 큽니다. 전체로 불러오지는 않지만 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 전체를 불러오려면 거기서 \"RAM 후 디스크\"를 선택하세요."
     },
     "player_buffer_disk_warning": {
         "message": "이 비디오(약 $1)는 Firefox가 FastStream에 주는 디스크 공간(남은 공간 $2)보다 커서 전체가 사전 다운로드되지 않습니다. 재생은 평소대로 되며 최대 $3 앞까지 계속 불러옵니다. 디스크 공간을 확보하면 도움이 됩니다."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "화면을 확대하거나 소리에 맞춰 비디오 지연 시간을 조절하세요. 비디오 확대는 PIP(화면 속 화면) 모드에서는 작동하지 않습니다."
     },
+    "options_playback_header": {
+        "message": "재생"
+    },
+    "options_storage_header": {
+        "message": "다운로드 및 저장"
+    },
+    "options_subtitles_header": {
+        "message": "자막"
+    },
+    "options_mouse_header": {
+        "message": "마우스와 창"
+    },
+    "options_opening_header": {
+        "message": "비디오 열기"
+    },
+    "options_section_reset": {
+        "message": "이 섹션 초기화"
+    },
+    "options_changed": {
+        "message": "기본값에서 변경됨"
+    },
     "options_video_zoom": {
         "message": "비디오 확대"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "비디오 지연"
     },
-    "options_general_header": {
-        "message": "일반 옵션"
-    },
-    "options_general_predownload": {
-        "message": "가능하면 백그라운드에서 전체 영상을 미리 다운로드합니다"
-    },
     "options_general_targetspeed": {
-        "message": "사전 다운로드의 목표 속도"
+        "message": "다운로드 속도 제한"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "미리 불러오는 속도가 이보다 빠르면 잠시 멈춥니다. 재생에 당장 필요한 부분은 항상 불러옵니다."
     },
     "options_general_maxsize": {
-        "message": "사전 다운로드할 비디오의 최대 크기 (사전 다운로드가 켜져 있을 때만 사용)"
+        "message": "전체를 불러오는 최대 비디오 크기"
+    },
+    "options_general_maxsize_desc": {
+        "message": "이보다 큰 비디오는 들어가는 만큼만 불러옵니다. \"비디오 전체\"를 선택했을 때만 사용됩니다."
     },
     "options_general_rambudget": {
-        "message": "버퍼링된 동영상에 쓰는 RAM (모든 탭 합계)"
+        "message": "비디오에 쓰는 RAM (모든 탭)"
+    },
+    "options_storage_ram_auto": {
+        "message": "자동: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "사용 안 함"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "\"RAM만\"일 때만 설정할 수 있습니다."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB 이상은 메모리가 16 GB 이상인 컴퓨터에서만 사용할 수 있습니다."
     },
     "options_general_nolimit": {
         "message": "제한 없음"
     },
-    "options_general_targetspeed_zero": {
-        "message": "0: 재생보다 앞서 다운로드하는 내용이 없어 비디오가 로드를 기다리느라 멈출 수 있습니다. 제한 없음으로 하려면 칸을 비워 두세요."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: 사전 다운로드는 하지 않고, 아래에서 설정한 초만큼만 재생 지점 이후 구간을 유지합니다. 제한 없음으로 하려면 칸을 비워 두세요."
-    },
-    "options_general_maxsize_none": {
-        "message": "제한 없음: RAM과 Firefox가 FastStream에게 디스크에서 주는 공간에 맞는 만큼 저장합니다."
-    },
-    "options_general_rambudget_none": {
-        "message": "제한 없음: 다운로드한 동영상이 모두 RAM에 남습니다. 긴 동영상은 컴퓨터의 메모리보다 많이 차지해 컴퓨터를 멈추게 할 수 있습니다."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "$1 기준 권장량: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "권장 용량을 보려면 위에서 이 컴퓨터의 메모리를 선택하세요."
-    },
-    "options_general_rambudget_use": {
-        "message": "$1 사용"
-    },
-    "options_general_rambudget_refused": {
-        "message": "적용되지 않음: RAM에 동영상을 남기지 않으려면 위에서 \"디스크만\"을 선택하세요. \"제한 없음\"은 \"RAM만\"일 때만 쓸 수 있습니다."
-    },
-    "options_general_rambudget_high": {
-        "message": "이만큼의 동영상을 RAM에 두면 컴퓨터가 멈출 수 있습니다. 시스템과 Firefox가 메모리의 대부분을 필요로 하기 때문입니다. 더 적게 설정해도 재생은 똑같습니다. 나머지 동영상은 디스크에 가거나 필요할 때 다시 다운로드되기 때문입니다."
-    },
-    "options_general_ramsize": {
-        "message": "이 컴퓨터의 메모리(RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "크기를 선택하면 권장 용량이 아래의 RAM 칸에 채워집니다."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "설정 안 함"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 이상"
-    },
     "options_list_ignored_lines": {
         "message": "올바른 항목이 아니어서 제외됨: $1번째 줄"
     },
-    "options_general_bufferahead": {
-        "message": "재생 지점 이후 구간을 버퍼에 유지할 초 수(전체 비디오가 사전 다운로드되지 않은 경우, 0~3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: 재생 지점 이후를 버퍼에 유지하지 않아 비디오가 로드를 기다리느라 자주 멈춥니다."
-    },
     "options_general_bufferbehind": {
-        "message": "트리밍 전까지 재생 지점 이전 구간을 버퍼에 유지할 초 수"
+        "message": "재생된 부분 유지"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "이 범위 안에서 뒤로 이동하면 즉시 이동하며, 그보다 오래된 부분은 필요할 때 다시 불러옵니다."
     },
     "options_general_bufferkeep": {
-        "message": "새로고침하거나 탭을 닫은 후 다운로드한 동영상을 보관하는 시간(최대 Firefox를 닫을 때까지)"
+        "message": "새로고침하거나 탭을 닫은 후에도 비디오 유지"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "새로고침할 때 다시 다운로드하지 않도록 보관합니다. 늦어도 Firefox를 닫을 때까지입니다."
+    },
+    "options_storage_stored": {
+        "message": "현재 저장됨: 디스크 $1 · RAM $2 · 열려 있는 비디오: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "비디오 데이터는 탭을 닫거나 위에서 설정한 시간이 지나면 삭제됩니다. Firefox가 종료할 때 남긴 것은 다음에 시작한 지 1분 후에 지워집니다."
     },
     "options_general_bufferkeep_off": {
         "message": "끄기"
@@ -924,7 +906,7 @@
         "message": "다운로드한 비디오의 저장 위치"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM 후 디스크"
+        "message": "RAM 후 디스크 (권장)"
     },
     "options_general_storage_ramonly": {
         "message": "RAM만"
@@ -933,49 +915,85 @@
         "message": "디스크만"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "권장. 비디오는 아래에서 설정한 양까지 RAM에 유지되고, 들어가지 않는 부분은 디스크에 저장되지만 재생은 똑같습니다. 비공개 창은 디스크에 아무것도 기록하지 않으므로 거기서는 RAM에만 유지됩니다."
+        "message": "비디오는 모든 탭을 합쳐 $1까지 RAM에 유지되고, 들어가지 않는 부분은 디스크에 저장되지만 재생은 똑같습니다. 비공개 창은 디스크에 아무것도 기록하지 않으므로 거기서는 RAM에만 유지됩니다."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "디스크에는 아무것도 기록되지 않습니다. 아래 RAM에 들어가지 않는 부분은 삭제되고 필요할 때 다시 다운로드됩니다."
+        "message": "디스크에는 아무것도 기록되지 않습니다. 아래 한도에 들어가지 않는 부분은 필요할 때 다시 다운로드됩니다."
     },
     "options_general_storage_disk_hint": {
         "message": "메모리가 적은 컴퓨터용: 비디오는 도착하는 대로 디스크에 가고, 지금 재생 중인 부분만 RAM에 남습니다. 디스크에 아무것도 기록하지 않는 비공개 창은 RAM에 64 MB를 보관합니다."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: 재생한 부분은 곧바로 버려지고, 뒤로 이동하면 다시 로드합니다. 제한 없음으로 하려면 칸을 비워 두세요."
+    "options_storage_whole": {
+        "message": "비디오 전체"
     },
-    "options_general_bufferbehind_none": {
-        "message": "제한 없음: 이미 재생한 부분을 모두 유지합니다. 아래에서 선택한 대로 RAM 또는 디스크에 저장합니다."
+    "options_storage_all": {
+        "message": "모두"
+    },
+    "options_storage_ahead": {
+        "message": "앞부분 불러오기"
+    },
+    "options_storage_ahead_desc": {
+        "message": "비디오 전체를 불러오면 어떤 지점이든 즉시 재생할 수 있습니다. 또는 재생 중인 지점보다 고정된 시간만큼 앞까지만 불러옵니다."
     },
     "options_general_blockpopups": {
-        "message": "플레이어를 클릭한 직후 열리는 팝업/팝언더 차단"
+        "message": "플레이어를 클릭한 직후 열리는 팝업 차단"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "많은 사이트가 클릭하면 광고 탭을 엽니다. 플레이어를 클릭한 직후 페이지가 연 탭을 FastStream이 닫아 줍니다."
     },
     "options_general_previewenabled": {
-        "message": "타임라인에 마우스 오버 시 미리보기 표시"
+        "message": "타임라인에 미리보기 그림 표시"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "마우스가 가리키는 지점의 장면을 보여줍니다. 이를 위해 별도의 작은 플레이어가 비디오를 불러옵니다."
     },
     "options_general_decodingawarequality": {
-        "message": "그래픽 카드로 디코딩할 수 있는 버전(하드웨어 디코딩)을 우선하고, 그다음 더 높은 프레임 레이트와 AV1 같은 더 효율적인 코덱을 우선합니다. 선택한 해상도는 낮추지 않습니다"
+        "message": "그래픽 카드로 디코딩할 수 있는 버전 우선"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "선택한 해상도의 버전 중 이 컴퓨터의 그래픽 카드로 디코딩할 수 있는 것을 먼저 고르고, 그다음 더 높은 프레임 레이트와 AV1 같은 더 효율적인 코덱을 고릅니다. 해상도는 절대 낮추지 않습니다."
     },
     "options_general_storeprogress": {
-        "message": "마지막으로 본 위치에서 비디오 재생"
+        "message": "마지막으로 본 위치에서 이어서 재생"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "각 비디오에서 마지막으로 본 위치를 이 컴퓨터에 기억합니다."
     },
     "options_general_autosub": {
-        "message": "자동으로 가장 적합한 자막 트랙을 활성화합니다\n(기본 언어는 자막 설정에서 변경하세요)"
+        "message": "가장 적합한 자막 트랙 켜기"
+    },
+    "options_general_autosub_desc": {
+        "message": "플레이어의 자막 설정에서 지정한 언어로 켭니다."
     },
     "options_general_cyclesubs": {
-        "message": "자막 키로 트랙을 하나씩 전환하고 마지막 다음에는 끕니다\n(선택 해제: 자막을 켜고 끕니다)"
+        "message": "자막 키로 트랙을 하나씩 전환"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "트랙을 하나씩 전환하고 마지막 다음에는 끕니다. 선택을 해제하면 이 키로 자막을 켜고 끕니다."
     },
     "options_general_stream": {
-        "message": "플레이리스트 URL(.m3u8/.mpd) 열 때 플레이어로 HLS/DASH 스트림 재생"
+        "message": "스트림 링크(.m3u8, .mpd)를 FastStream에서 열기"
+    },
+    "options_general_stream_desc": {
+        "message": "스트림으로 바로 이어지는 링크는 플레이리스트 파일을 내려받지 않고 플레이어에서 재생합니다."
     },
     "options_general_mp4": {
-        "message": "비디오 URL(.mp4) 열 때 MP4 재생에 플레이어 사용"
+        "message": ".mp4 링크를 FastStream에서 열기"
+    },
+    "options_general_mp4_desc": {
+        "message": "선택을 해제하면 Firefox가 직접 재생합니다."
     },
     "options_general_seekstep": {
-        "message": "화살표 키 이동 간격(초)"
+        "message": "이동 간격(초)"
+    },
+    "options_general_seekstep_desc": {
+        "message": "이동 키를 한 번 누를 때 이동하는 시간입니다(기본값: 왼쪽과 오른쪽 화살표)."
     },
     "options_general_replace_delay": {
-        "message": "플레이어 자동 교체 전 지연(밀리초)"
+        "message": "플레이어가 대신 재생하기 전 대기 시간(밀리초)"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "페이지에서 FastStream이 켜져 있을 때, 발견된 비디오가 플레이어가 사이트의 비디오를 대신하기 전까지 기다리는 시간입니다."
     },
     "options_general_maxdownloaders": {
         "message": "동시 다운로드 수 (1~6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "기본 영상 품질"
+    },
+    "options_general_quality_desc": {
+        "message": "자동: 비디오가 제공하는 가장 높은 품질입니다. 높이를 지정하면: 그 높이를 고르고, 없으면 바로 위의 가장 가까운 높이, 그것도 없으면 아래쪽의 가장 높은 높이를 고릅니다."
     },
     "options_general_clickaction": {
         "message": "단일 클릭 동작"
@@ -1017,16 +1038,19 @@
         "message": "플레이어 숨기기"
     },
     "options_general_vischangeaction": {
-        "message": "플레이어 표시 상태 변경 시"
+        "message": "플레이어가 화면에 보이지 않을 때"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "화면 밖으로 스크롤되었거나 탭이 백그라운드에 있을 때입니다. 전체 화면이나 화면 속 화면에서는 작동하지 않습니다."
     },
     "options_general_vischangeaction_nothing": {
         "message": "아무 작업 안 함"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "재생/일시정지 전환"
+        "message": "일시정지하고 돌아오면 다시 재생"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "미니플레이어 전환"
+        "message": "미니플레이어 표시"
     },
     "options_general_minipos": {
         "message": "미니플레이어 위치"
@@ -1048,6 +1072,9 @@
     },
     "options_general_color_theme": {
         "message": "플레이어 색상 테마"
+    },
+    "options_general_color_theme_desc": {
+        "message": "플레이어 조작 요소와 메뉴의 색상입니다."
     },
     "options_general_color_theme_default": {
         "message": "기본 다크"
@@ -1386,7 +1413,10 @@
         "message": "탭이 닫혔거나 MPV 모드가 아닙니다"
     },
     "options_general_autoplay_countdown": {
-        "message": "다음 에피소드 재생 전 대기 시간(초) (0: 없음)"
+        "message": "다음 에피소드 재생 전 카운트다운(초)"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "플레이어와 MPV에서 작동합니다. 0이면 다음 에피소드가 즉시 시작됩니다."
     },
     "options_mpv_autoplaynext": {
         "message": "mpv에서 다음 에피소드 자동 재생 (mpv의 자동 재생 버튼으로도 전환 가능)"
@@ -1433,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "페이지에서 1분 이내에 스트림을 찾을 수 없습니다. 브라우저에서 열어 이유를 확인하세요"
     },
-    "options_problems_title": {
-        "message": "자동 재생이 중단된 사이트"
-    },
-    "options_problems_note": {
-        "message": "FastStream은 자동 재생이 중단된 곳을 여기에 기록하여 사이트를 신고할 수 있게 합니다. 신고하면 GitHub 이슈가 생성되며, 이슈는 공개되므로 공유하고 싶지 않은 내용은 삭제해 주세요."
-    },
-    "options_problems_none": {
-        "message": "아직 없습니다."
-    },
-    "options_problems_no_next": {
-        "message": "다음 에피소드를 찾지 못함 (마지막 에피소드이거나 FastStream이 아직 읽을 수 없는 페이지입니다)"
-    },
-    "options_problems_no_stream": {
-        "message": "다음 에피소드 페이지에 동영상이 없었습니다"
-    },
-    "options_problems_mode_player": {
-        "message": "플레이어에서"
-    },
-    "options_problems_mode_mpv": {
-        "message": "MPV 모드에서"
-    },
-    "options_problems_seen": {
-        "message": "$1회, 마지막으로 $2에 발생"
-    },
-    "options_problems_report": {
-        "message": "GitHub에 신고"
-    },
-    "options_problems_clear": {
-        "message": "목록 지우기"
-    },
     "player_nextvideo_cancel": {
         "message": "이 탭의 자동 재생 중지"
     },
@@ -1479,7 +1479,10 @@
         "message": "화질이 $1(으)로 낮아졌습니다: 이 컴퓨터가 $3에서 프레임의 $2%를 드롭했습니다. 계속 유지하려면 화질 메뉴에서 $3을(를) 선택하세요."
     },
     "options_general_lowerondroppedframes": {
-        "message": "컴퓨터가 모든 프레임을 제때 표시할 수 없을 때 영상 품질 낮추기 (플레이어가 매번 알려줌)"
+        "message": "프레임이 드랍되면 영상 품질 낮추기"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "이 컴퓨터가 프레임의 5분의 1을 제때 표시하지 못하면 그다음으로 낮은 버전이 재생됩니다. 플레이어가 그때마다 알려줍니다."
     },
     "menu_play_in_faststream": {
         "message": "FastStream에서 재생"
@@ -1521,7 +1524,7 @@
         "message": "긴 비디오를 디스크에 보관"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "이 권한이 없으면 Firefox는 부가 기능이 최대 10 GB까지만 저장하도록 하므로, FastStream 설정에 제한이 없어도 긴 비디오를 전체 사전 다운로드할 수 없습니다. FastStream은 여전히 \"사전 다운로드할 비디오의 최대 크기\" 설정을 넘겨 보관하지 않으며, 플레이어를 닫으면 비디오를 삭제합니다. 새로고침하거나 탭을 닫은 후 보관된 동영상은 설정한 시간이 지나면 삭제됩니다. Firefox는 이 권한에 대해 묻지 않습니다."
+        "message": "이 권한이 없으면 Firefox는 부가 기능이 최대 10 GB까지만 저장하도록 하므로, FastStream 설정에 제한이 없어도 긴 비디오를 전체로 불러올 수 없습니다. FastStream은 여전히 \"전체를 불러오는 최대 비디오 크기\" 설정을 넘겨 보관하지 않으며, 플레이어를 닫으면 비디오를 삭제합니다. 새로고침하거나 탭을 닫은 후 보관된 동영상은 설정한 시간이 지나면 삭제됩니다. Firefox는 이 권한에 대해 묻지 않습니다."
     },
     "perms_page_breakdown_perm14h": {
         "message": "보관된 동영상을 제때 삭제"

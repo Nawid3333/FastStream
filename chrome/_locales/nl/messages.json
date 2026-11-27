@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "Bedankt voor het installeren van FastStream! Laat het ons weten als je problemen of suggesties hebt."
     },
-    "welcome_page_ram_header": {
-        "message": "Geheugen van deze computer"
-    },
-    "welcome_page_ram_question": {
-        "message": "Hoeveel geheugen (RAM) heeft deze computer? FastStream bewaart een deel van elke video in het RAM en de rest op schijf; je antwoord bepaalt hoeveel RAM het mag gebruiken."
-    },
-    "welcome_page_ram_set": {
-        "message": "Ingesteld: FastStream bewaart tot $1 video in het RAM, de rest op schijf. Je kunt dit wijzigen in de opties, onder \"Algemene opties\"."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Ingesteld: FastStream bewaart maximaal $1 aan video in het RAM; wat niet past, wordt opnieuw gedownload indien nodig. Dit kunt u wijzigen in de opties, onder \"Algemene opties\"."
-    },
     "welcome_page_keybinds_header": {
         "message": "Standaard toetsenbordbediening"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "Download gepauzeerd: druk op $1 om verder te gaan"
     },
-    "player_wait_speed_zero": {
-        "message": "De video wacht op data omdat \"Gewenste downloadsnelheid voor het voorladen\" op 0 staat: er wordt niets vooruit gedownload. Laat die instelling leeg voor geen limiet."
-    },
     "player_wait_speed_low": {
-        "message": "De video wacht op data omdat \"Gewenste downloadsnelheid voor het voorladen\" ($1 Mbit/s) lager is dan wat deze video nodig heeft (ongeveer $2 Mbit/s): er wordt weinig vooruit gedownload. Verhoog die instelling of laat haar leeg voor geen limiet."
-    },
-    "player_wait_ahead_zero": {
-        "message": "De video wacht op data потому \"Seconden die vanaf de afspeelpositie vooruit gebufferd blijven\" op 0 staat: er wordt niets vooruit bewaard. Verhoog die instelling."
+        "message": "De video wacht op data omdat \"Downloadsnelheidslimiet\" ($1 Mbit/s) lager is dan wat deze video nodig heeft (ongeveer $2 Mbit/s): er wordt weinig vooruit geladen. Kies daar een hogere limiet, of \"Geen limiet\"."
     },
     "player_wait_ram_zero": {
         "message": "De video wacht op data: hier wordt niets op de schijf bewaard, en \"Alleen schijf\" bewaart slechts 64 MB in het RAM. Kies onder \"Waar gedownloade video wordt bewaard\" een andere modus om meer vooruit te bewaren."
@@ -696,13 +678,13 @@
         "message": "(onbekend)"
     },
     "player_buffer_size_warning": {
-        "message": "Deze video (ongeveer $1) is groter dan de instelling 'Maximale grootte van vooraf gedownloade video' ($2) en wordt daarom niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden. Om hem volledig vooraf te downloaden, verhoog je die instelling of laat je het veld leeg."
+        "message": "Deze video (ongeveer $1) is groter dan \"Grootste video die volledig wordt geladen\" ($2), en wordt daarom niet volledig geladen. Hij speelt gewoon af en blijft tot $3 vooruit laden. Om hem volledig te laden, kies je daar een grotere grootte, of \"Geen limiet\"."
     },
     "player_buffer_private_warning": {
-        "message": "In een privévenster bewaart FastStream video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van 'RAM voor gebufferde video' dat FastStream ervoor mag gebruiken ($2), dus wordt hij niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden."
+        "message": "In een privévenster bewaart FastStream video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van \"RAM voor video\" dat FastStream ervoor mag gebruiken ($2), dus wordt hij niet volledig geladen. Hij speelt gewoon af en blijft tot $3 vooruit laden."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Waar gedownloade video wordt bewaard\" staat op \"Alleen RAM\", dus FastStream bewaart video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van \"RAM voor gebufferde video\" dat FastStream ervoor mag gebruiken ($2). Hij wordt niet volledig vooraf gedownload, maar speelt gewoon af en blijft tot $3 vooruit laden. Kies daar \"RAM, daarna schijf\" om hem volledig vooraf te downloaden."
+        "message": "\"Waar gedownloade video wordt bewaard\" staat op \"Alleen RAM\", dus FastStream bewaart video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van \"RAM voor video\" dat FastStream ervoor mag gebruiken ($2). Hij wordt niet volledig geladen, maar speelt gewoon af en blijft tot $3 vooruit laden. Kies daar \"RAM, daarna schijf\" om hem volledig te laden."
     },
     "player_buffer_disk_warning": {
         "message": "Deze video (ongeveer $1) is groter dan de schijfruimte die Firefox aan FastStream geeft ($2 vrij) en wordt daarom niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden. Schijfruimte vrijmaken helpt."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Zoom in op het beeld of pas de videovertraging ten opzichte van het geluid aan. De videozoom werkt niet in beeld-in-beeld."
     },
+    "options_playback_header": {
+        "message": "Afspelen"
+    },
+    "options_storage_header": {
+        "message": "Downloads en opslag"
+    },
+    "options_subtitles_header": {
+        "message": "Ondertiteling"
+    },
+    "options_mouse_header": {
+        "message": "Muis en venster"
+    },
+    "options_opening_header": {
+        "message": "Video's openen"
+    },
+    "options_section_reset": {
+        "message": "Deze sectie resetten"
+    },
+    "options_changed": {
+        "message": "Gewijzigd ten opzichte van de standaard"
+    },
     "options_video_zoom": {
         "message": "Videozoom"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Videovertraging"
     },
-    "options_general_header": {
-        "message": "Algemene opties"
-    },
-    "options_general_predownload": {
-        "message": "Laad, indien mogelijk, de volledige video op de achtergrond."
-    },
     "options_general_targetspeed": {
-        "message": "Gewenste downloadsnelheid voor het voorladen"
+        "message": "Downloadsnelheidslimiet"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Vooruit laden pauzeert zolang het sneller gaat dan dit; wat het afspelen nu nodig heeft, wordt altijd geladen."
     },
     "options_general_maxsize": {
-        "message": "Maximale grootte van vooraf gedownloade video (alleen gebruikt wanneer vooraf downloaden aan staat)"
+        "message": "Grootste video die volledig wordt geladen"
+    },
+    "options_general_maxsize_desc": {
+        "message": "Een grotere video laadt zoveel als past. Alleen bij \"Volledige video\"."
     },
     "options_general_rambudget": {
-        "message": "RAM voor gebufferde video (alle tabbladen)"
+        "message": "RAM voor video (alle tabbladen)"
+    },
+    "options_storage_ram_auto": {
+        "message": "Automatisch: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Niet in gebruik"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Alleen van toepassing bij \"Alleen RAM\"."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB of meer alleen op computers met 16 GB geheugen of meer."
     },
     "options_general_nolimit": {
         "message": "Geen limiet"
     },
-    "options_general_targetspeed_zero": {
-        "message": "0: er wordt niets vooruit gedownload, dus video's kunnen stoppen om te laden. Laat het veld leeg voor geen limiet."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: er wordt niets vooraf gedownload; alleen de seconden die hieronder zijn ingesteld, blijven vooruit gebufferd. Laat het veld leeg voor geen limiet."
-    },
-    "options_general_maxsize_none": {
-        "message": "Geen limiet: zoveel als in het RAM past en in de ruimte die Firefox FastStream op de schijf geeft."
-    },
-    "options_general_rambudget_none": {
-        "message": "Geen limiet: alle gedownloade video blijft in het RAM. Een lange video kan meer geheugen innemen dan de computer heeft en hem laten vastlopen."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "Aanbevolen voor $1: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Kies hierboven het geheugen van deze computer om de aanbevolen hoeveelheid te zien."
-    },
-    "options_general_rambudget_use": {
-        "message": "$1 gebruiken"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Niet overgenomen: kies hierboven \"Alleen schijf\" om geen video in het RAM te bewaren; \"Geen limiet\" is alleen voor \"Alleen RAM\"."
-    },
-    "options_general_rambudget_high": {
-        "message": "Zoveel video in het RAM kan een computer laten vastlopen: het besturingssysteem en Firefox hebben het grootste deel van het geheugen nodig. Een kleinere hoeveelheid speelt net zo af, omdat de rest van de video naar de schijf gaat of opnieuw wordt gedownload indien nodig."
-    },
-    "options_general_ramsize": {
-        "message": "Geheugen van deze computer (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Het kiezen van een grootte zet de aanbevolen hoeveelheid in het RAM-veld hieronder."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Niet ingesteld"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 of meer"
-    },
     "options_list_ignored_lines": {
         "message": "Overgeslagen, geen geldige regel: regel $1"
     },
-    "options_general_bufferahead": {
-        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven wanneer de volledige video niet vooraf is gedownload (0 tot 3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: er blijft niets vooruit gebufferd, dus de video stopt vaak om te laden."
-    },
     "options_general_bufferbehind": {
-        "message": "Seconden die achter de afspeelpositie gebufferd blijven voordat ze worden verwijderd"
+        "message": "Al afgespeelde video bewaren"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "Terugspoelen binnen die tijd gaat direct; oudere delen worden indien nodig opnieuw geladen."
     },
     "options_general_bufferkeep": {
-        "message": "Hoe lang de gedownloade video bewaard blijft na herladen of sluiten van het tabblad (hooguit tot Firefox wordt gesloten)"
+        "message": "Video bewaren na herladen of gesloten tabblad"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "Zodat hij bij herladen niet opnieuw wordt gedownload. Uiterlijk tot Firefox wordt gesloten."
+    },
+    "options_storage_stored": {
+        "message": "Nu opgeslagen: $1 op de schijf · $2 in het RAM · open video's: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "De data van een video wordt verwijderd zodra zijn tabblad sluit, of na de tijd hierboven. Wat Firefox achterlaat bij het sluiten, wordt een minuut na de volgende start opgeruimd."
     },
     "options_general_bufferkeep_off": {
         "message": "Uit"
@@ -924,7 +906,7 @@
         "message": "Waar gedownloade video wordt bewaard"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM, daarna schijf"
+        "message": "RAM, daarna schijf (aanbevolen)"
     },
     "options_general_storage_ramonly": {
         "message": "Alleen RAM"
@@ -933,49 +915,85 @@
         "message": "Alleen schijf"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Aanbevolen. Video blijft in het RAM tot de hoeveelheid hieronder; wat niet past, gaat naar de schijf en speelt net zo af. Privévensters schrijven nooit naar de schijf: daar is het alleen RAM."
+        "message": "Er blijft tot $1 in het RAM, voor alle tabbladen samen; de rest gaat naar de schijf en speelt net zo af. Privévensters schrijven nooit naar de schijf: daar is het alleen RAM."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Er wordt niets op de schijf geschreven. Wat niet in het RAM hieronder past, wordt weggegooid en opnieuw gedownload indien nodig."
+        "message": "Er wordt niets op de schijf geschreven. Wat niet in de limiet hieronder past, wordt opnieuw gedownload indien nodig."
     },
     "options_general_storage_disk_hint": {
         "message": "Voor computers met weinig geheugen: de video gaat naar de schijf zodra deze binnenkomt, en alleen het deel dat nu afspeelt blijft in het RAM. Privévensters, die niets naar de schijf schrijven, bewaren 64 MB in het RAM."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: afgespeelde video wordt meteen weggegooid; terugspoelen laadt hem opnieuw. Laat het veld leeg voor geen limiet."
+    "options_storage_whole": {
+        "message": "Volledige video"
     },
-    "options_general_bufferbehind_none": {
-        "message": "Geen limiet: alles wat al is afgespeeld blijft bewaard, in RAM of op schijf, zoals hieronder gekozen."
+    "options_storage_all": {
+        "message": "Alle"
+    },
+    "options_storage_ahead": {
+        "message": "Vooruit laden"
+    },
+    "options_storage_ahead_desc": {
+        "message": "De volledige video, zodat elke plek meteen kan afspelen; of een vaste tijd vooruit vanaf de afspeelpositie."
     },
     "options_general_blockpopups": {
-        "message": "Popups/popunders blokkeren die direct na het klikken op de speler worden geopend"
+        "message": "Pop-ups blokkeren die direct na het klikken op de speler worden geopend"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Veel sites openen bij een klik een advertentietabblad: FastStream sluit een tabblad dat de pagina direct na een klik op de speler opent."
     },
     "options_general_previewenabled": {
-        "message": "Toon voorbeeld bij aanwijzen van de tijdlijn"
+        "message": "Voorbeeldafbeeldingen op de tijdlijn"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Toont het beeld onder de muisaanwijzer; een tweede, kleine speler laadt daarvoor de video."
     },
     "options_general_decodingawarequality": {
-        "message": "Geef de voorkeur aan de versie die je grafische kaart kan decoderen (hardwaredecodering), daarna een hogere framerate en efficiëntere codecs zoals AV1. Verlaagt nooit de gekozen resolutie"
+        "message": "Geef de voorkeur aan een versie die je grafische kaart kan decoderen"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Van de versies met de gekozen resolutie: eerst een die je grafische kaart kan decoderen, daarna een hogere framerate en efficiëntere codecs zoals AV1. Verlaagt nooit de resolutie."
     },
     "options_general_storeprogress": {
-        "message": "Video's afspelen vanaf de laatst bekeken positie"
+        "message": "Verder afspelen waar je was gebleven"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Onthoudt waar je in elke video was gebleven, op deze computer."
     },
     "options_general_autosub": {
-        "message": "Schakel automatisch het beste gevonden ondertitelingsspoor in\n(Verander de standaardtaal in de ondertitelingsinstellingen)"
+        "message": "Schakel automatisch het beste ondertitelingsspoor in"
+    },
+    "options_general_autosub_desc": {
+        "message": "In de taal die in de ondertitelingsinstellingen van de speler staat."
     },
     "options_general_cyclesubs": {
-        "message": "De ondertitelingstoets gaat de sporen een voor een langs, daarna uit\n(Uitgevinkt: zet ondertiteling aan en uit)"
+        "message": "De ondertitelingstoets gaat de sporen een voor een langs"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "Eén spoor na het andere, daarna uit. Uitgevinkt: de toets zet ondertiteling aan en uit."
     },
     "options_general_stream": {
-        "message": "Gebruik de speler om HLS/DASH-streams af te spelen bij het openen van afspeellijst-URL's (.m3u8/.mpd)"
+        "message": "Stream-URL's (.m3u8, .mpd) openen in FastStream"
+    },
+    "options_general_stream_desc": {
+        "message": "Een URL rechtstreeks naar een stream speelt in de speler af, in plaats van het afspeellijstbestand te downloaden."
     },
     "options_general_mp4": {
-        "message": "Gebruik de speler om MP4-video's af te spelen bij het openen van video-URL's (.mp4)"
+        "message": ".mp4-URL's openen in FastStream"
+    },
+    "options_general_mp4_desc": {
+        "message": "Uitgevinkt: Firefox speelt ze zelf af."
     },
     "options_general_seekstep": {
-        "message": "Spronggrootte van de pijltjestoetsen (seconden)"
+        "message": "Spronggrootte in seconden"
+    },
+    "options_general_seekstep_desc": {
+        "message": "Hoe ver één druk op een sneltoets springt (standaard de pijltjestoetsen naar links en rechts)."
     },
     "options_general_replace_delay": {
-        "message": "Vertraging voordat de speler automatisch wordt vervangen (ms)"
+        "message": "Wachttijd voordat de speler overneemt, in ms"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "Als FastStream voor een pagina aan staat, hoe lang een gevonden video wacht voordat de speler die van de site vervangt."
     },
     "options_general_maxdownloaders": {
         "message": "Downloads tegelijk (1 tot 6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Standaard videokwaliteit"
+    },
+    "options_general_quality_desc": {
+        "message": "Auto: de hoogste die de video biedt. Een hoogte: die waarde, anders de dichtstbijzijnde hogere, anders de hoogste daaronder."
     },
     "options_general_clickaction": {
         "message": "Actie bij enkele klik"
@@ -1017,16 +1038,19 @@
         "message": "Speler verbergen"
     },
     "options_general_vischangeaction": {
-        "message": "Wanneer de zichtbaarheid van de speler verandert"
+        "message": "Wanneer de speler buiten beeld is"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Als de speler uit beeld is gescrold of zijn tabblad op de achtergrond staat; niet in volledig scherm of beeld-in-beeld."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Niets doen"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Afspelen/pauzeren"
+        "message": "Pauzeren, verder afspelen bij terugkeer"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Mini-speler in-/uitschakelen"
+        "message": "Mini-speler tonen"
     },
     "options_general_minipos": {
         "message": "Positie mini-speler"
@@ -1048,6 +1072,9 @@
     },
     "options_general_color_theme": {
         "message": "Kleurthema van de speler"
+    },
+    "options_general_color_theme_desc": {
+        "message": "De kleuren van de bedieningselementen en menu's van de speler."
     },
     "options_general_color_theme_default": {
         "message": "Standaard donker"
@@ -1386,7 +1413,10 @@
         "message": "tabblad is gesloten of niet in MPV-modus"
     },
     "options_general_autoplay_countdown": {
-        "message": "Aftelling voor de volgende aflevering, in seconden (0: geen)"
+        "message": "Aftelling voor de volgende aflevering, in seconden"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "In de speler en in MPV. 0: de volgende aflevering begint meteen."
     },
     "options_mpv_autoplaynext": {
         "message": "Volgende aflevering automatisch afspelen in mpv (de autoplay-knop in mpv schakelt dit ook om)"
@@ -1433,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "de pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom"
     },
-    "options_problems_title": {
-        "message": "Sites waar autoplay vastliep"
-    },
-    "options_problems_note": {
-        "message": "FastStream noteert hier waar autoplay niet kon doorgaan, zodat je de site kunt rapporteren. Een rapport opent een GitHub-issue om te controleren: issues zijn openbaar, dus verwijder wat je niet wilt delen."
-    },
-    "options_problems_none": {
-        "message": "Tot nu toe geen."
-    },
-    "options_problems_no_next": {
-        "message": "volgende aflevering niet gevonden (de laatste, of een pagina die FastStream nog niet kan lezen)"
-    },
-    "options_problems_no_stream": {
-        "message": "de pagina van de volgende aflevering bevatte geen video"
-    },
-    "options_problems_mode_player": {
-        "message": "in de speler"
-    },
-    "options_problems_mode_mpv": {
-        "message": "in MPV-modus"
-    },
-    "options_problems_seen": {
-        "message": "$1 keer, laatst op $2"
-    },
-    "options_problems_report": {
-        "message": "Rapporteren op GitHub"
-    },
-    "options_problems_clear": {
-        "message": "Lijst wissen"
-    },
     "player_nextvideo_cancel": {
         "message": "Autoplay voor dit tabblad stoppen"
     },
@@ -1479,7 +1479,10 @@
         "message": "Kwaliteit verlaagd naar $1: deze computer miste $2% van de frames bij $3. Kies $3 in het kwaliteitsmenu om daarbij te blijven."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Videokwaliteit verlagen wanneer deze computer niet alle frames op tijd kan weergeven (de speler meldt dit telkens)"
+        "message": "Videokwaliteit verlagen wanneer frames weglopen"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "Wanneer deze computer niet een vijfde van de frames op tijd kan weergeven, speelt de eerstvolgende lagere versie. De speler meldt dit telkens."
     },
     "menu_play_in_faststream": {
         "message": "Afspelen in FastStream"
@@ -1521,7 +1524,7 @@
         "message": "Lange video's op de schijf bewaren"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Zonder deze toestemming laat Firefox een add-on hoogstens 10 GB opslaan, zodat een lange video zelfs zonder limiet in de instellingen van FastStream niet volledig vooraf gedownload kan worden. FastStream bewaart nog steeds niet meer dan de instelling 'Maximale grootte van vooraf gedownloade video' toestaat, en verwijdert de video als de speler sluit. Een video die na herladen of sluiten van het tabblad bewaard blijft, wordt verwijderd zodra de ingestelde tijd voorbij is. Firefox vraagt niet om deze toestemming."
+        "message": "Zonder deze toestemming laat Firefox een add-on hoogstens 10 GB opslaan, zodat een lange video zelfs zonder limiet in de instellingen van FastStream niet volledig geladen kan worden. FastStream bewaart nog steeds niet meer dan de instelling \"Grootste video die volledig wordt geladen\" toestaat, en verwijdert de video als de speler sluit. Een video die na herladen of sluiten van het tabblad bewaard blijft, wordt verwijderd zodra de ingestelde tijd voorbij is. Firefox vraagt niet om deze toestemming."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Bewaarde video's op tijd verwijderen"

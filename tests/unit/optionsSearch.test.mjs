@@ -26,7 +26,7 @@ const contains = (outer, inner) => {
 describe('the options page\'s search markup', () => {
   it('lets the search hide every section', () => {
     const sections = doc.querySelectorAll('section');
-    expect(sections.length).toBe(8);
+    expect(sections.length).toBe(12);
     const unsearchable = sections.filter((section) => !section.hasAttribute('data-search-section'));
     expect(unsearchable.map((section) => section.querySelector('h1').dataset.i18n)).toEqual([]);
   });

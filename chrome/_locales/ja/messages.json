@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "FastStream をインストールしていただき感謝します! 問題やご提案がありましたらお知らせください。"
     },
-    "welcome_page_ram_header": {
-        "message": "このコンピューターのメモリ"
-    },
-    "welcome_page_ram_question": {
-        "message": "このコンピューターのメモリ（RAM）はどれくらいですか？FastStreamは各動画の一部をRAMに、残りをディスクに保存します。回答に応じて使用できるRAMの量が決まります。"
-    },
-    "welcome_page_ram_set": {
-        "message": "設定しました：FastStreamはRAMに最大$1の動画を保持し、残りはディスクに保存します。オプションの「一般設定」で変更できます。"
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "設定済み：FastStream は動画を最大 $1 まで RAM に保持します。収まらない分は必要に応じて再ダウンロードされます。オプションの「一般設定」で変更できます。"
-    },
     "welcome_page_keybinds_header": {
         "message": "デフォルトのキーボードコントロール"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "ダウンロードが一時停止されました：$1 を押すと再開します"
     },
-    "player_wait_speed_zero": {
-        "message": "「プリダウンローダーのターゲット速度」が 0 のため、動画はデータを待っています。先読みのダウンロードは行われません。制限をなくすには、この設定を空欄にしてください。"
-    },
     "player_wait_speed_low": {
-        "message": "「プリダウンローダーのターゲット速度」（$1 Mbit/s）がこの動画に必要な速度（約 $2 Mbit/s）を下回っているため、動画はデータを待っています。先読みはわずかしか行われません。この設定を上げるか、空欄にして制限をなくしてください。"
-    },
-    "player_wait_ahead_zero": {
-        "message": "「再生位置より先をバッファーに保持する秒数」が 0 のため、動画はデータを待っています。先の分は何も保持されません。この設定を上げてください。"
+        "message": "「ダウンロード速度の上限」（$1 Mbit/s）がこの動画に必要な速度（約 $2 Mbit/s）を下回っているため、動画はデータを待っています。先読みはわずかしか行われません。この設定を上げるか、「制限なし」を選んでください。"
     },
     "player_wait_ram_zero": {
         "message": "動画はデータを待っています。ここではディスクに何も保持されず、「ディスクのみ」では RAM に 64 MB しか保持されません。より多く先読みするには、「ダウンロードした動画の保存先」で別のモードを選んでください。"
@@ -696,13 +678,13 @@
         "message": "(不明)"
     },
     "player_buffer_size_warning": {
-        "message": "この動画（約 $1）は設定「プリダウンロードする動画の最大サイズ」（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を事前ダウンロードするには、この設定を大きくするか、空欄にしてください。"
+        "message": "この動画（約 $1）は設定「全体を読み込む動画の最大サイズ」（$2）より大きいため、全体は読み込まれません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を読み込むには、この設定を大きくするか、「制限なし」を選んでください。"
     },
     "player_buffer_private_warning": {
-        "message": "プライベートウィンドウでは FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。"
+        "message": "プライベートウィンドウでは FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は読み込まれません。再生は通常どおりで、最大 $3 先まで読み込み続けます。"
     },
     "player_buffer_ram_warning": {
-        "message": "「ダウンロードした動画の保存先」が「RAMのみ」のため、FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を事前ダウンロードするには、そこで「RAM、次にディスク」を選択してください。"
+        "message": "「ダウンロードした動画の保存先」が「RAMのみ」のため、FastStream は動画を RAM にのみ保持します。この動画（約 $1）は「バッファした動画に使うRAM」のうち FastStream が使える分（$2）より大きいため、全体は読み込まれません。再生は通常どおりで、最大 $3 先まで読み込み続けます。全体を読み込むには、そこで「RAM、次にディスク」を選択してください。"
     },
     "player_buffer_disk_warning": {
         "message": "この動画（約 $1）は、Firefox が FastStream に割り当てるディスク容量（空き $2）より大きいため、全体は事前ダウンロードされません。再生は通常どおりで、最大 $3 先まで読み込み続けます。ディスクの空き容量を増やすと改善します。"
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "ビデオズームで映像を拡大するか、映像の遅延で音とのタイミングを調整します。ビデオズームはピクチャーインピクチャーでは機能しません。"
     },
+    "options_playback_header": {
+        "message": "再生"
+    },
+    "options_storage_header": {
+        "message": "ダウンロードと保存"
+    },
+    "options_subtitles_header": {
+        "message": "字幕"
+    },
+    "options_mouse_header": {
+        "message": "マウスとウィンドウ"
+    },
+    "options_opening_header": {
+        "message": "動画を開く"
+    },
+    "options_section_reset": {
+        "message": "このセクションをリセット"
+    },
+    "options_changed": {
+        "message": "デフォルトから変更済み"
+    },
     "options_video_zoom": {
         "message": "ビデオズーム"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "映像の遅延"
     },
-    "options_general_header": {
-        "message": "一般設定"
-    },
-    "options_general_predownload": {
-        "message": "可能な場合は動画全体をバックグラウンドで事前にダウンロードする"
-    },
     "options_general_targetspeed": {
-        "message": "プリダウンローダーのターゲット速度"
+        "message": "ダウンロード速度の上限"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "先読みはこの上限を超えると一時停止します。再生に今すぐ必要なデータは常に読み込まれます。"
     },
     "options_general_maxsize": {
-        "message": "プリダウンロードする動画の最大サイズ（事前ダウンロードがオンのときのみ使用）"
+        "message": "全体を読み込む動画の最大サイズ"
+    },
+    "options_general_maxsize_desc": {
+        "message": "この設定より大きい動画は、収まる分だけ読み込まれます。「動画全体」のときのみ機能します。"
     },
     "options_general_rambudget": {
         "message": "バッファした動画に使うRAM（全タブ合計）"
     },
+    "options_storage_ram_auto": {
+        "message": "自動: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "未使用"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "「RAMのみ」の場合にのみ設定できます。"
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB 以上は 16 GB 以上のメモリを搭載したコンピュータでのみ選択できます。"
+    },
     "options_general_nolimit": {
         "message": "制限なし"
-    },
-    "options_general_targetspeed_zero": {
-        "message": "0: 再生位置より先には何もダウンロードされないため、動画が読み込みで止まることがあります。制限を設けたくない場合は、この欄を空欄にしてください。"
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: 事前ダウンロードは行われず、以下に設定された秒数分だけがバッファーに保持されます。制限を設けたくない場合は、この欄を空欄にしてください。"
-    },
-    "options_general_maxsize_none": {
-        "message": "上限なし: RAM と、Firefox が FastStream にディスク上で与えるスペースに収まる分すべて。"
-    },
-    "options_general_rambudget_none": {
-        "message": "制限なし：ダウンロードした動画はすべてRAMに残ります。長い動画はコンピューターのメモリ以上を使い、フリーズさせることがあります。"
-    },
-    "options_general_rambudget_recommended": {
-        "message": "$1 の場合の推奨量：$2。"
-    },
-    "options_general_rambudget_unknown": {
-        "message": "推奨量を見るには、上でこのコンピューターのメモリを選択してください。"
-    },
-    "options_general_rambudget_use": {
-        "message": "$1 を使用"
-    },
-    "options_general_rambudget_refused": {
-        "message": "受け付けられません：RAM に動画を残さない場合は、上で「ディスクのみ」を選んでください。「制限なし」は「RAMのみ」の場合にのみ使えます。"
-    },
-    "options_general_rambudget_high": {
-        "message": "これほど多くの動画をRAMに置くとコンピューターがフリーズすることがあります。システムとFirefoxがメモリの大部分を必要とするためです。少なめにしても再生は変わりません。残りの動画はディスクに保存されるか、必要に応じて再ダウンロードされるためです。"
-    },
-    "options_general_ramsize": {
-        "message": "このコンピューターのメモリ（RAM）"
-    },
-    "options_general_ramsize_note": {
-        "message": "サイズを選ぶと、推奨量が下の RAM の欄に入力されます。"
-    },
-    "options_general_ramsize_unknown": {
-        "message": "未設定"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 以上"
     },
     "options_list_ignored_lines": {
         "message": "無効な項目のため無視しました：$1 行目"
     },
-    "options_general_bufferahead": {
-        "message": "再生位置より先をバッファーに保持する秒数（動画全体が事前ダウンロードされていないとき。0～3600）"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: 再生位置より先をバッファーに保持しないため、動画が頻繁に止まって読み込みます。"
-    },
     "options_general_bufferbehind": {
-        "message": "再生位置より後ろを切り詰める前にバッファーに保持する秒数"
+        "message": "再生済みの動画を保持する"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "この範囲内なら戻るシークは即座に行えます。それより前の部分は、必要に応じて再度読み込まれます。"
     },
     "options_general_bufferkeep": {
-        "message": "再読み込みやタブを閉じた後、ダウンロード済みの動画を保持する時間（最長で Firefox を閉じるまで）"
+        "message": "再読み込みやタブを閉じた後も動画を保持する"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "再読み込みのときに動画を再ダウンロードしないための設定です。最長で Firefox を閉じるまで保持されます。"
+    },
+    "options_storage_stored": {
+        "message": "現在の保存量: ディスクに $1 · RAM に $2 · 開いている動画: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "動画のデータは、そのタブを閉じるか、上で設定した時間が過ぎると削除されます。Firefox の終了時に残ったデータは、次回起動の 1 分後に削除されます。"
     },
     "options_general_bufferkeep_off": {
         "message": "オフ"
@@ -924,7 +906,7 @@
         "message": "ダウンロードした動画の保存先"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM、次にディスク"
+        "message": "RAM、次にディスク（推奨）"
     },
     "options_general_storage_ramonly": {
         "message": "RAMのみ"
@@ -933,49 +915,85 @@
         "message": "ディスクのみ"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "推奨。動画は下で設定した量まで RAM に保持され、収まらない分はディスクに保存されても再生は変わりません。プライベートウィンドウはディスクに書き込まないため、そこでは RAM のみに保持されます。"
+        "message": "動画は全タブ合計で $1 まで RAM に保持され、収まらない分はディスクに保存されても再生は変わりません。プライベートウィンドウはディスクに書き込まないため、そこでは RAM のみに保持されます。"
     },
     "options_general_storage_ramonly_hint": {
-        "message": "ディスクには何も書き込みません。下の RAM に収まらない分は破棄され、必要に応じて再ダウンロードされます。"
+        "message": "ディスクには何も書き込みません。下の上限に収まらない分は破棄され、必要に応じて再ダウンロードされます。"
     },
     "options_general_storage_disk_hint": {
         "message": "メモリの少ないコンピューター向け：動画は届き次第ディスクに保存され、今再生している部分だけが RAM に残ります。ディスクには何も書き込まないプライベートウィンドウは、RAM に 64 MB を保持します。"
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: 再生済みの部分はすぐに破棄され、シークして戻るともう一度読み込みます。上限をなくすには、フィールドを空のままにしてください。"
+    "options_storage_whole": {
+        "message": "動画全体"
     },
-    "options_general_bufferbehind_none": {
-        "message": "上限なし: 再生済みの部分はすべて保持されます。下で選んだ設定に従い、RAM またはディスクに保存されます。"
+    "options_storage_all": {
+        "message": "すべて"
+    },
+    "options_storage_ahead": {
+        "message": "先読み"
+    },
+    "options_storage_ahead_desc": {
+        "message": "動画全体なら、どの位置でもすぐに再生できます。または、再生位置より先の一定時間を読み込みます。"
     },
     "options_general_blockpopups": {
-        "message": "プレーヤーをクリックした直後に開かれるポップアップ/ポップアンダーをブロックする"
+        "message": "プレーヤーをクリックした直後に開かれるポップアップをブロックする"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "多くのサイトはクリック時に広告タブを開きます。プレーヤーをクリックした直後にページが開いたタブを FastStream が閉じます。"
     },
     "options_general_previewenabled": {
-        "message": "タイムライン上でマウスを移動するとプレビューが表示されます"
+        "message": "タイムラインにプレビュー画像を表示する"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "マウス位置の画像を表示します。小さな 2 つ目のプレーヤーが、そのための動画を読み込みます。"
     },
     "options_general_decodingawarequality": {
-        "message": "グラフィックカードでデコードできるバージョン（ハードウェアデコード）を優先し、次に高いフレームレートと AV1 などの効率的なコーデックを優先します。選択した解像度は下げません"
+        "message": "グラフィックカードでデコードできるバージョンを優先する"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "選択した解像度のバージョンの中から、まずグラフィックカードでデコードできるものを優先し、次に高いフレームレートと AV1 などの効率的なコーデックを優先します。選択した解像度は下げません。"
     },
     "options_general_storeprogress": {
         "message": "最後に視聴した位置から動画を再生する"
     },
+    "options_general_storeprogress_desc": {
+        "message": "このコンピュータ上で、動画ごとに視聴をやめた位置を記憶します。"
+    },
     "options_general_autosub": {
-        "message": "自動的に最適な字幕トラックを有効化する\n(字幕設定でデフォルトの言語を変更できます)"
+        "message": "自動的に最適な字幕トラックを有効化する"
+    },
+    "options_general_autosub_desc": {
+        "message": "プレーヤーの字幕設定で指定した言語が使われます。"
     },
     "options_general_cyclesubs": {
-        "message": "字幕キーでトラックを順番に切り替え、最後の後はオフにする\n(オフの場合: 字幕のオン/オフを切り替える)"
+        "message": "字幕キーでトラックを順番に切り替え、最後の後はオフにする"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "トラックを一つずつ順番に切り替え、最後の後はオフになります。オフの場合: 字幕のオン/オフを切り替えます。"
     },
     "options_general_stream": {
-        "message": "プレイリスト URL (.m3u8/.mpd) を開くときに HLS/DASH ストリームを再生するプレーヤーを使用する"
+        "message": "ストリームのリンク (.m3u8, .mpd) を FastStream で開く"
+    },
+    "options_general_stream_desc": {
+        "message": "ストリームへの直接リンクは、プレイリストファイルをダウンロードする代わりにプレーヤーで再生されます。"
     },
     "options_general_mp4": {
-        "message": "動画の URL (.mp4) を開くときにMP4 の動画を再生するプレーヤーを使用する"
+        "message": ".mp4 のリンクを FastStream で開く"
+    },
+    "options_general_mp4_desc": {
+        "message": "オフの場合: Firefox 自身が再生します。"
     },
     "options_general_seekstep": {
-        "message": "矢印キーのシーク幅 (秒)"
+        "message": "シーク幅 (秒)"
+    },
+    "options_general_seekstep_desc": {
+        "message": "シークキーを 1 回押したときに移動する量（デフォルトは左右の矢印キー）。"
     },
     "options_general_replace_delay": {
         "message": "プレーヤーを自動的に置き換える前の遅延 (ミリ秒)"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "ページで FastStream が有効な場合、見つかった動画を FastStream のプレーヤーがサイトのプレーヤーと置き換えるまでの待ち時間です。"
     },
     "options_general_maxdownloaders": {
         "message": "同時にダウンロードする数（1〜6）"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "デフォルトの動画品質"
+    },
+    "options_general_quality_desc": {
+        "message": "自動: 動画が提供する最高の品質。高さを指定した場合: その高さ、なければ最も近い上の高さ、それもなければ下の中で最も高い高さで再生します。"
     },
     "options_general_clickaction": {
         "message": "シングルクリック時のアクション"
@@ -1017,16 +1038,19 @@
         "message": "プレーヤーを非表示"
     },
     "options_general_vischangeaction": {
-        "message": "プレーヤーの可視性が変更されたとき"
+        "message": "プレーヤーが見えなくなったとき"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "スクロールで見えなくなったとき、またはタブがバックグラウンドにあるとき。全画面表示やピクチャーインピクチャーでは機能しません。"
     },
     "options_general_vischangeaction_nothing": {
         "message": "何もしない"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "再生/一時停止を切り替え"
+        "message": "一時停止し、戻ったら再生"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "ミニプレーヤーを切り替え"
+        "message": "ミニプレーヤーを表示"
     },
     "options_general_minipos": {
         "message": "ミニプレーヤーの位置"
@@ -1048,6 +1072,9 @@
     },
     "options_general_color_theme": {
         "message": "プレーヤーのカラーテーマ"
+    },
+    "options_general_color_theme_desc": {
+        "message": "プレーヤーの操作ボタンやメニューの色です。"
     },
     "options_general_color_theme_default": {
         "message": "デフォルト ダーク"
@@ -1386,7 +1413,10 @@
         "message": "タブが閉じているか、MPV モードではありません"
     },
     "options_general_autoplay_countdown": {
-        "message": "次エピソードまでのカウントダウン（秒）(0: なし)"
+        "message": "次エピソードまでのカウントダウン（秒）"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "プレーヤーと MPV の両方で表示されます。0: 次エピソードがすぐに始まります。"
     },
     "options_mpv_autoplaynext": {
         "message": "mpvで次エピソードを自動再生する (mpv内の自動再生ボタンでも切り替え可能)"
@@ -1433,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "ページで1分以内にストリームが見つかりませんでした。ブラウザで開いて理由を確認してください"
     },
-    "options_problems_title": {
-        "message": "オートプレイが停止したサイト"
-    },
-    "options_problems_note": {
-        "message": "FastStreamは、オートプレイが継続できなかったサイトをここに記録するので、サイトを報告できます。報告するとGitHubのissueが開きます。issueは公開されるため、共有したくない内容は削除してください。"
-    },
-    "options_problems_none": {
-        "message": "今のところはありません。"
-    },
-    "options_problems_no_next": {
-        "message": "次のエピソードが見つかりませんでした（最終話であるか、FastStreamがまだ読み取れないページです）"
-    },
-    "options_problems_no_stream": {
-        "message": "次のエピソードのページに動画がありませんでした"
-    },
-    "options_problems_mode_player": {
-        "message": "プレイヤーで"
-    },
-    "options_problems_mode_mpv": {
-        "message": "MPVモードで"
-    },
-    "options_problems_seen": {
-        "message": "$1回、最終は $2"
-    },
-    "options_problems_report": {
-        "message": "GitHubで報告"
-    },
-    "options_problems_clear": {
-        "message": "リストをクリア"
-    },
     "player_nextvideo_cancel": {
         "message": "このタブのオートプレイを停止"
     },
@@ -1479,7 +1479,10 @@
         "message": "品質が $1 に下げられました：このコンピュータは $3 でフレームの $2% をドロップしました。維持したい場合は品質メニューで $3 を選択してください。"
     },
     "options_general_lowerondroppedframes": {
-        "message": "コンピュータがすべてのフレームを時間内に表示できない場合にビデオ品質を下げる（その都度プレーヤーが通知します）"
+        "message": "フレームが落ちたときに動画品質を下げる"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "このコンピュータがフレームの 5 分の 1 を時間内に表示できないと、次に低いバージョンが再生されます。その都度プレーヤーが通知します。"
     },
     "menu_play_in_faststream": {
         "message": "FastStream で再生"
@@ -1521,7 +1524,7 @@
         "message": "長い動画をディスクに保存する"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "この権限がないと、Firefox はアドオンが保存できる量を最大 10 GB に制限するため、FastStream の設定で制限をなくしても長い動画を全体まで事前ダウンロードできません。FastStream は引き続き「プリダウンロードする動画の最大サイズ」の設定を超えて保存せず、プレーヤーを閉じると動画を削除します。再読み込みやタブを閉じた後に保持された動画は、設定した時間が過ぎると削除されます。Firefox はこの権限について確認を求めません。"
+        "message": "この権限がないと、Firefox はアドオンが保存できる量を最大 10 GB に制限するため、FastStream の設定で制限をなくしても長い動画を全体まで読み込めません。FastStream は引き続き「全体を読み込む動画の最大サイズ」の設定を超えて保存せず、プレーヤーを閉じると動画を削除します。再読み込みやタブを閉じた後に保持された動画は、設定した時間が過ぎると削除されます。Firefox はこの権限について確認を求めません。"
     },
     "perms_page_breakdown_perm14h": {
         "message": "保持した動画を時間どおりに削除"

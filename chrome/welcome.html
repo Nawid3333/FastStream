@@ -54,20 +54,6 @@
             padding: 0 5px;
         }
 
-        #ramsizes button {
-            margin: 0 8px 8px 0;
-            padding: 4px 12px;
-            background-color: rgb(50, 50, 50);
-            color: inherit;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-            cursor: pointer;
-        }
-
-        #ramsizes button[aria-pressed="true"] {
-            background-color: rgba(0, 200, 255, 0.5);
-        }
-
         .keyboard-image {
             width: 100%;
         }
@@ -79,13 +65,6 @@
     <div id="container">
 
         <div id="welcome" class="box" data-i18n="welcome_page_title"></div>
-
-        <div class="box" style="margin-top: 20px">
-            <h2 id="ramquestion" data-i18n="welcome_page_ram_header"></h2>
-            <p data-i18n="welcome_page_ram_question"></p>
-            <div id="ramsizes"></div>
-            <p id="ramset" role="status" hidden></p>
-        </div>
 
         <div class="box" style="margin-top: 20px">
             <h2 id="usage" data-i18n="welcome_page_usage_header"></h2>
@@ -168,7 +147,6 @@
             (Andrews54757@gmail.com)</div>
     </div>
     <script src="./player/i18n.mjs" charset="UTF-8" type="module"></script>
-    <script src="./welcome.mjs" charset="UTF-8" type="module"></script>
 </body>
 
 </html>

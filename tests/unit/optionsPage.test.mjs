@@ -207,11 +207,10 @@ describe('the options page once the saved options are read', () => {
 describe('the options page\'s controls', () => {
   it('names each menu on the <select> itself', () => {
     const selects = doc.querySelectorAll('select');
-    // Eight until the colour-blindness filter's was removed; two more since the
-    // MB/GB pickers beside the maximum size and the RAM budget, one for the aspect
-    // ratio, one for the computer's memory, one for how long a gone player's buffer is kept, and one for where
-    // downloaded video is kept.
-    expect(selects.length).toBe(13);
+    // The eight options.mjs builds (quality, three clicks, visibility, theme, aspect ratio, miniplayer
+    // position), and the six pickers of downloading and storage (ahead, largest size, behind, speed, RAM,
+    // keep after a reload).
+    expect(selects.length).toBe(14);
     for (const select of selects) {
       // A menu options.mjs builds takes its name from its wrapper; a unit picker written in
       // the page carries its own, which i18n.mjs applies.

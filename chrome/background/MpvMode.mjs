@@ -2,7 +2,6 @@
 // The listeners are registered by background.mjs: at its top level the event page wakes for them.
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
-import {ProblemKinds} from '../player/utils/ProblemLog.mjs';
 import {SHORT_S} from '../player/utils/StreamPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
@@ -14,7 +13,7 @@ import {isMpvContentType, streamTitle} from './MpvTarget.mjs';
 import {MpvWindows} from './MpvWindows.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
-import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsPackageIo, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
+import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsPackageIo, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
 
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
 /** @typedef {import('./TabTracker.mjs').FrameHolder} FrameHolder */
@@ -181,19 +180,6 @@ export function inheritMpv(openerTab, tabId) {
   tab.mpvOnPlay = true;
   BackgroundUtils.updateTabIcon(tab);
   Tabs.saveTabState(tab);
-}
-
-/**
- * @param {TabHolder} tab
- * @param {Continuation} continuation
- * @param {'player'|'mpv'} mode
- */
-export function watchNextEpisodeArrives(tab, continuation, mode) {
-  const from = tab.url;
-  setTimeout(() => {
-    if (tab.continuationOptions !== continuation || !Tabs.tabs.has(tab.tabId) || tab.url === from) return;
-    noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_STREAM, mode}).catch((e) => console.error(e));
-  }, MpvNextEpisodeWaitMs);
 }
 
 /**
@@ -1044,7 +1030,6 @@ export async function goToEpisode(state, direction) {
   if (!clicked) {
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page',
         MpvNoticeSeconds);
-    noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'mpv'}).catch((e) => console.error(e));
     return;
   }
   if (Logging) console.log('[MPV autoplay] went on:', direction, tab.tabId);
@@ -1196,7 +1181,6 @@ export function awaitEpisodeStream(state, tab, title) {
   state.stalled = setTimeout(() => {
     state.stalled = null;
     if (!state.alive || !mpvWindows.has(state) || state.tabId !== tab.tabId) return;
-    noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_STREAM, mode: 'mpv'}).catch((e) => console.error(e));
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
       'the page brought no stream within a minute; open it in the browser to see why', MpvNoticeSeconds);
   }, MpvNextEpisodeWaitMs);

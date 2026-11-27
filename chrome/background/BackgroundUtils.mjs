@@ -68,18 +68,21 @@ export class BackgroundUtils {
     });
   }
 
-  /** The removed audio settings window's storage and IndexedDB files, forgotten once on an update. */
-  static forgetRemovedAudioSettingsOnUpdate() {
+  /**
+   * What removed features kept, forgotten once on an update: the audio settings window's storage and IndexedDB
+   * files, and the options page's list of sites where autoplay got stuck.
+   */
+  static forgetRemovedSettingsOnUpdate() {
     chrome.runtime.onInstalled.addListener((details) => {
       if (details?.reason !== 'update') return;
-      return BackgroundUtils.forgetRemovedAudioSettings();
+      return BackgroundUtils.forgetRemovedSettings();
     });
   }
 
   /** @return {Promise<void>} */
-  static forgetRemovedAudioSettings() {
-    const profiles = Promise.resolve().then(() => chrome.storage.local.remove(['audioProfiles', 'currentAudioProfile']))
-        .catch((e) => console.warn('Could not forget the old audio profiles', e));
+  static forgetRemovedSettings() {
+    const profiles = Promise.resolve().then(() => chrome.storage.local.remove(['audioProfiles', 'currentAudioProfile', 'siteProblems']))
+        .catch((e) => console.warn('Could not forget the removed settings', e));
     // A tab of the old version holding the database open blocks the delete until it closes.
     const files = /** @type {Promise<void>} */ (new Promise((resolve) => {
       const request = indexedDB.deleteDatabase('faststream-impulse-responses');

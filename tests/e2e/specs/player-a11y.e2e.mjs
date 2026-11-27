@@ -150,31 +150,34 @@ describe('the player\'s controls, for the keyboard and a screen reader', functio
     await browser.waitUntil(async () => browser.execute(() => document.querySelectorAll('.keybind-container').length > 0),
         {timeout: 30000, timeoutMsg: 'the options page never rendered'});
     // Announced as what they are: a "button" role hid whether a box is ticked.
-    expect(await browser.execute(() => ['downloadall', 'maxspeed'].map((id) => document.getElementById(id).getAttribute('role'))))
+    expect(await browser.execute(() => ['storeprogress', 'searchbar'].map((id) => document.getElementById(id).getAttribute('role'))))
         .toEqual([null, null]);
-    const checked = () => browser.execute(() => /** @type {HTMLInputElement} */ (document.getElementById('downloadall')).checked);
-    const before = await checked();
-    expect(await tabTo('#downloadall')).toBe(true);
-    await browser.keys('Enter');
-    await browser.pause(200);
-    expect(await checked()).toBe(!before);
-    await browser.keys('Enter');
-    await browser.pause(200);
-    expect(await checked()).toBe(before);
-    await browser.keys(' ');
-    await browser.pause(200);
-    expect(await checked()).toBe(!before);
-    await browser.keys(' ');
-    await browser.pause(200);
-    expect(await checked()).toBe(before);
 
-    expect(await tabTo('#maxspeed')).toBe(true);
+    expect(await tabTo('#searchbar')).toBe(true);
     await browser.keys(['1', ' ', '2']);
-    expect(await browser.execute(() => /** @type {HTMLInputElement} */ (document.getElementById('maxspeed')).value)).toBe('1 2');
-    // Not kept: the field's own check turns it down when it is left (change); cleared first.
+    expect(await browser.execute(() => /** @type {HTMLInputElement} */ (document.getElementById('searchbar')).value)).toBe('1 2');
+    // Every section shown again for the box below.
     await browser.execute(() => {
-      /** @type {HTMLInputElement} */ (document.getElementById('maxspeed')).value = '';
+      const search = /** @type {HTMLInputElement} */ (document.getElementById('searchbar'));
+      search.value = '';
+      search.dispatchEvent(new Event('input', {bubbles: true}));
     });
+
+    const checked = () => browser.execute(() => /** @type {HTMLInputElement} */ (document.getElementById('storeprogress')).checked);
+    const before = await checked();
+    expect(await tabTo('#storeprogress')).toBe(true);
+    await browser.keys('Enter');
+    await browser.pause(200);
+    expect(await checked()).toBe(!before);
+    await browser.keys('Enter');
+    await browser.pause(200);
+    expect(await checked()).toBe(before);
+    await browser.keys(' ');
+    await browser.pause(200);
+    expect(await checked()).toBe(!before);
+    await browser.keys(' ');
+    await browser.pause(200);
+    expect(await checked()).toBe(before);
   });
 
   it('has menu buttons that say whether their menu is open', async function() {

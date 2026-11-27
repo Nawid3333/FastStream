@@ -751,7 +751,7 @@ export class FastStreamClient extends EventEmitter {
       const audioLevel = this.getAudioLevels().get(/** @type {string} */ (audioLevelID));
       bitrate += Utils.measuredBitrate(audioFragments) ?? audioLevel?.bitrate ?? 0;
     }
-    // With nothing on disk (a private window, "Keep video on disk" off, or no disk backend: FSBlob.diskGone),
+    // With nothing on disk (a private window, "RAM only", or no disk backend: FSBlob.diskGone),
     // what is kept must fit in this player's RAM share below MemoryBudget.LOW, or it is fetched again and again.
     const diskGone = this.downloadManager?.blobStore?.diskGone === true;
     if (diskGone && !this.diskGoneSaid) {
@@ -773,7 +773,7 @@ export class FastStreamClient extends EventEmitter {
       // The RAM share, and with a disk 60 % of its free quota too: a small quota (Firefox's is a tenth of the
       // device's storage) left no room for a video the RAM budget holds.
       const room = ramOnly ? ramShare : ramShare + (/** @type {number} */ (this.storageAvailable) * 8) * 0.6;
-      // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
+      // -1 is no limit.
       const capped = this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < room;
       const storageAvailable = capped ? this.options.maxVideoSize * 8 : room;
 
@@ -830,17 +830,14 @@ export class FastStreamClient extends EventEmitter {
    * @param {{capped: boolean, incognito: boolean, diskGone: boolean, ramShare: number, room: number,
    *   ahead: number, size: number}} why - ramShare and room (what the video may fill) in bits, ahead in seconds,
    *   size in bytes.
-   * @return {?string} Null for a maximum size of 0 (nothing predownloaded, as asked) and for no disk backend
-   *   (player_outofstorage said it).
+   * @return {?string} Null for no disk backend (player_outofstorage said it).
    */
   roomWarning({capped, incognito, diskGone, ramShare, room, ahead, size}) {
-    // Nothing kept ahead (a RAM share or buffer setting of 0): "plays normally" would not hold, and the options page
-    // already warns about that 0.
+    // Nothing kept ahead (a RAM share too small for a second of it): "plays normally" would not hold.
     if (!Number.isFinite(ahead) || ahead <= 0) return null;
     const video = StringUtils.formatSize(size);
     const kept = StringUtils.formatDuration(ahead);
     if (capped) {
-      if (this.options.maxVideoSize === 0) return null;
       return Localize.getMessage('player_buffer_size_warning', [video, StringUtils.formatSize(this.options.maxVideoSize), kept]);
     }
     if (incognito) {
@@ -2492,9 +2489,6 @@ export class FastStreamClient extends EventEmitter {
           this.interfaceController.setStatusMessage('info', Localize.getMessage('player_autoplay_series_end'), 'info', 15000);
         } else {
           this.interfaceController.setStatusMessage('info', Localize.getMessage('player_autoplay_no_next'), 'warning', 15000);
-          chrome.runtime.sendMessage({type: MessageTypes.REPORT_AUTOPLAY_PROBLEM, kind: 'no_next'}, () => {
-            void chrome.runtime.lastError;
-          });
         }
       }
       this.autoplayNextVideo();
