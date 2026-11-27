@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "The whole video, so every spot plays at once; or a fixed time ahead of where it plays."
     },
-    "options_general_blockpopups": {
-        "message": "Block pop-ups right after a click on the player"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Many sites open an ad tab on a click: FastStream closes a tab the page opens right after a click on the player."
-    },
     "options_general_previewenabled": {
         "message": "Preview pictures on the timeline"
     },

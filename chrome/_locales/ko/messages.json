@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "비디오 전체를 불러오면 어떤 지점이든 즉시 재생할 수 있습니다. 또는 재생 중인 지점보다 고정된 시간만큼 앞까지만 불러옵니다."
     },
-    "options_general_blockpopups": {
-        "message": "플레이어를 클릭한 직후 열리는 팝업 차단"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "많은 사이트가 클릭하면 광고 탭을 엽니다. 플레이어를 클릭한 직후 페이지가 연 탭을 FastStream이 닫아 줍니다."
-    },
     "options_general_previewenabled": {
         "message": "타임라인에 미리보기 그림 표시"
     },

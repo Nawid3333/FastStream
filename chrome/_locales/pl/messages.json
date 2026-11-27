@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "Całe wideo, dzięki czemu każdy fragment odtwarza się od razu; albo stały czas zapasu przed miejscem odtwarzania."
     },
-    "options_general_blockpopups": {
-        "message": "Blokuj pop-upy otwierane od razu po kliknięciu odtwarzacza"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Wiele stron otwiera po kliknięciu kartę z reklamą: FastStream zamyka kartę, którą strona otwiera od razu po kliknięciu odtwarzacza."
-    },
     "options_general_previewenabled": {
         "message": "Podglądy obrazów na osi czasu"
     },

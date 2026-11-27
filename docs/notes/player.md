@@ -1308,7 +1308,7 @@ Only where its bytes come from changes, and only after FastStream's own request 
   it (`MessageSenders`); the background opens only for the player page and the settings page
   (matched by their exact address, not by its start) and only an http or https address
   (`tabs.create` also opens the extension's own pages), and it creates the tab with no opener,
-  as the player's own call does, so the popup guard leaves it alone. The settings page's two
+  as the player's own call does, so it takes no MPV mode from the page's tab. The settings page's two
   buttons go through `openExternalURL` since then (the report button used `window.open`, the
   update banner `chrome.tabs.create`). `backgroundRobustness.test.mjs`, `EnvUtils.test.mjs`.
 - **`PageFetch.mjs`** (player): the channel and the routes. `FastStreamClient.setSourceInternal`
@@ -1675,12 +1675,13 @@ readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own p
 - **`TabHolder.forgetRemovedFrame`** - A page's FRAME_REMOVED can arrive after the next page in
   that frame named itself (the two race across a navigation). A known name that is not the
   frame's is that late message, and must not forget the new page's frame and streams.
-- **`background.mjs` popup guard** (`PopupGuardArmMs`, `PopupGuardChainMs`, `tabs.onCreated`) -
-  Ad scripts open a popup or popunder from the top window's `blur` that a click into a player
-  iframe causes; a tab opened within 700 ms of such a click is closed, and the guard re-arms
-  for 400 ms after a close, as one click often chains two or three tabs. The windows are short
-  because a deliberate new tab within them is closed too, and on a cold event page a
-  `window.open()` in the same blur can come before the arm message.
+- **Popup guard: removed 2026-11-27.** From 2026-09-12 the background closed a tab the page opened
+  within 700 ms of a click into a player iframe (ad scripts open one from the top window's
+  `blur`), behind the option "Block pop-ups right after a click on the player". Removed on
+  Nawid's call: blocking ads is an ad blocker's job, and the README recommends uBlock Origin. The
+  guard caught only that one moment, never a pop-up from a click elsewhere on the page, and a tab
+  opened on purpose within it was closed without a word. Without it a page opens no more tabs
+  than with its own player.
 - **`background.mjs` `isTablessRequest`** - Requests of no tab (a service worker's, the
   background's own length reads) are not tracked: no tab event ever reset the holder of tab -1,
   which collected every such stream for the session and sent the growing list, with the

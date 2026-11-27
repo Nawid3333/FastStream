@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "下载整个视频，任何位置都能立即播放；或只加载播放位置前方固定的时长。"
     },
-    "options_general_blockpopups": {
-        "message": "屏蔽点击播放器后立即打开的弹出窗口"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "很多网站会在你点击时打开广告标签页：FastStream 会关闭页面在点击播放器后立即打开的标签页。"
-    },
     "options_general_previewenabled": {
         "message": "在时间轴上显示预览图"
     },

@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "動画全体なら、どの位置でもすぐに再生できます。または、再生位置より先の一定時間を読み込みます。"
     },
-    "options_general_blockpopups": {
-        "message": "プレーヤーをクリックした直後に開かれるポップアップをブロックする"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "多くのサイトはクリック時に広告タブを開きます。プレーヤーをクリックした直後にページが開いたタブを FastStream が閉じます。"
-    },
     "options_general_previewenabled": {
         "message": "タイムラインにプレビュー画像を表示する"
     },

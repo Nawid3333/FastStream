@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "Tutto il video, così ogni punto della riproduzione parte subito; oppure un tempo fisso in anticipo rispetto alla posizione di riproduzione."
     },
-    "options_general_blockpopups": {
-        "message": "Blocca i popup subito dopo un clic sul lettore"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Molti siti aprono una scheda pubblicitaria a un clic: FastStream chiude una scheda che la pagina apre subito dopo un clic sul lettore."
-    },
     "options_general_previewenabled": {
         "message": "Mostra le anteprime sulla timeline"
     },

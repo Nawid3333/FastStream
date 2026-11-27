@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "De volledige video, zodat elke plek meteen kan afspelen; of een vaste tijd vooruit vanaf de afspeelpositie."
     },
-    "options_general_blockpopups": {
-        "message": "Pop-ups blokkeren die direct na het klikken op de speler worden geopend"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Veel sites openen bij een klik een advertentietabblad: FastStream sluit een tabblad dat de pagina direct na een klik op de speler opent."
-    },
     "options_general_previewenabled": {
         "message": "Voorbeeldafbeeldingen op de tijdlijn"
     },

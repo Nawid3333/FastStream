@@ -139,7 +139,6 @@ type FSMessage =
   | FSGetVideoSize
   | FSMpvTest
   | FSMpvOpen
-  | FSPopupGuardArm
   | FSMessageBase;
 
 /** Options page asks the background to ping the native host. */
@@ -167,11 +166,3 @@ interface FSMpvOpen extends FSMessageBase {
   qualities?: Array<{url: string; label: string; height: number}>;
 }
 
-/**
- * content.js (top frame) reporting that focus just moved into one of this
- * tab's player iframes - the moment ad sites hook via a 'blur' listener to
- * fire a popup/popunder. Arms the tabs.onCreated popup guard for the tab.
- */
-interface FSPopupGuardArm extends FSMessageBase {
-  type: 'POPUP_GUARD_ARM';
-}

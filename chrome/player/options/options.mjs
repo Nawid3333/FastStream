@@ -60,7 +60,6 @@ const storedNowText = /** @type {HTMLElement} */ (document.getElementById('store
 const resetButtons = /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.section-reset'));
 const seekStepSize = /** @type {HTMLInputElement} */ (document.getElementById('seekstepsize'));
 const autoplayCountdown = /** @type {HTMLInputElement} */ (document.getElementById('autoplaycountdown'));
-const blockPopupsWhilePlaying = /** @type {HTMLInputElement} */ (document.getElementById('blockpopupswhileplaying'));
 const qualityMenu = /** @type {HTMLElement} */ (document.getElementById('quality'));
 const importButton = /** @type {HTMLElement} */ (document.getElementById('import'));
 const exportButton = /** @type {HTMLElement} */ (document.getElementById('export'));
@@ -199,7 +198,6 @@ async function loadOptions(newOptions) {
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   cycleSubs.checked = !!Options.cycleSubtitles;
   autoplayCountdown.value = /** @type {string} */ (/** @type {unknown} */ (Options.autoplayCountdown));
-  blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   showDownload();
   showStorage();
   bufferKeep.value = String(bufferKeepSeconds(Options.bufferKeep));
@@ -674,11 +672,6 @@ const NUMBER_LIMITS = {
 
 autoplayCountdown.addEventListener('change', () => {
   Options.autoplayCountdown = readNumberField(autoplayCountdown, DefaultOptions.autoplayCountdown, NUMBER_LIMITS.autoplayCountdown);
-  optionChanged();
-});
-
-blockPopupsWhilePlaying.addEventListener('change', () => {
-  Options.blockPopupsWhilePlaying = blockPopupsWhilePlaying.checked;
   optionChanged();
 });
 
