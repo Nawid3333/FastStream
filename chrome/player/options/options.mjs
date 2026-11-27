@@ -71,7 +71,6 @@ const importButton = /** @type {HTMLElement} */ (document.getElementById('import
 const exportButton = /** @type {HTMLElement} */ (document.getElementById('export'));
 const clickAction = /** @type {HTMLElement} */ (document.getElementById('clickaction'));
 const dblclickAction = /** @type {HTMLElement} */ (document.getElementById('dblclickaction'));
-const tplclickAction = /** @type {HTMLElement} */ (document.getElementById('tplclickaction'));
 const visChangeAction = /** @type {HTMLElement} */ (document.getElementById('vischangeaction'));
 const customSourcePatterns = /** @type {HTMLTextAreaElement} */ (document.getElementById('customSourcePatterns'));
 const showWhenMiniSelected = /** @type {HTMLElement} */ (document.getElementById('showWhenMiniSelected'));
@@ -229,7 +228,6 @@ async function loadOptions(newOptions) {
 
   setSelectMenuValue(clickAction, Options.singleClickAction);
   setSelectMenuValue(dblclickAction, Options.doubleClickAction);
-  setSelectMenuValue(tplclickAction, Options.tripleClickAction);
   setSelectMenuValue(visChangeAction, Options.visChangeAction);
   setSelectMenuValue(colorTheme, Options.colorTheme);
   setSelectMenuValue(videoAspectRatio, Options.videoAspectRatio);
@@ -324,11 +322,6 @@ createSelectMenu(clickAction, Object.values(ClickActions), Options.singleClickAc
 
 createSelectMenu(dblclickAction, Object.values(ClickActions), Options.doubleClickAction, 'options_general_clickaction', (e) => {
   Options.doubleClickAction = e.target.value;
-  optionChanged();
-});
-
-createSelectMenu(tplclickAction, Object.values(ClickActions), Options.tripleClickAction, 'options_general_clickaction', (e) => {
-  Options.tripleClickAction = e.target.value;
   optionChanged();
 });
 
@@ -1103,7 +1096,7 @@ customSourcePatterns.addEventListener('change', (e) => {
 // Not the aspect ratio and quality: the player takes any ratio and any height.
 /** @type {Object<string, Object<string, string>>} */
 const MENU_CHOICES = {
-  singleClickAction: ClickActions, doubleClickAction: ClickActions, tripleClickAction: ClickActions,
+  singleClickAction: ClickActions, doubleClickAction: ClickActions,
   visChangeAction: VisChangeActions, colorTheme: ColorThemes, miniPos: MiniplayerPositions,
 };
 

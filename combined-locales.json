@@ -5957,24 +5957,6 @@
     "zh_CN": "双击操作",
     "zh_TW": "雙擊動作"
   },
-  "options_general_tplclickaction": {
-    "en": "Triple click action",
-    "de": "Dreifachklick-Aktion",
-    "es": "Acción de triple clic",
-    "fr": "Action au triple-clic",
-    "id": "Aksi klik tiga kali",
-    "it": "Azione clic triplo",
-    "ja": "トリプルクリック時のアクション",
-    "ko": "트리플 클릭 동작",
-    "ms": "Tindakan klik tiga kali",
-    "nl": "Actie bij drievoudige klik",
-    "pl": "Akcja przy potrójnym kliknięciu",
-    "pt_BR": "Ação de clique triplo",
-    "ru": "Действие по тройному клику",
-    "tr": "Üçlü tıklama eylemi",
-    "zh_CN": "三击操作",
-    "zh_TW": "三擊動作"
-  },
   "options_general_clickaction_nothing": {
     "en": "Do nothing",
     "de": "Nichts tun",

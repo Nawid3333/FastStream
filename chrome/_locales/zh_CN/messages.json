@@ -992,9 +992,6 @@
     "options_general_dblclickaction": {
         "message": "双击操作"
     },
-    "options_general_tplclickaction": {
-        "message": "三击操作"
-    },
     "options_general_clickaction_nothing": {
         "message": "不执行任何操作"
     },

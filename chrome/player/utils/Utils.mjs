@@ -37,7 +37,8 @@ export class Utils {
   }
 
   /**
-   * The old click defaults, all three unchanged, move to today's, once (clickActionsVersion).
+   * The old click defaults, all three unchanged, move to today's, once (clickActionsVersion). The triple click is
+   * gone: the stored options still name it.
    * @param {Object<string, *>} options - Saved options merged over the defaults; changed in place.
    * @param {Object<string, *>|null} stored - The options as saved, before the defaults were filled in.
    * @return {Object} The same options, with clickActionsVersion set.
@@ -46,10 +47,9 @@ export class Utils {
     if (stored && !Number.isInteger(stored.clickActionsVersion) &&
         options.singleClickAction === ClickActions.HIDE_CONTROLS &&
         options.doubleClickAction === ClickActions.PLAY_PAUSE &&
-        options.tripleClickAction === ClickActions.FULLSCREEN) {
+        stored.tripleClickAction === ClickActions.FULLSCREEN) {
       options.singleClickAction = DefaultOptions.singleClickAction;
       options.doubleClickAction = DefaultOptions.doubleClickAction;
-      options.tripleClickAction = DefaultOptions.tripleClickAction;
     }
     options.clickActionsVersion = 1;
     return options;

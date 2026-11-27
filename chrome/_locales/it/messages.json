@@ -992,9 +992,6 @@
     "options_general_dblclickaction": {
         "message": "Azione clic doppio"
     },
-    "options_general_tplclickaction": {
-        "message": "Azione clic triplo"
-    },
     "options_general_clickaction_nothing": {
         "message": "Non fare nulla"
     },
