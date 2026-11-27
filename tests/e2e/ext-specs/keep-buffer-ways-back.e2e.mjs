@@ -224,7 +224,7 @@ async function setOptions(options) {
 /**
  * Buffers an episode, goes away and back the given way, and says what the new player took back.
  * @param {string} mode
- * @param {keyof WAYS} way
+ * @param {string} way - One of WAYS.
  * @return {Promise<{tookBack: *, buffered: number, again: number, failed: boolean}>}
  */
 async function wayBack(mode, way) {
@@ -232,7 +232,10 @@ async function wayBack(mode, way) {
   const page = `${SITE}/ep/${name}`;
   await browser.url(page);
   const first = await playing(name, 8);
-  await WAYS[way](page);
+  // By a Map: the name comes from KEEP_CASES.
+  const goBack = new Map(Object.entries(WAYS)).get(way);
+  if (!goBack) throw new Error(`No way back called ${way}`);
+  await goBack(page);
   const second = await playing(name, 1).catch((e) => ({load: -1, downloaded: new Set(), error: String(e)}));
   let tookBack = null;
   await browser.waitUntil(async () => {
@@ -318,7 +321,7 @@ describe('Every way back to a video', function() {
   for (const [mode, way] of CASES.filter(([mode]) => mode !== 'other' && mode !== 'switch')) {
     it(`${mode} links, ${way}: the new player takes back what was buffered`, async function() {
       segments = [];
-      const result = await wayBack(mode, /** @type {keyof WAYS} */ (way));
+      const result = await wayBack(mode, way);
       if (process.env.KEEP_MEASURE) return;
       expect(result.buffered).toBeGreaterThan(0);
       expect(result.tookBack?.of).toBeGreaterThan(0);

@@ -316,13 +316,13 @@ describe('DownloadManager.adopt', () => {
     it('lent by the stash: checked though only the query changed, and used once the stash let it go', async () => {
       const manager = new DownloadManager(null);
       manager.downloaders = [];
-      const {checked, onDisk} = manager.adopt(handOff, NEW, {lent: true});
+      const {checked, onDisk, check} = manager.adopt(handOff, NEW, {lent: true});
       await download(manager, seg(1, NEW_SIG), 'one');
       expect(await checked).toBe(true);
       // Not before the stash's word, and nothing of it moved.
       expect(ask(manager, seg(2, NEW_SIG)).stored).toBe(false);
       expect(manager.blobStore.adoptStoredFile).not.toHaveBeenCalled();
-      expect(manager.confirmLent(true)).toBe(true);
+      expect(manager.confirmLent(check, true)).toBe(true);
       expect(await onDisk).toBe(1);
       expect(manager.blobStore.adoptStoredFile).toHaveBeenCalledWith(expect.any(String), handOff.session, 'f7');
       expect(manager.blobStore.dropSession).toHaveBeenCalledWith(handOff.session);
@@ -357,12 +357,39 @@ describe('DownloadManager.adopt', () => {
     it('lent, the stash no longer has it (its time up): not used', async () => {
       const manager = new DownloadManager(null);
       manager.downloaders = [];
-      const {checked, onDisk} = manager.adopt(handOff, NEW, {lent: true});
+      const {checked, onDisk, check} = manager.adopt(handOff, NEW, {lent: true});
       await download(manager, seg(1, NEW_SIG), 'one');
       expect(await checked).toBe(true);
-      expect(manager.confirmLent(false)).toBe(false);
+      expect(manager.confirmLent(check, false)).toBe(false);
       expect(await onDisk).toBe(0);
       expect(ask(manager, seg(2, NEW_SIG)).stored).toBe(false);
+    });
+
+    it('lent, the stash\'s yes after a new source: not used, its files deleted (nobody else has them)', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked, check} = manager.adopt(handOff, NEW, {lent: true});
+      await download(manager, seg(1, NEW_SIG), 'one');
+      expect(await checked).toBe(true);
+      await manager.clearStorage();
+      expect(manager.confirmLent(check, true)).toBe(false);
+      expect(manager.blobStore.dropSession).toHaveBeenCalledWith(handOff.session);
+      expect(manager.blobStore.adoptStoredFile).not.toHaveBeenCalled();
+    });
+
+    it('lent, no part of it ever compared: the check gives up before the stash has it back', async () => {
+      vi.useFakeTimers();
+      try {
+        const manager = new DownloadManager(null);
+        manager.downloaders = [];
+        const {checked, onDisk} = manager.adopt(handOff, NEW, {lent: true});
+        vi.advanceTimersByTime(DownloadManager.LentCheckMs);
+        expect(await checked).toBe(false);
+        expect(await onDisk).toBe(0);
+        expect(manager.blobStore.dropSession).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('a check ended before its verdict (a new link): nothing it held stays, nor goes on to the next player', async () => {

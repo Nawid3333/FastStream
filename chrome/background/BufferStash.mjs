@@ -285,6 +285,7 @@ export class BufferStash {
     }
     kept.timer = this.timerFor(key, left);
     this.kept.set(key, kept);
+    if (kept.onDisk) this.schedule();
     return false;
   }
 
@@ -371,7 +372,8 @@ export class BufferStash {
       kept.timer = this.timerFor(key, ms);
       return;
     }
-    let total = kept.bytes;
+    // A lent one is on the disk still.
+    let total = kept.bytes + [...this.lent.values()].reduce((sum, lent) => sum + (lent.kept.onDisk ? lent.kept.bytes : 0), 0);
     const others = [...this.kept].filter(([, other]) => other.onDisk).sort(([, a], [, b]) => b.since - a.since);
     for (const [otherKey, other] of others) {
       if (total + other.bytes > limit) {

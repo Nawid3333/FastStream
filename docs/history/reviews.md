@@ -1560,3 +1560,16 @@ Rejected:
   never settles."** `adopt` puts every part in the storage at once, a disk one with a function that
   reads it (`keepAdopted`); only its file moves later. A check whose parts are never asked for stays
   open as a buffer under its own link does, unused until a part is asked for.
+
+Its second pass, over the lend. Fixed: the stash's answer is tied to the check that asked
+(`confirmLent(check, …)`; a yes for a check a new source ended deletes the files nobody has now); a
+lent check that never compares a part (none asked for, its twin unreadable) gives up after
+`LentCheckMs`, before the stash has it back; a lent buffer counts as on the disk when room is made,
+and one put back sets the alarm again. Rejected:
+
+- **"Take a buffer of the same place whose query alone changed at once, unlent."** That is the
+  first pass's finding: on another hoster page the query may name another video.
+- **"A record lent while the event page restarts is handed out again."** The lend lasts the
+  seconds of one check, while its player's messages keep the event page up; and the player moves
+  nothing before the stash's word, so a second taker finds every file in place, and the first one's
+  check at worst gives up.

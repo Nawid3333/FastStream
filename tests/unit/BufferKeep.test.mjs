@@ -300,14 +300,32 @@ describe('a buffer kept longer than the event page lives', () => {
     // Lent: its record stays, so an event page loaded again meanwhile has it back.
     await settle();
     expect(disk.dirs.get('fsblob-1-1').record).not.toBe(null);
-    // Its taker never said: back for the rest of its hour.
+    // Its taker never said: back for the rest of its hour, its time on the alarm again.
+    disk.schedule.mockClear();
     vi.advanceTimersByTime(LendMs);
+    expect(disk.schedule).toHaveBeenCalled();
     const again = await stash.lendNear('near', OTHER, '1/5');
     expect(again.handOff).toBe(first.handOff);
     expect(stash.endLend(again.lent, true, '1/5')).toBe(true);
     await settle();
     expect(disk.dirs.get('fsblob-1-1').record).toBe(null);
     expect(dropSession).not.toHaveBeenCalled();
+  });
+
+  it('counts one lent as on the disk still when it makes room for a new one', async () => {
+    // Three of 8 bytes, room for 20: the lent one and the new one leave none for the third.
+    const disk = fakeDisk({limit: 20});
+    const {stash, dropSession} = stashOn(disk);
+    const keyOf = (n) => KEY.replace('watch/1', 'watch/' + n);
+    stash.put(keyOf(1), handOff('fsblob-1-1'), HOUR, {near: 'near'});
+    await settle();
+    await stash.lendNear('near', 'https://cdn.test/w/master.m3u8', '1/5');
+    stash.put(keyOf(2), handOff('fsblob-2-2'), HOUR);
+    await settle();
+    stash.put(keyOf(3), handOff('fsblob-3-3'), HOUR);
+    await settle();
+    expect(dropSession).toHaveBeenCalledWith('fsblob-2-2');
+    expect(dropSession).not.toHaveBeenCalledWith('fsblob-1-1');
   });
 
   it('forgets one taken: a later event page does not hand it over again', async () => {

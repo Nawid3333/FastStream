@@ -763,7 +763,9 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
     (BUFFER_LENT, `endLend`). Its video's: the player has it for good, its files are moved then
     (`confirmLent`). Another's: back under its own key for the rest of its time (a newer one of
     that video there meanwhile wins), so the first language's buffer is still there when the user
-    goes back to it. A player that never says: back after `LendMs` (60 s).
+    goes back to it. A player that never says: back after `LendMs` (60 s); a player whose check
+    compares nothing (no part asked for, its twin unreadable) gives up before that (`LentCheckMs`,
+    50 s). The answer is tied to its check: a yes for one a new source ended deletes its files.
   - `linkChange` also names a changed host and the path segments that changed in place (the same
     depth), and `looseLink` leaves them out of the old parts' links and the new requests' alike;
     the stream's own link stands for itself, so a single file whose whole link changed keeps its

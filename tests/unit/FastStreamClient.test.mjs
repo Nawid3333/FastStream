@@ -3748,7 +3748,8 @@ describe('FastStreamClient, a buffer taken back', () => {
    */
   function clientTaking(adopted) {
     const client = makeClient();
-    client.downloadManager.adopt = vi.fn(() => ({...adopted, onDisk: Promise.resolve(0), checked: Promise.resolve(adopted.same ?? true)}));
+    client.downloadManager.adopt = vi.fn(() => ({...adopted, onDisk: Promise.resolve(0), checked: Promise.resolve(adopted.same ?? true),
+      check: 'its check'}));
     chrome.runtime.sendMessage = vi.fn(async () => ({page: 'https://site.test/watch',
       handOff: {url: 'https://cdn.example/v.m3u8', session: null, entries: [{url: 'https://cdn.example/s1.ts'}]}}));
     return client;
@@ -3796,7 +3797,7 @@ describe('FastStreamClient, a buffer taken back', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     for (const [same, stashLets, used] of [[true, true, true], [true, false, false], [false, false, false]]) {
       const client = clientTaking({taken: 1, bytes: 1.4e9, same});
-      client.downloadManager.confirmLent = vi.fn((taken) => taken);
+      client.downloadManager.confirmLent = vi.fn((check, taken) => taken);
       const answers = chrome.runtime.sendMessage;
       chrome.runtime.sendMessage = vi.fn(async (message) => (message.type === 'BUFFER_LENT' ? stashLets :
         {...await answers(message), lent: 7}));
@@ -3804,7 +3805,7 @@ describe('FastStreamClient, a buffer taken back', () => {
       await vi.waitFor(() => expect(client.bufferTakenBack.checked).toBe(used));
       expect(client.downloadManager.adopt).toHaveBeenCalledWith(expect.anything(), 'https://cdn.example/v.m3u8', {lent: true});
       expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({type: 'BUFFER_LENT', lent: 7, same});
-      expect(client.downloadManager.confirmLent).toHaveBeenCalledWith(same && stashLets);
+      expect(client.downloadManager.confirmLent).toHaveBeenCalledWith('its check', same && stashLets);
       expect(client.interfaceController.showBufferKept).toHaveBeenCalledTimes(used ? 1 : 0);
     }
   });

@@ -11,9 +11,9 @@ const AdoptAtOnce = 8;
 
 /**
  * @typedef {{state: 'pending'|'confirming'|'same'|'other', candidates: Map<string, DownloadEntry>,
- *   settle: (same: boolean) => void, lent: boolean, confirm: (taken: boolean) => void}} AdoptCheck - candidates: the
- *   kept twin of each part downloaded anew meanwhile, by the new part's key. lent: the stash keeps it until its
- *   verdict (confirmLent), so nothing of it is moved or deleted before.
+ *   settle: (same: boolean) => void, lent: boolean, confirm: (taken: boolean) => void, session: ?string}} AdoptCheck -
+ *   candidates: the kept twin of each part downloaded anew meanwhile, by the new part's key. lent: the stash keeps it
+ *   until its verdict (confirmLent), so nothing of it is moved or deleted before; session: its files' there.
  */
 
 /**
@@ -55,6 +55,8 @@ export class DownloadManager {
   static MaxCalmPeriodMs = 120000;
   /** Answers this soon after the last halving extend the Retry-After hold but do not halve again. */
   static SlowDownSettleMs = 2000;
+  /** A lent buffer's check gives up after this: before the stash has it back (BufferStash's LendMs, 60 s). */
+  static LentCheckMs = 50000;
 
   /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
@@ -335,14 +337,15 @@ export class DownloadManager {
    * @param {string} url
    * @param {{lent?: boolean}} [how] - lent: found by the tab's page alone (BufferStash.lendNear), so checked whatever
    *   its link, and still the stash's until confirmLent: its disk files are moved only then.
-   * @return {{taken: number, bytes: number, onDisk: Promise<number>, checked: Promise<boolean>}} Taken at once (RAM),
-   *   the size of all taken (RAM and disk), how many of the disk's once moved, and whether it is used: at once for the
-   *   same place (only the query changed), else once a part downloaded anew is the same (checkAdopted).
+   * @return {{taken: number, bytes: number, onDisk: Promise<number>, checked: Promise<boolean>, check: ?AdoptCheck}}
+   *   Taken at once (RAM), the size of all taken (RAM and disk), how many of the disk's once moved, whether it is used:
+   *   at once for the same place (only the query changed), else once a part downloaded anew is the same
+   *   (checkAdopted); and its check, for confirmLent.
    */
   adopt(handOff, url, {lent = false} = {}) {
     const change = linkChange(handOff.url, url);
     if (change === null || !this.blobStore) {
-      return {taken: 0, bytes: 0, onDisk: Promise.resolve(0), checked: Promise.resolve(false)};
+      return {taken: 0, bytes: 0, onDisk: Promise.resolve(0), checked: Promise.resolve(false), check: null};
     }
     this.endAdoptCheck(false);
     this.adoptedLink = change;
@@ -358,7 +361,16 @@ export class DownloadManager {
     const confirmed = lent ? new Promise((resolve) => {
       confirm = resolve;
     }) : Promise.resolve(true);
-    this.adoptCheck = verify ? {state: 'pending', candidates: new Map(), settle, lent, confirm} : null;
+    const check = this.adoptCheck = verify ?
+      {state: 'pending', candidates: new Map(), settle, lent, confirm, session: handOff.session} : null;
+    if (check && lent) {
+      // No part of it asked for, or none readable (its files gone with the stash's time): none of it is used.
+      setTimeout(() => {
+        if (this.adoptCheck !== check || check.state !== 'pending') return;
+        this.dropAdopted(check);
+        check.settle(false);
+      }, DownloadManager.LentCheckMs);
+    }
     this.adopted = new Map();
     let taken = 0;
     let bytes = 0;
@@ -411,7 +423,7 @@ export class DownloadManager {
       });
       return this.adoptDiskFiles(disk, session);
     });
-    return {taken, bytes, onDisk, checked};
+    return {taken, bytes, onDisk, checked, check};
   }
 
   /**
@@ -524,12 +536,17 @@ export class DownloadManager {
   /**
    * The stash's answer for a lent buffer found to be this video's: let go of to this player (it plays, its disk files
    * are moved), or no longer there (its time up, the background restarted): not used.
+   * @param {?AdoptCheck} check - adopt's: an answer for a check that ended meanwhile (a new source) changes nothing.
    * @param {boolean} taken
    * @return {boolean} Whether it is used.
    */
-  confirmLent(taken) {
-    const check = this.adoptCheck;
-    if (!check?.lent || check.state !== 'confirming') return false;
+  confirmLent(check, taken) {
+    if (!check?.lent) return false;
+    if (this.adoptCheck !== check || check.state !== 'confirming') {
+      // Let go of to this player, which no longer uses it: its files would stay with nobody to delete them.
+      if (taken && check.session) this.blobStore?.dropSession(check.session);
+      return false;
+    }
     if (!taken) {
       this.dropAdopted(check);
       return false;
