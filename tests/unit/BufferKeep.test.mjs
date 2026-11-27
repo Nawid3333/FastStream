@@ -132,7 +132,7 @@ describe('a buffer kept longer than the event page lives', () => {
     expect([...dir.files.keys()]).toEqual(['k0']);
     expect(await dir.files.get('k0').text()).toBe('one');
     expect(dir.record).toEqual({browser: 'run-1', key: KEY, until: 1_000_000 + 5 * 60000, since: 1_000_000, url: kept.url,
-      entries: [
+      near: null, entries: [
         {url: 'https://cdn.test/v/seg-1.ts', responseType: 'arraybuffer', dataSize: 3, file: 'k0'},
         {url: 'https://cdn.test/v/seg-2.ts', responseType: 'arraybuffer', dataSize: 5, file: 'f0'},
       ]});

@@ -43,7 +43,7 @@ describe('a player\'s buffer handed over as it goes', () => {
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     const player = await playerOn(1, PAGE);
     // It asked as it set its source, and found none; it was told its page, for its hand-off.
-    expect(await ask(player)).toEqual({page: PAGE, handOff: null});
+    expect(await ask(player)).toEqual({page: PAGE, near: PAGE, handOff: null});
     // The page reloads: its frame is the next page's before the player's hand-off comes
     // (measured: an empty address then), and a new player comes in the same place.
     await bg.navigated(1, PAGE);
@@ -66,6 +66,23 @@ describe('a player\'s buffer handed over as it goes', () => {
     expect((await take(await playerOn(2, PAGE)))?.entries).toHaveLength(1);
   });
 
+  it('is found by the tab\'s page when the stream came under another link (a new token in its path)', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: 'https://site.test/watch/2'}]});
+    const player = await playerOn(1, PAGE);
+    const told = await ask(player);
+    await bg.navigated(1, PAGE);
+    await bg.message({...handOff, near: told.near}, player);
+    const NEW = 'https://cdn.test/hls/t2/master.m3u8';
+    // Another tab page finds none.
+    const elsewhere = await playerOn(2, 'https://site.test/watch/2');
+    expect((await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, elsewhere))?.handOff).toBeNull();
+    // Its own key finds none (another identifier): the tab's page does, once.
+    const next = await playerOn(1, PAGE);
+    const taken = (await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, next))?.handOff;
+    expect(taken?.url).toBe(SOURCE + '?t=A');
+    expect((await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, next))?.handOff).toBeNull();
+  });
+
   it('comes from FastStream\'s player alone', async () => {
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await playerOn(1, PAGE);
@@ -81,7 +98,7 @@ describe('a player\'s buffer handed over as it goes', () => {
     await bg.message(handOff, await playerOn(1, PAGE));
     await bg.message(handOff, await playerOn(2, PAGE, {incognito: true}));
     await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
-    expect(put.mock.calls.map(([, , ms, where]) => [ms, where])).toEqual([[3600000, {ramOnly: false}], [20000, {ramOnly: true}]]);
+    expect(put.mock.calls.map(([, , ms, where]) => [ms, where])).toEqual([[3600000, {ramOnly: false, near: null}], [20000, {ramOnly: true, near: null}]]);
     bg.unload();
 
     // "RAM only" writes nothing to the disk: its buffer stays in RAM too, 20 s at most.
@@ -90,7 +107,7 @@ describe('a player\'s buffer handed over as it goes', () => {
     const ramOnlyPut = vi.spyOn(RamOnlyStash.prototype, 'put');
     await bg.message(handOff, await playerOn(1, PAGE));
     await vi.waitFor(() => expect(ramOnlyPut).toHaveBeenCalledTimes(1));
-    expect(ramOnlyPut.mock.calls.map(([, , ms, where]) => [ms, where])).toEqual([[20000, {ramOnly: true}]]);
+    expect(ramOnlyPut.mock.calls.map(([, , ms, where]) => [ms, where])).toEqual([[20000, {ramOnly: true, near: null}]]);
     bg.unload();
 
     // "Off" deletes its files at once: no OPFS here.

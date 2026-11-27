@@ -215,10 +215,110 @@ describe('DownloadManager.adopt', () => {
     expect(manager.blobStore.inRam.size).toBe(2);
   });
 
-  it('takes nothing for another link (host or path)', async () => {
+  it('takes nothing for a link that is no web address', async () => {
     const manager = new DownloadManager(null);
-    expect(manager.adopt(handOff, 'https://cdn.test/hls/y/master.m3u8?t=BBB').taken).toBe(0);
-    expect(await manager.adopt(handOff, 'https://other.test/hls/x/master.m3u8?t=BBB').onDisk).toBe(0);
+    const {taken, checked} = manager.adopt(handOff, 'blob:https://cdn.test/1');
+    expect(taken).toBe(0);
+    expect(await checked).toBe(false);
+  });
+
+  it('uses a link whose query alone changed at once', async () => {
+    const manager = new DownloadManager(null);
+    manager.downloaders = [];
+    expect(await manager.adopt(handOff, NEW).checked).toBe(true);
+    expect(ask(manager, seg(1, NEW_SIG)).stored).toBe(true);
+  });
+
+  describe('under another host or a token in the path: none of it until a part downloaded anew is the same', () => {
+    /**
+     * The hand-off as a hoster that puts its token in the path, and later loads from another node, issues it.
+     * @param {string} from - The old link's place, e.g. 'https://cdn.test/hls/AAA/'.
+     * @return {*}
+     */
+    const issuedAt = (from) => ({...handOff, url: `${from}master.m3u8`,
+      entries: handOff.entries.map((entry) => ({...entry, url: entry.url.replace('https://cdn.test/hls/x/', from).split('?')[0]}))});
+
+    /**
+     * The new player downloads a part: its data comes, and the store keeps it (DownloadEntry's success).
+     * @param {DownloadManager} manager
+     * @param {string} url
+     * @param {string} text
+     */
+    const download = async (manager, url, text) => {
+      const {stored, entry} = ask(manager, url);
+      expect(stored).toBe(false);
+      entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+      entry.data = new Blob([text]);
+      entry.dataSize = text.length;
+      entry.transferFile?.(entry);
+    };
+
+    it('a token in the path: the same bytes, and the rest is used', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {taken, checked, onDisk} = manager.adopt(issuedAt('https://cdn.test/hls/AAA/'), 'https://cdn.test/hls/BBB/master.m3u8');
+      expect(taken).toBe(2);
+      await download(manager, 'https://cdn.test/hls/BBB/seg-1.ts', 'one');
+      expect(await checked).toBe(true);
+      await onDisk;
+      expect(ask(manager, 'https://cdn.test/hls/BBB/seg-2.ts').stored).toBe(true);
+      expect(ask(manager, 'https://cdn.test/hls/BBB/seg-3.ts').stored).toBe(true);
+      // Another segment is none of them.
+      expect(ask(manager, 'https://cdn.test/hls/BBB/seg-9.ts').stored).toBe(false);
+    });
+
+    it('another host', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked} = manager.adopt(issuedAt('https://node1.cdn.test/hls/x/'), 'https://node7.cdn.test/hls/x/master.m3u8');
+      await download(manager, 'https://node7.cdn.test/hls/x/seg-2.ts', 'two');
+      expect(await checked).toBe(true);
+      expect(ask(manager, 'https://node7.cdn.test/hls/x/seg-1.ts').stored).toBe(true);
+    });
+
+    it('other bytes: another video\'s, all of it let go of, none used', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked} = manager.adopt(issuedAt('https://cdn.test/hls/AAA/'), 'https://cdn.test/hls/BBB/master.m3u8');
+      await download(manager, 'https://cdn.test/hls/BBB/seg-1.ts', 'uno');
+      expect(await checked).toBe(false);
+      expect(ask(manager, 'https://cdn.test/hls/BBB/seg-2.ts').stored).toBe(false);
+      expect(manager.blobStore.deleteBlob).toHaveBeenCalledWith(
+          manager.getIdentifier({url: 'https://cdn.test/hls/AAA/seg-2.ts', responseType: 'arraybuffer'}));
+      expect(manager.adopted).toBe(null);
+    });
+
+    it('a file whose whole link changed: its ranges under the new one', async () => {
+      const OLD_FILE = 'https://n1.files.test/a8f3k2/movie~x1.mp4?token=1';
+      const NEW_FILE = 'https://n4.files.test/q09zz1/movie~y7.mp4?token=2';
+      const part = (url, start, end, text) => ({url, rangeStart: start, rangeEnd: end, responseType: 'arraybuffer',
+        dataSize: text.length, blob: new Blob([text])});
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked} = manager.adopt({url: OLD_FILE, session: null,
+        entries: [part(OLD_FILE, 0, 99, 'head'), part(OLD_FILE, 100, 199, 'rest')]}, NEW_FILE);
+      const first = manager.getFile({url: NEW_FILE, rangeStart: 0, rangeEnd: 99, responseType: 'arraybuffer'}, {}, 0).entry;
+      expect(first.status).not.toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+      first.status = DownloadStatus.DOWNLOAD_COMPLETE;
+      first.data = new Blob(['head']);
+      first.dataSize = 4;
+      first.transferFile?.(first);
+      expect(await checked).toBe(true);
+      let stored = false;
+      manager.getFile({url: NEW_FILE, rangeStart: 100, rangeEnd: 199, responseType: 'arraybuffer'}, {onSuccess: () => {
+        stored = true;
+      }}, 0);
+      expect(stored).toBe(true);
+    });
+
+    it('a new source before the check: the check ends, nothing used', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked} = manager.adopt(issuedAt('https://cdn.test/hls/AAA/'), 'https://cdn.test/hls/BBB/master.m3u8');
+      await manager.clearStorage();
+      expect(await checked).toBe(false);
+    });
   });
 
   it('leaves out a disk file it could not move, and one for a store that keeps none on disk', async () => {

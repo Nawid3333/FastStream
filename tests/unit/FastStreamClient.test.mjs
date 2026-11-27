@@ -3748,7 +3748,7 @@ describe('FastStreamClient, a buffer taken back', () => {
    */
   function clientTaking(adopted) {
     const client = makeClient();
-    client.downloadManager.adopt = vi.fn(() => ({...adopted, onDisk: Promise.resolve(0)}));
+    client.downloadManager.adopt = vi.fn(() => ({...adopted, onDisk: Promise.resolve(0), checked: Promise.resolve(adopted.same ?? true)}));
     chrome.runtime.sendMessage = vi.fn(async () => ({page: 'https://site.test/watch',
       handOff: {url: 'https://cdn.example/v.m3u8', session: null, entries: [{url: 'https://cdn.example/s1.ts'}]}}));
     return client;
@@ -3759,7 +3759,10 @@ describe('FastStreamClient, a buffer taken back', () => {
     const client = clientTaking({taken: 1, bytes: 1.4e9});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));
 
-    const call = client.interfaceController.showBufferKept.mock.calls[0];
+    const call = await vi.waitFor(() => {
+      expect(client.interfaceController.showBufferKept).toHaveBeenCalled();
+      return client.interfaceController.showBufferKept.mock.calls[0];
+    });
     expect(call[0]).toBe(1.4e9);
     expect(client.interfaceController.setStatusMessage.mock.calls.some(([key]) => key === 'reused')).toBe(false);
     client.downloadAgain = vi.fn();
@@ -3771,11 +3774,22 @@ describe('FastStreamClient, a buffer taken back', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const client = clientTaking({taken: 1, bytes: 1.4e9});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));
-    const call = client.interfaceController.showBufferKept.mock.calls[0];
+    const call = await vi.waitFor(() => {
+      expect(client.interfaceController.showBufferKept).toHaveBeenCalled();
+      return client.interfaceController.showBufferKept.mock.calls[0];
+    });
     client.source = makeSource('https://cdn.example/other.m3u8');
     client.downloadAgain = vi.fn();
     call[1]();
     expect(client.downloadAgain).not.toHaveBeenCalled();
+  });
+
+  it('says nothing when its check finds another video\'s data under the new link', async () => {
+    const client = clientTaking({taken: 1, bytes: 1.4e9, same: false});
+    await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.interfaceController.showBufferKept).not.toHaveBeenCalled();
+    expect(client.bufferTakenBack.checked).toBe(false);
   });
 
   it('says nothing when none of it was taken (another link)', async () => {

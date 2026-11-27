@@ -283,9 +283,9 @@ export class FastStreamClient extends EventEmitter {
     this.recoveries = {url: null, times: []};
     /** @type {{identifier: ?string, times: number[], asking: boolean, playing?: boolean}} */
     this.linkRenewals = {identifier: null, times: [], asking: false};
-    /** @type {?{page: string, identifier: string}} */
+    /** @type {?{page: string, near: string, identifier: string}} */
     this.bufferPage = null;
-    /** @type {?{taken: number, of: number}} */
+    /** @type {?{taken: number, of: number, checked?: boolean}} */
     this.bufferTakenBack = null;
     this.lastDecodeFailure = null;
     this.previewPlayerSetup = null;
@@ -2252,7 +2252,7 @@ export class FastStreamClient extends EventEmitter {
     }
     // At once: the page is going. The Blobs go along as they are, not copied (256 MB in 1 ms).
     chrome.runtime.sendMessage({type: MessageTypes.BUFFER_STASH, page: this.bufferPage.page,
-      identifier: source.identifier, url: source.url, session, entries})
+      near: this.bufferPage.near, identifier: source.identifier, url: source.url, session, entries})
         .catch((e) => console.warn('Could not hand the buffer over', e));
     // Its disk files are the stash's now: this player's reset must not delete them.
     this.downloadManager.keepStorageOnce();
@@ -2271,7 +2271,8 @@ export class FastStreamClient extends EventEmitter {
     /** @type {*} */
     let answer = null;
     try {
-      answer = await chrome.runtime.sendMessage({type: MessageTypes.BUFFER_TAKE, identifier: source.identifier});
+      answer = await chrome.runtime.sendMessage({type: MessageTypes.BUFFER_TAKE, identifier: source.identifier,
+        url: source.url});
     } catch (e) {
       console.warn('Could not ask for a handed-over buffer', e);
       return;
@@ -2280,19 +2281,24 @@ export class FastStreamClient extends EventEmitter {
       return;
     }
     // The page this player is on, which its own hand-off names (handOffBuffer).
-    this.bufferPage = typeof answer?.page === 'string' ? {page: answer.page, identifier: source.identifier} : null;
+    this.bufferPage = typeof answer?.page === 'string' ?
+      {page: answer.page, near: typeof answer.near === 'string' ? answer.near : '', identifier: source.identifier} : null;
     if (!Array.isArray(answer?.handOff?.entries) || answer.handOff.entries.length === 0) {
       return;
     }
     // Into this realm: Blobs from another realm are not `instanceof Blob` here; their data is shared, not copied.
     const handOff = structuredClone(answer.handOff);
     // The RAM's at once; the disk's while the player starts.
-    const {taken, bytes, onDisk} = this.downloadManager.adopt(handOff, source.url);
+    // Under another link than its own (another host, a token in the path), its data is checked before it plays.
+    const {taken, bytes, onDisk, checked} = this.downloadManager.adopt(handOff, source.url);
+    /** @type {{taken: number, of: number, checked?: boolean}} */
     const record = this.bufferTakenBack = {taken, of: handOff.entries.length};
-    if (bytes > 0) {
+    checked.then((same) => {
+      record.checked = same;
+      if (!same || !(bytes > 0) || this.source !== source) return;
       // A reload to mend a load that went wrong keeps what it downloaded: one click starts over without it.
       this.interfaceController.showBufferKept(bytes, () => this.source === source && this.downloadAgain());
-    }
+    }).catch((e) => console.warn('Could not check a handed-over buffer', e));
     onDisk.then((fromDisk) => {
       record.taken += fromDisk;
       console.log(`Took back ${record.taken} of the ${record.of} downloads a player of this video had`);

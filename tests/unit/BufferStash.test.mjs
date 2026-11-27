@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {BufferKeepMs, BufferStash, bufferKey} from '../../chrome/background/BufferStash.mjs';
+import {BufferKeepMs, BufferStash, bufferKey, nearKey} from '../../chrome/background/BufferStash.mjs';
 
 // A player that goes away hands its buffer to the background for the next player of the same video;
 // unclaimed after 20 s it is flushed.
@@ -86,5 +86,46 @@ describe('BufferStash', () => {
     // A private window's buffer is RAM only; an ordinary window's player would put it on disk.
     expect(bufferKey({...where, incognito: true})).not.toBe(key);
     expect(bufferKey({...where, cookieStoreId: 'firefox-container-1'})).not.toBe(key);
+  });
+});
+
+// The hoster's frame or the stream's link came anew in another form: its own key finds nothing, and the tab's page
+// does (the taker checks the data, DownloadManager.adopt).
+describe('BufferStash.takeNear', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const top = {topUrl: 'https://series.example/show/episode-1', incognito: false, cookieStoreId: null};
+
+  it('finds a buffer handed over in the same tab page, once', async () => {
+    const stash = new BufferStash();
+    const kept = handOff();
+    stash.put(bufferKey(where), kept, 60000, {near: nearKey(top)});
+    expect(await stash.take(bufferKey({...where, pageUrl: 'https://hoster.example/e/1?t=2'}))).toBeNull();
+    expect(await stash.takeNear(nearKey(top), 'https://cdn.test/v2/master.m3u8')).toBe(kept);
+    expect(await stash.takeNear(nearKey(top), 'https://cdn.test/v2/master.m3u8')).toBeNull();
+    expect(await stash.take(bufferKey(where))).toBeNull();
+  });
+
+  it('not from another page, window kind or container', async () => {
+    const stash = new BufferStash();
+    stash.put(bufferKey(where), handOff(), 60000, {near: nearKey(top)});
+    stash.put(bufferKey({...where, identifier: 'b'}), handOff('fsblob-2-1'), 60000);
+    expect(await stash.takeNear(nearKey({...top, topUrl: 'https://series.example/show/episode-2'}), 'https://cdn.test/v/m.m3u8'))
+        .toBeNull();
+    expect(await stash.takeNear(nearKey({...top, incognito: true}), 'https://cdn.test/v/m.m3u8')).toBeNull();
+    expect(await stash.takeNear(nearKey({...top, cookieStoreId: 'firefox-container-1'}), 'https://cdn.test/v/m.m3u8'))
+        .toBeNull();
+  });
+
+  it('of two, one whose link looks like the new one first, else the newest', async () => {
+    const stash = new BufferStash();
+    const file = {url: 'https://files.example/aaa/movie.mp4', session: 'fsblob-1-1', entries: [{url: 'x'}]};
+    const hls = {url: 'https://cdn.test/v/t1/master.m3u8', session: 'fsblob-2-1', entries: [{url: 'y'}]};
+    stash.put(bufferKey({...where, identifier: 'file'}), file, 60000, {near: nearKey(top)});
+    vi.advanceTimersByTime(1000);
+    stash.put(bufferKey({...where, identifier: 'hls'}), hls, 60000, {near: nearKey(top)});
+    expect(await stash.takeNear(nearKey(top), 'https://files.example/bbb/movie.mp4')).toBe(file);
+    expect(await stash.takeNear(nearKey(top), 'https://other.example/x.mp4')).toBe(hls);
   });
 });

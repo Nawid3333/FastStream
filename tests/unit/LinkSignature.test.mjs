@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {signatureParams, withoutSignature} from '../../chrome/player/network/LinkSignature.mjs';
+import {linkChange, looseLink, signatureParams, withoutSignature} from '../../chrome/player/network/LinkSignature.mjs';
 
 // A link issued anew (a reload, a fresh link) carries a new signature, and so does every file
 // of the video: the same file is found under either issue with the signature left out.
@@ -49,5 +49,48 @@ describe('withoutSignature', () => {
     expect(withoutSignature(url, new Set())).toBe(url);
     expect(withoutSignature(url, null)).toBe(url);
     expect(withoutSignature('not a url', sig)).toBe('not a url');
+  });
+});
+
+describe('linkChange and looseLink', () => {
+  /**
+   * @param {string} oldStream
+   * @param {string} newStream
+   * @param {string} oldPart
+   * @param {string} newPart
+   * @return {boolean} Whether the part under the old link is the one under the new link.
+   */
+  const same = (oldStream, newStream, oldPart, newPart) => {
+    const change = /** @type {*} */ (linkChange(oldStream, newStream));
+    return looseLink(oldPart, change, true) === looseLink(newPart, change, false);
+  };
+
+  it('a token in the path, in the stream\'s parts too', () => {
+    expect(same('https://cdn.test/hls/AAA/master.m3u8', 'https://cdn.test/hls/BBB/master.m3u8',
+        'https://cdn.test/hls/AAA/v1/seg-3.ts', 'https://cdn.test/hls/BBB/v1/seg-3.ts')).toBe(true);
+    expect(same('https://cdn.test/hls/AAA/master.m3u8', 'https://cdn.test/hls/BBB/master.m3u8',
+        'https://cdn.test/hls/AAA/v1/seg-3.ts', 'https://cdn.test/hls/BBB/v1/seg-4.ts')).toBe(false);
+  });
+
+  it('another host, with a signature in the query', () => {
+    expect(same('https://n1.cdn.test/v/master.m3u8?t=1', 'https://n7.cdn.test/v/master.m3u8?t=2',
+        'https://n1.cdn.test/v/seg-3.ts?t=1', 'https://n7.cdn.test/v/seg-3.ts?t=2')).toBe(true);
+    // A part on a third host is none of the stream's.
+    expect(same('https://n1.cdn.test/v/master.m3u8', 'https://n7.cdn.test/v/master.m3u8',
+        'https://n1.cdn.test/v/seg-3.ts', 'https://img.test/v/seg-3.ts')).toBe(false);
+  });
+
+  it('a file whose whole link changed stands for itself; the same place is a query change only', () => {
+    const change = /** @type {*} */ (linkChange('https://a.test/x1/m~1.mp4?e=1', 'https://b.test/y2/zz/m~2.mp4?e=2'));
+    expect(looseLink('https://a.test/x1/m~1.mp4?e=1', change, true)).toBe(looseLink('https://b.test/y2/zz/m~2.mp4?e=2', change, false));
+    expect(change.samePlace).toBe(false);
+    expect(linkChange('https://a.test/v.mp4?t=1', 'https://a.test/v.mp4?t=2')?.samePlace).toBe(true);
+    expect(linkChange('blob:https://a.test/1', 'https://a.test/v.mp4')).toBeNull();
+  });
+
+  it('for a query change, the same as withoutSignature', () => {
+    const change = /** @type {*} */ (linkChange('https://cdn.test/hls/x/m.m3u8?t=AAA&s=1&e=9', 'https://cdn.test/hls/x/m.m3u8?t=BBB&s=2&e=9'));
+    const url = 'https://cdn.test/hls/x/seg-7.ts?t=AAA&s=1&e=9#frag';
+    expect(looseLink(url, change, true)).toBe(withoutSignature(url, change.params));
   });
 });

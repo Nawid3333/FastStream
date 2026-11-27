@@ -38,6 +38,7 @@ const RecordEveryBytes = 64 * 1024 * 1024;
  * @property {number} since - When it was handed over: of two records of one video, the newer is kept.
  * @property {string} url
  * @property {HandedEntry[]} entries - Its files only.
+ * @property {?string} [near] - nearKey: where takeNear finds it.
  */
 
 /**
@@ -60,6 +61,7 @@ const RecordEveryBytes = 64 * 1024 * 1024;
  * @property {number} since
  * @property {number} bytes
  * @property {boolean} onDisk
+ * @property {?string} near - nearKey: the tab's page it was handed over in, for takeNear.
  * @property {ReturnType<typeof setTimeout>} timer
  * @property {Promise<void>} busy - Its write to the disk that runs now: a directory with a file open for writing
  *   cannot be deleted (Firefox locks it), so its deletion waits for that.
@@ -99,6 +101,33 @@ function validRecord(record, browser, now) {
   return {...record, entries};
 }
 
+/**
+ * The tab's page, window kind and container: where a buffer is looked for when its own key finds none, because the
+ * hoster's frame or the stream's link came anew in another form (another host, a token in the path).
+ * @param {{topUrl: string, incognito: boolean, cookieStoreId?: ?string}} where
+ * @return {string}
+ */
+export function nearKey({topUrl, incognito, cookieStoreId}) {
+  return JSON.stringify([incognito ? 1 : 0, cookieStoreId || '', topUrl]);
+}
+
+/**
+ * What a stream's link looks like apart from what a hoster issues anew: its scheme, how deep its path is, its
+ * file's extension.
+ * @param {string} url
+ * @return {string}
+ */
+function linkShape(url) {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split('/');
+    const extension = (parts[parts.length - 1].match(/\.\w+$/) || [''])[0].toLowerCase();
+    return [parsed.protocol, parts.length, extension].join(' ');
+  } catch (e) {
+    return '';
+  }
+}
+
 export class BufferStash {
   /**
    * @param {Object} [options]
@@ -121,9 +150,10 @@ export class BufferStash {
    * @param {string} key
    * @param {BufferHandOff} handOff
    * @param {number} [keepMs] - 0: none kept, its files deleted.
-   * @param {{ramOnly?: boolean}} [where] - A private window's: in RAM, at most BufferKeepMs.
+   * @param {{ramOnly?: boolean, near?: ?string}} [where] - A private window's: in RAM, at most BufferKeepMs. near:
+   *   nearKey, where takeNear finds it.
    */
-  put(key, handOff, keepMs = this.keepMs, {ramOnly = false} = {}) {
+  put(key, handOff, keepMs = this.keepMs, {ramOnly = false, near = null} = {}) {
     this.flush(key, handOff.session);
     if (!(keepMs > 0)) {
       this.drop(handOff.session);
@@ -133,7 +163,7 @@ export class BufferStash {
     const ms = Math.min(keepMs, ramOnly || !this.disk ? BufferKeepMs : BufferKeepMaxMs);
     const now = Date.now();
     /** @type {Kept} */
-    const kept = {handOff, until: now + ms, since: now, bytes: sizeOf(handOff.entries), onDisk: false,
+    const kept = {handOff, until: now + ms, since: now, bytes: sizeOf(handOff.entries), onDisk: false, near,
       timer: this.timerFor(key, ms), busy: Promise.resolve()};
     this.kept.set(key, kept);
     if (this.disk && ms > BufferKeepMs) {
@@ -166,6 +196,22 @@ export class BufferStash {
       }
     }
     return kept.handOff;
+  }
+
+  /**
+   * A buffer handed over in the same tab page when the video's own key finds none: one whose link looks like this
+   * one's first, the newest of them. The taker checks its data before using it (DownloadManager.adopt, loose).
+   * @param {string} near - nearKey.
+   * @param {string} url - The new player's stream.
+   * @return {Promise<?BufferHandOff>}
+   */
+  async takeNear(near, url) {
+    await this.ready;
+    const shape = linkShape(url);
+    const found = [...this.kept].filter(([, kept]) => kept.near === near)
+        .sort(([, a], [, b]) => Number(linkShape(b.handOff.url) === shape) - Number(linkShape(a.handOff.url) === shape) ||
+          b.since - a.since);
+    return found.length ? this.take(found[0][0]) : null;
   }
 
   /**
@@ -297,7 +343,7 @@ export class BufferStash {
     }
     const session = handOff.session;
     const record = () => busy(() => disk.writeRecord(session, {browser, key, until: kept.until, since: kept.since,
-      url: handOff.url,
+      url: handOff.url, near: kept.near,
       entries: handOff.entries.filter((entry) => typeof entry.file === 'string').map(({blob, ...entry}) => entry)}));
     await record();
     let count = 0;
@@ -349,7 +395,8 @@ export class BufferStash {
         continue;
       }
       this.kept.set(record.key, {handOff: {url: record.url, session, entries: record.entries}, until: record.until,
-        since, bytes: sizeOf(record.entries), onDisk: true, timer: this.timerFor(record.key, record.until - now),
+        since, bytes: sizeOf(record.entries), onDisk: true, near: typeof record.near === 'string' ? record.near : null,
+        timer: this.timerFor(record.key, record.until - now),
         busy: Promise.resolve()});
     }
     this.schedule();

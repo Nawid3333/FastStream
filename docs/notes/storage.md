@@ -736,13 +736,42 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   (`DownloadManager.adoptOne`). The player asks for where it starts or resumes before those files'
   turn, and they were downloaded again (`reload-keeps-buffer.e2e`, twice in the week to
   2026-11-02, #620); one that cannot be moved is dropped as lost data and downloaded then.
-- **A new signed link** (vidmoly: `?t=&s=` new at every load): `LinkSignature.signatureParams` names
+- **A new signed link** (vidmoly: `?t=&s=` new at every load): `LinkSignature.linkChange` names
   the query parameters whose values differ between the old and the new source link, and a request
-  under the new link finds the file with those left out (`DownloadManager.stored`, an alias: the
-  entry's data stays under its old store id, `entry.blobId`). Parameters that did not change still
-  tell files apart. FreshLink uses the same (`DownloadManager.relink`): a refused link's fresh one
-  no longer downloads everything again. (FreshLink gives no link in a private window or a
-  container tab since 2026-11-13: "Storage in a private window".)
+  under the new link finds the file with those left out (`looseLink`; `DownloadManager.stored`, an
+  alias: the entry's data stays under its old store id, `entry.blobId`). Parameters that did not
+  change still tell files apart. FreshLink uses the same (`DownloadManager.relink`, the query only):
+  a refused link's fresh one no longer downloads everything again. (FreshLink gives no link in a
+  private window or a container tab since 2026-11-13: "Storage in a private window".)
+- **Every way back, and links issued anew in other forms** (the owner, 2026-11-27: "it does not even
+  keep it for those 5 minutes, the whole video buffers again", on most hosters; a reload on one HLS
+  hoster did keep it). Measured with `ext-specs/keep-buffer-ways-back.e2e.mjs`, an episode page
+  framing a hoster page, 5 minutes picked. With links signed in the query alone, every way back
+  already took everything back: reload 71/71, Back 85/85, the tab closed and opened again 91/91,
+  Firefox unloading the tab (`gBrowser.discardBrowser`, then the tab chosen again) 100/100. What
+  failed was the link: a token in the path (`/v/<token>/...`), another host (a CDN's next node), or
+  the hoster's frame under a new address took back nothing and downloaded all of it again (83, 79,
+  100 parts). The key was the frame's page and the stream's address without its query, and a file
+  was found only under the same host and path. Now:
+  - The background keeps each buffer under the tab's page too (`nearKey`, sent back by the player
+    in its hand-off as BUFFER_TAKE told it, and in the record on the disk); a player whose own key
+    finds none gets the one of the same tab page (`BufferStash.takeNear`: a link of the same shape
+    first, else the newest).
+  - `linkChange` also names a changed host and the path segments that changed in place (the same
+    depth), and `looseLink` leaves them out of the old parts' links and the new requests' alike;
+    the stream's own link stands for itself, so a single file whose whole link changed keeps its
+    ranges.
+  - Beyond the query nothing of it is used until one part downloaded anew is the same, byte for
+    byte (`DownloadManager.checkAdopted`): the parts asked for meanwhile download anew, and the
+    first one done decides. Other bytes: another video's, all of it let go of. The notice of a
+    buffer taken back waits for that (`checked`).
+  - After: path token 67/67 taken back, 5 parts downloaded again (those asked for before the
+    check); another host 97/97, 1 again; the frame's new address 84/84, 0 again. Another video on
+    the same page under a new link (each segment one TS null packet longer): not used, all of it
+    downloaded, playback fine. The red runs before the change are the measurement above.
+  - Not covered: a hoster whose segments each carry a path token of their own, unrelated to the
+    stream's link (no part lines up: downloaded again, as before), and a playlist whose variant
+    links change differently from its master's.
 - **Downloading the video again** (the owner, 2026-11-22): a reload to mend a load that went wrong
   keeps what it downloaded, broken parts too. A buffer taken back says so for 15 s, with its size
   (`DownloadManager.adopt` counts the bytes of RAM and disk); its button, or the more menu's

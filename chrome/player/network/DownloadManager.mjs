@@ -3,11 +3,33 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {DownloadEntry} from './DownloadEntry.mjs';
-import {signatureParams, withoutSignature} from './LinkSignature.mjs';
+import {linkChange, looseLink} from './LinkSignature.mjs';
 import {URGENT_PARALLEL} from './PlayheadFirst.mjs';
 import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
 const AdoptAtOnce = 8;
+
+/**
+ * @typedef {{state: 'pending'|'same'|'other', candidates: Map<string, DownloadEntry>, settle: (same: boolean) => void}}
+ *   AdoptCheck - candidates: the kept twin of each part downloaded anew meanwhile, by the new part's key.
+ */
+
+/**
+ * @param {ArrayBuffer} a
+ * @param {ArrayBuffer} b
+ * @return {boolean}
+ */
+function sameBytes(a, b) {
+  if (!(a instanceof ArrayBuffer) || !(b instanceof ArrayBuffer) || a.byteLength !== b.byteLength || !a.byteLength) {
+    return false;
+  }
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) {
+    if (x[i] !== y[i]) return false;
+  }
+  return true;
+}
 
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 /**
@@ -44,11 +66,15 @@ export class DownloadManager {
     /** @type {StandardDownloader[]} */
     this.downloaders = [];
     this.paused = false;
-    // Handed over by an earlier player (adopt), by address without the link's signature.
+    // Handed over by an earlier player (adopt), by address without what the link issued anew (looseLink).
     /** @type {?Map<string, DownloadEntry>} */
     this.adopted = null;
-    /** @type {?Set<string>} */
-    this.adoptedSignature = null;
+    /** @type {?import('./LinkSignature.mjs').LinkChange} */
+    this.adoptedLink = null;
+    // Taken from another place than its own (another host, a token in the path): nothing of it is used until one part
+    // downloaded anew is the same, byte for byte (checkAdopted).
+    /** @type {?AdoptCheck} */
+    this.adoptCheck = null;
     // Counts clearStorage(): a handed-over file moved after its downloads went is not kept.
     this.storageGeneration = 0;
     this.keepStorageNext = false;
@@ -214,9 +240,14 @@ export class DownloadManager {
     if (entry || !this.adopted?.size) {
       return entry;
     }
-    const loose = this.looseIdentifier(details);
+    const loose = this.looseIdentifier(details, false);
     const adopted = this.adopted.get(loose);
     if (!adopted || this.storage.get(this.getIdentifier(adopted)) !== adopted) {
+      return undefined;
+    }
+    if (this.adoptCheck && this.adoptCheck.state !== 'same') {
+      // Downloaded anew, and compared once done (watchAdoptCheck).
+      if (this.adoptCheck.state === 'pending') this.adoptCheck.candidates.set(key, adopted);
       return undefined;
     }
     this.adopted.delete(loose);
@@ -231,10 +262,12 @@ export class DownloadManager {
 
   /**
    * @param {{url: string, rangeStart?: number, rangeEnd?: number, responseType?: string}} details
+   * @param {boolean} old - A download of the old link's (handed over, or before a new link).
    * @return {string}
    */
-  looseIdentifier(details) {
-    return this.getIdentifier({...details, url: withoutSignature(details.url, this.adoptedSignature)});
+  looseIdentifier(details, old) {
+    const change = this.adoptedLink;
+    return this.getIdentifier({...details, url: change ? looseLink(details.url, change, old) : details.url});
   }
 
   /**
@@ -243,15 +276,16 @@ export class DownloadManager {
    * @param {string} newUrl
    */
   relink(oldUrl, newUrl) {
-    const signature = signatureParams(oldUrl, newUrl);
-    if (!signature?.size || !this.storage) {
+    const change = linkChange(oldUrl, newUrl);
+    if (!change?.samePlace || !change.params.size || !this.storage) {
       return;
     }
-    this.adoptedSignature = signature;
+    this.adoptedLink = change;
+    this.endAdoptCheck(false);
     this.adopted = new Map();
     const adopted = /** @type {Map<string, DownloadEntry>} */ (this.adopted);
     this.storage.forEach((entry) => {
-      const loose = this.looseIdentifier(entry);
+      const loose = this.looseIdentifier(entry, true);
       // The first of twins (one file under two issues of the link) stands for both.
       if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && !entry.storeRaw && entry.responseType === 'arraybuffer' &&
           !adopted.has(loose)) {
@@ -295,15 +329,23 @@ export class DownloadManager {
    * Takes back what an earlier player of this video handed over; its disk files are moved meanwhile.
    * @param {{url: string, session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}} handOff
    * @param {string} url
-   * @return {{taken: number, bytes: number, onDisk: Promise<number>}} Taken at once (RAM), the size of all taken
-   *   (RAM and disk), and how many of the disk's once moved.
+   * @return {{taken: number, bytes: number, onDisk: Promise<number>, checked: Promise<boolean>}} Taken at once (RAM),
+   *   the size of all taken (RAM and disk), how many of the disk's once moved, and whether it is used: at once for the
+   *   same place (only the query changed), else once a part downloaded anew is the same (checkAdopted).
    */
   adopt(handOff, url) {
-    const signature = signatureParams(handOff.url, url);
-    if (signature === null || !this.blobStore) {
-      return {taken: 0, bytes: 0, onDisk: Promise.resolve(0)};
+    const change = linkChange(handOff.url, url);
+    if (change === null || !this.blobStore) {
+      return {taken: 0, bytes: 0, onDisk: Promise.resolve(0), checked: Promise.resolve(false)};
     }
-    this.adoptedSignature = signature;
+    this.adoptedLink = change;
+    this.endAdoptCheck(false);
+    /** @type {(same: boolean) => void} */
+    let settle = () => {};
+    const checked = change.samePlace ? Promise.resolve(true) : new Promise((resolve) => {
+      settle = resolve;
+    });
+    this.adoptCheck = change.samePlace ? null : {state: 'pending', candidates: new Map(), settle};
     this.adopted = new Map();
     let taken = 0;
     let bytes = 0;
@@ -320,7 +362,7 @@ export class DownloadManager {
       entry.dataSize = record.dataSize || 0;
       entry.blobId = identifier;
       // One file under two issues of the link: taken once.
-      const loose = this.looseIdentifier(entry);
+      const loose = this.looseIdentifier(entry, true);
       if (seen.has(loose)) continue;
       seen.add(loose);
       if (record.blob instanceof Blob) {
@@ -346,7 +388,7 @@ export class DownloadManager {
         bytes += entry.dataSize;
       }
     }
-    return {taken, bytes, onDisk: this.adoptDiskFiles(disk, handOff.session)};
+    return {taken, bytes, onDisk: this.adoptDiskFiles(disk, handOff.session), checked};
   }
 
   /**
@@ -401,8 +443,85 @@ export class DownloadManager {
   /** @param {DownloadEntry} entry */
   keepAdopted(entry) {
     this.setEntry(entry);
-    if (this.adoptedSignature?.size) {
-      /** @type {Map<string, DownloadEntry>} */ (this.adopted).set(this.looseIdentifier(entry), entry);
+    const change = this.adoptedLink;
+    if (change && (!change.samePlace || change.params.size)) {
+      /** @type {Map<string, DownloadEntry>} */ (this.adopted).set(this.looseIdentifier(entry, true), entry);
+    }
+  }
+
+  /**
+   * A part downloaded anew while the handed-over buffer waits for its check: compared with the kept one once done.
+   * @param {string} key
+   * @param {DownloadEntry} entry
+   */
+  watchAdoptCheck(key, entry) {
+    const check = this.adoptCheck;
+    const kept = check?.state === 'pending' ? check.candidates.get(key) : null;
+    if (!check || !kept) return;
+    const transfer = entry.transferFile;
+    entry.setTransferFunction((done) => {
+      Promise.resolve(transfer?.(done)).then(() => this.checkAdopted(check, key, done, kept))
+          .catch((e) => console.warn('Could not compare a handed-over download', e));
+    });
+  }
+
+  /**
+   * The same bytes: the handed-over buffer is this video's, and plays. Others: it is another video's, and goes.
+   * @param {AdoptCheck} check
+   * @param {string} key
+   * @param {DownloadEntry} fresh
+   * @param {DownloadEntry} kept
+   * @return {Promise<void>}
+   */
+  async checkAdopted(check, key, fresh, kept) {
+    if (check.state !== 'pending') return;
+    check.candidates.delete(key);
+    let same = null;
+    try {
+      const [a, b] = await Promise.all([fresh.getDataFromBlob('arraybuffer'), kept.getDataFromBlob('arraybuffer')]);
+      same = sameBytes(/** @type {ArrayBuffer} */ (a), /** @type {ArrayBuffer} */ (b));
+    } catch (e) {
+      // Not readable: the next part decides.
+    }
+    if (this.adoptCheck !== check || check.state !== 'pending' || same === null) return;
+    if (same) {
+      // The parts downloaded anew meanwhile have their kept twins.
+      this.forgetAdopted(kept);
+      check.candidates.forEach((twin) => this.forgetAdopted(twin));
+      check.candidates.clear();
+      check.state = 'same';
+    } else {
+      console.warn('A handed-over buffer was another video\'s: it is not used');
+      this.adopted?.forEach((entry) => this.forgetAdopted(entry));
+      this.adopted = null;
+      check.state = 'other';
+    }
+    check.settle(same);
+  }
+
+  /**
+   * Lets go of a handed-over download: its data, and its disk file once moved (adoptOne keeps none that failed).
+   * @param {DownloadEntry} entry
+   */
+  forgetAdopted(entry) {
+    this.adopted?.delete(this.looseIdentifier(entry, true));
+    const identifier = this.getIdentifier(entry);
+    if (this.storage?.get(identifier) === entry) {
+      this.storage.delete(identifier);
+      this.blobStore?.deleteBlob(entry.blobId ?? identifier);
+    }
+    entry.status = DownloadStatus.DOWNLOAD_FAILED;
+  }
+
+  /**
+   * @param {boolean} same - What a check still waiting is told.
+   */
+  endAdoptCheck(same) {
+    const check = this.adoptCheck;
+    this.adoptCheck = null;
+    if (check?.state === 'pending') {
+      check.state = 'other';
+      check.settle(same);
     }
   }
 
@@ -480,6 +599,7 @@ export class DownloadManager {
     if (!storedEntry || storedEntry.status === DownloadStatus.DOWNLOAD_FAILED) {
       storedEntry = new DownloadEntry(details);
       this.setEntry(storedEntry);
+      this.watchAdoptCheck(key, storedEntry);
     }
 
     if (storedEntry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
@@ -1179,7 +1299,8 @@ export class DownloadManager {
     this.storageGeneration++;
     this.storage.clear();
     this.adopted = null;
-    this.adoptedSignature = null;
+    this.adoptedLink = null;
+    this.endAdoptCheck(false);
     await this.blobStore.clear();
   }
 
