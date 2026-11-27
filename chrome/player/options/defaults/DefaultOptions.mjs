@@ -58,7 +58,6 @@ export const DefaultOptions = {
   seekStepSize: DEFAULT_SEEK_STEP_SIZE,
   singleClickAction: ClickActions.PLAY_PAUSE,
   doubleClickAction: ClickActions.FULLSCREEN,
-  tripleClickAction: ClickActions.HIDE_CONTROLS,
   visChangeAction: VisChangeActions.NOTHING,
   miniSize: 0.25,
   miniPos: MiniplayerPositions.BOTTOM_RIGHT,

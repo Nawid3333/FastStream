@@ -130,7 +130,6 @@ const ReusedNoticeMs = 10000;
  * @property {number} autoplayCountdown - Seconds.
  * @property {string} singleClickAction - A ClickActions value.
  * @property {string} doubleClickAction - A ClickActions value.
- * @property {string} tripleClickAction - A ClickActions value.
  * @property {string} visChangeAction - A VisChangeActions value.
  * @property {number} miniSize
  * @property {string} miniPos - A MiniplayerPositions value.
@@ -180,7 +179,6 @@ export class FastStreamClient extends EventEmitter {
       autoplayCountdown: 5,
       singleClickAction: ClickActions.HIDE_CONTROLS,
       doubleClickAction: ClickActions.PLAY_PAUSE,
-      tripleClickAction: ClickActions.FULLSCREEN,
       visChangeAction: VisChangeActions.NOTHING,
       miniSize: 0.25,
       miniPos: MiniplayerPositions.BOTTOM_RIGHT,
@@ -468,7 +466,6 @@ export class FastStreamClient extends EventEmitter {
     this.options.seekStepSize = options.seekStepSize;
     this.options.singleClickAction = options.singleClickAction;
     this.options.doubleClickAction = options.doubleClickAction;
-    this.options.tripleClickAction = options.tripleClickAction;
     this.options.visChangeAction = options.visChangeAction;
     this.options.miniSize = options.miniSize;
     this.options.miniPos = options.miniPos;

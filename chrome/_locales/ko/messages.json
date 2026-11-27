@@ -992,9 +992,6 @@
     "options_general_dblclickaction": {
         "message": "더블 클릭 동작"
     },
-    "options_general_tplclickaction": {
-        "message": "트리플 클릭 동작"
-    },
     "options_general_clickaction_nothing": {
         "message": "아무 작업도 하지 않음"
     },
