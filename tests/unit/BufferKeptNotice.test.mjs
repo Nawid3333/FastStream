@@ -104,6 +104,16 @@ describe('BufferKeptNotice', () => {
     expect(notice.isShown()).toBe(true);
     box.fire('focusout');
     expect(notice.isShown()).toBe(false);
+
+    // The pointer leaves while the keyboard's focus stays on the button: it stays.
+    notice.show(5e8, () => {});
+    box.fire('pointerenter');
+    box.fire('focusin');
+    vi.advanceTimersByTime(BufferKeptNotice.ShownMs);
+    box.fire('pointerleave');
+    expect(notice.isShown()).toBe(true);
+    box.fire('focusout');
+    expect(notice.isShown()).toBe(false);
   });
 
   it('a new notice starts its time again; hide() leaves nothing to fire', () => {

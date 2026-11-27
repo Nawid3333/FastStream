@@ -19,8 +19,8 @@ export class BufferKeptNotice {
     this.onAgain = null;
     /** @type {?ReturnType<typeof setTimeout>} */
     this.timer = null;
-    // The pointer or the keyboard's focus is on it: it stays until they leave.
-    this.held = false;
+    // The pointer or the keyboard's focus is on it: it stays until both left.
+    this.held = {pointer: false, focus: false};
     this.due = false;
     const box = DOMElements.bufferKept;
     const again = DOMElements.bufferKeptAgain;
@@ -34,10 +34,10 @@ export class BufferKeptNotice {
     WebUtils.setupTabIndex(again);
     // A click on its text is none on the video.
     box.addEventListener('click', (e) => e.stopPropagation());
-    box.addEventListener('pointerenter', () => this.hold(true));
-    box.addEventListener('pointerleave', () => this.hold(false));
-    box.addEventListener('focusin', () => this.hold(true));
-    box.addEventListener('focusout', () => this.hold(false));
+    box.addEventListener('pointerenter', () => this.hold('pointer', true));
+    box.addEventListener('pointerleave', () => this.hold('pointer', false));
+    box.addEventListener('focusin', () => this.hold('focus', true));
+    box.addEventListener('focusout', () => this.hold('focus', false));
     // The room changes with the player's size and the status line's text.
     this.resizes = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.fit()) : null;
   }
@@ -65,7 +65,7 @@ export class BufferKeptNotice {
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = null;
-      if (this.held) {
+      if (this.held.pointer || this.held.focus) {
         this.due = true;
       } else {
         this.hide();
@@ -78,7 +78,7 @@ export class BufferKeptNotice {
     this.timer = null;
     this.onAgain = null;
     this.due = false;
-    this.held = false;
+    this.held = {pointer: false, focus: false};
     const box = DOMElements.bufferKept;
     if (!box) return;
     this.resizes?.disconnect();
@@ -112,9 +112,12 @@ export class BufferKeptNotice {
     return !!DOMElements.bufferKept && DOMElements.bufferKept.style.display !== 'none';
   }
 
-  /** @param {boolean} held */
-  hold(held) {
-    this.held = held;
-    if (!held && this.due) this.hide();
+  /**
+   * @param {'pointer'|'focus'} by
+   * @param {boolean} held
+   */
+  hold(by, held) {
+    this.held[by] = held;
+    if (this.due && !this.held.pointer && !this.held.focus) this.hide();
   }
 }
