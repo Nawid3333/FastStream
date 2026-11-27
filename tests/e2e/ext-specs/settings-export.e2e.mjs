@@ -101,18 +101,21 @@ describe('Export Settings To File', function() {
     await openExtensionPage('/player/index.html');
     const before = savedFiles();
     // The options page inside about:addons is no tab the driver reaches: clicked from another
-    // extension page (getViews), which has no user gesture - the downloads API needs none.
+    // extension page (getViews), which has no user gesture - the downloads API needs none. The one
+    // options page open, and no tab shows it: the one in about:addons.
     const clicked = await browser.execute(() => new Promise((done) => {
-      const find = () => chrome.extension.getViews().find((view) => view !== window &&
-          view.location.pathname.endsWith('/options/index.html') && view.document.documentElement.dataset.optionsLoaded === 'true');
+      const optionsUrl = chrome.runtime.getURL('player/options/index.html');
+      const optionsViews = () => chrome.extension.getViews().filter((view) => view.location.href.startsWith(optionsUrl));
       chrome.runtime.openOptionsPage().then(async () => {
         const until = Date.now() + 15000;
-        let view;
-        while (!(view = find())) {
-          if (Date.now() > until) return done('no options page in about:addons');
+        let views;
+        while ((views = optionsViews()).length !== 1 || views[0].document.documentElement.dataset.optionsLoaded !== 'true') {
+          if (Date.now() > until) return done(`options pages: ${views.length}, none loaded in about:addons`);
           await new Promise((resolve) => setTimeout(resolve, 200));
         }
-        view.document.getElementById('export').click();
+        const tabs = (await chrome.tabs.query({})).filter((tab) => tab.url?.startsWith(optionsUrl));
+        if (tabs.length) return done('the options page is open in a tab');
+        views[0].document.getElementById('export').click();
         done('clicked');
       }, (e) => done('openOptionsPage: ' + e));
     }));

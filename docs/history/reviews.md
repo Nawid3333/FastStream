@@ -1520,3 +1520,20 @@ deepseek-v4.1-flash read the new patch, upstream's 0.25.2 -> 0.26.0 diff and the
 It checked and cleared the rest: upstream's nested `configure()` runs after `case 'parent'` has
 set `container`, `formatChoice` is set before that call, and the DOMParser nodes and the unit
 test's stand-in for them behave as a browser's `append` does.
+
+## DeepSeek's review of the settings export fix (#868, 2026-11-28)
+
+deepseek-v4.1-flash read the diff, `Utils.downloadBlob`/`downloadURL` and the background's download
+paths. Taken: the about:addons test could click some other options page that was open; it now
+clicks only when one options page is open and no tab shows it. Rejected, each measured on Firefox
+161:
+
+- **"Private windows: the background cannot read a blob URL made in a private page."** The new spec
+  passes under `wdio.pbm.conf.mjs` (every window private): the background takes the hidden-tab path
+  for `firefox-private`, and the file is saved from the framed player, the options tab and
+  about:addons.
+- **"Container tabs: the hidden player tab's link click hits the same partition key."** A framed
+  player's settings in a container tab (GitHub build, `contextualIdentities.create`) saved the
+  export through that path, as a player-frame `downloadBlob` did.
+- **"A fixed port fails when it is taken."** Fixed ports are the suites' rule, kept apart by
+  `e2ePorts.test.mjs`.
