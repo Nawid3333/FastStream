@@ -5,7 +5,6 @@ import {StreamPick} from '../player/utils/StreamPick.mjs';
 import {guessMediaInfo} from '../player/utils/MediaTitle.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
-import {ProblemKinds, recordProblem} from '../player/utils/ProblemLog.mjs';
 import {getAddressKey} from '../player/utils/AddressKey.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
@@ -35,7 +34,7 @@ import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
-import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pausePlayerWhileAsked, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncAllMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
+import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pausePlayerWhileAsked, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncAllMpvAutoplay} from './MpvMode.mjs';
 
 /** @typedef {typeof import('../player/options/defaults/DefaultOptions.mjs').DefaultOptions} PlayerOptions */
 
@@ -162,7 +161,7 @@ const LiveMediaReportWaitMs = 1000;
 let CustomSourcePatternsMatcher = new MultiRegexMatcher();
 
 BackgroundUtils.openWelcomePageOnInstall();
-BackgroundUtils.forgetRemovedAudioSettingsOnUpdate();
+BackgroundUtils.forgetRemovedSettingsOnUpdate();
 
 // After the restore, or a woken event page would reset every tab's icon to Off.
 ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
@@ -682,7 +681,6 @@ export const MessageSenders = {
   [MessageTypes.REQUEST_WINDOW_FULLSCREEN]: 'own',
   [MessageTypes.REQUEST_MINIPLAYER]: 'own',
   [MessageTypes.REQUEST_PLAYLIST_NAVIGATION]: 'own',
-  [MessageTypes.REPORT_AUTOPLAY_PROBLEM]: 'own',
   [MessageTypes.REQUEST_PLAYLIST_POLL]: 'own',
   [MessageTypes.POPUP_GUARD_ARM]: 'any',
   [MessageTypes.MPV_USER_PLAY]: 'any',
@@ -1208,7 +1206,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           tab.continuationTimer = setTimeout(() => {
             if (tab.continuationOptions === continuation) endContinuation(tab);
           }, ContinuationKeepMs);
-          if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
         }
         sendResponse(response);
       });
@@ -1217,12 +1214,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse('error');
     });
     return true;
-  } else if (msg.type === MessageTypes.REPORT_AUTOPLAY_PROBLEM) {
-    // The player's video ended with autoplay on and no next episode in the page.
-    if (msg.kind === ProblemKinds.NO_NEXT) {
-      noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'player'}).catch((e) => console.error(e));
-    }
-    return;
   } else if (msg.type === MessageTypes.REQUEST_PLAYLIST_POLL) {
     // As the request for the next episode: once the kept tab state is back.
     ensureOptions().then(() => {
@@ -2273,24 +2264,6 @@ const StartPagePlayerEveryMs = 2000;
 const StartPagePlayerForMs = 20000;
 // Each autoplay next's own 20 s: a later page load did not start another.
 const startPagePlayerUntil = new WeakMap();
-
-/**
- * Not in a private window: the list is kept on disk and shown on the options page.
- * @param {number} tabId
- * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
- * @return {Promise<void>}
- */
-export async function noteProblem(tabId, problem) {
-  let tab;
-  try {
-    tab = await chrome.tabs.get(tabId);
-  } catch (e) {
-    // The tab went: which window it was in is not known any more.
-    return;
-  }
-  if (!tab || tab.incognito) return;
-  await recordProblem(problem);
-}
 
 /**
  * A hoster's player may sit idle until clicked. Every 2 s for 20 s, only the frame with the tab's largest video.

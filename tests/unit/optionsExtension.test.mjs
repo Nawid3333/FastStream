@@ -153,19 +153,6 @@ describe('the update check', () => {
   });
 });
 
-describe('the problems list', () => {
-  it('opens the report as the player opens a page, not with window.open', async () => {
-    const problem = {id: 'example.com|no_next', host: 'example.com', path: '/watch', kind: 'no_next', mode: 'player',
-      count: 2, first: 0, last: 0};
-    const page = await openOptionsPage({stored: {siteProblems: [problem]}});
-    const [report] = page.byId('problemslist').querySelectorAll('button');
-    report.fire('click');
-    expect(page.win.open).not.toHaveBeenCalled();
-    expect(page.opened).toHaveBeenCalledTimes(1);
-    expect(page.opened.mock.calls[0][0]).toMatch(/^https:\/\/github\.com\/Nawid3333\/FastStream\/issues\/new\?.*example\.com/);
-  });
-});
-
 describe('the mpv test button', () => {
   it('sends the test at once: nativeMessaging is a permission the manifest requires', async () => {
     const page = await openOptionsPage();

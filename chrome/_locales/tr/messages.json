@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "FastStream'i yüklediğiniz için teşekkürler! Herhangi bir sorun veya öneriniz olursa lütfen bize bildirin."
     },
-    "welcome_page_ram_header": {
-        "message": "Bu bilgisayarın belleği"
-    },
-    "welcome_page_ram_question": {
-        "message": "Bu bilgisayarda ne kadar bellek (RAM) var? FastStream her videonun bir kısmını RAM'de, kalanını diskte tutar; cevabınız ne kadar RAM kullanabileceğini belirler."
-    },
-    "welcome_page_ram_set": {
-        "message": "Ayarlandı: FastStream RAM'de en fazla $1 video tutar, kalanını diskte. Bunu seçeneklerde, \"Genel Seçenekler\" altında değiştirebilirsiniz."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Ayarlandı: FastStream RAM'de en fazla $1 video tutar; sığmayan gerektiğinde tekrar indirilir. Bunu seçeneklerde, \"Genel Seçenekler\" altında değiştirebilirsiniz."
-    },
     "welcome_page_keybinds_header": {
         "message": "Varsayılan Klavye Kontrolleri"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "İndirme duraklatıldı: devam etmek için $1 tuşuna basın"
     },
-    "player_wait_speed_zero": {
-        "message": "Video veri bekliyor, çünkü \"Ön indiricinin hedef indirme hızı\" 0: önceden hiçbir şey indirilmiyor. Sınır olmaması için bu ayarı boş bırakın."
-    },
     "player_wait_speed_low": {
-        "message": "Video veri bekliyor, çünkü \"Ön indiricinin hedef indirme hızı\" ($1 Mbit/s) bu videonun ihtiyacının (yaklaşık $2 Mbit/s) altında: önceden çok az şey indiriliyor. Bu ayarı yükseltin veya sınır olmaması için boş bırakın."
-    },
-    "player_wait_ahead_zero": {
-        "message": "Video veri bekliyor, çünkü \"Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı\" 0: önceden hiçbir şey tutulmuyor. Bu ayarı yükseltin."
+        "message": "Video veri bekliyor, çünkü \"İndirme hızı sınırı\" ($1 Mbit/s) bu videonun ihtiyacının (yaklaşık $2 Mbit/s) altında: önceden çok az şey indiriliyor. Orada daha yüksek bir sınır ya da \"Sınırsız\" seçin."
     },
     "player_wait_ram_zero": {
         "message": "Video veri bekliyor: burada diskte hiçbir şey tutulmuyor ve \"Yalnızca disk\" RAM'de yalnızca 64 MB tutuyor. Daha fazlasını önceden tutmak için \"İndirilen videonun tutulacağı yer\" altında başka bir mod seçin."
@@ -696,13 +678,13 @@
         "message": "(bilinmiyor)"
     },
     "player_buffer_size_warning": {
-        "message": "Bu video (yaklaşık $1), \"Önceden indirilen videonun maksimum boyutu\" ayarından ($2) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını önceden indirmek için bu ayarı artırın veya alanı boş bırakın."
+        "message": "Bu video (yaklaşık $1), \"Tam yüklenebilen en büyük video\" ayarından ($2) büyük olduğu için tamamı yüklenmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını yüklemek için orada daha büyük bir boyut ya da \"Sınırsız\" seçin."
     },
     "player_buffer_private_warning": {
-        "message": "Gizli pencerede FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder."
+        "message": "Gizli pencerede FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyük olduğu için tamamı yüklenmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder."
     },
     "player_buffer_ram_warning": {
-        "message": "\"İndirilen videonun tutulacağı yer\" ayarı \"Yalnızca RAM\" olduğu için FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyüktür. Tamamen önceden indirilmez, ancak yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını önceden indirmek için orada \"RAM, sonra disk\" seçin."
+        "message": "\"İndirilen videonun tutulacağı yer\" ayarı \"Yalnızca RAM\" olduğu için FastStream videoyu yalnızca RAM'de tutar ve bu video (yaklaşık $1), FastStream'in onun için kullanabileceği \"Arabelleğe alınan video için RAM\" payından ($2) büyüktür. Tamamı yüklenmez, ancak yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Tamamını yüklemek için orada \"RAM, sonra disk\" seçin."
     },
     "player_buffer_disk_warning": {
         "message": "Bu video (yaklaşık $1), Firefox'un FastStream'e verdiği disk alanından ($2 boş) büyük olduğu için tamamen önceden indirilmez. Yine de normal şekilde oynatılır ve $3 ilerisine kadar yüklenmeye devam eder. Diskte yer açmak yardımcı olur."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Görüntüyü yakınlaştırın veya sese göre video gecikmesini ayarlayın. Video yakınlaştırma resim içinde resim ile çalışmaz."
     },
+    "options_playback_header": {
+        "message": "Oynatma"
+    },
+    "options_storage_header": {
+        "message": "İndirme ve depolama"
+    },
+    "options_subtitles_header": {
+        "message": "Altyazılar"
+    },
+    "options_mouse_header": {
+        "message": "Fare ve pencere"
+    },
+    "options_opening_header": {
+        "message": "Videoları açma"
+    },
+    "options_section_reset": {
+        "message": "Bu bölümü sıfırla"
+    },
+    "options_changed": {
+        "message": "Varsayılandan farklı"
+    },
     "options_video_zoom": {
         "message": "Video Yakınlaştırma"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Video Gecikmesi"
     },
-    "options_general_header": {
-        "message": "Genel Seçenekler"
-    },
-    "options_general_predownload": {
-        "message": "Mümkünse tüm videoyu arka planda önceden indir"
-    },
     "options_general_targetspeed": {
-        "message": "Ön indiricinin hedef indirme hızı"
+        "message": "İndirme hızı sınırı"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Ön indirme bu sınırı aşarsa duraklar; oynatmanın tam o anda ihtiyaç duyduğu kısım her zaman yüklenir."
     },
     "options_general_maxsize": {
-        "message": "Önceden indirilen videonun maksimum boyutu (yalnızca ön indirme açıkken kullanılır)"
+        "message": "Tam yüklenebilen en büyük video"
+    },
+    "options_general_maxsize_desc": {
+        "message": "Daha büyük bir video, sığan kadar yüklenir. Yalnızca \"Videonun tamamı\" ile."
     },
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"
     },
+    "options_storage_ram_auto": {
+        "message": "Otomatik: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Kullanılmıyor"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Yalnızca \"Yalnızca RAM\" ile ayarlanır."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB ve üzeri, yalnızca 16 GB veya daha fazla belleği olan bilgisayarlarda."
+    },
     "options_general_nolimit": {
         "message": "Sınırsız"
-    },
-    "options_general_targetspeed_zero": {
-        "message": "0: oynatma noktasının ilerisinde hiçbir şey indirilmez, bu yüzden videolar yükleme için durabilir. Sınırsız olması için alanı boş bırakın."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: hiçbir şey önceden indirilmez; yalnızca aşağıda ayarlanan saniye sayısı oynatma noktasının ilerisinde tutulur. Sınırsız olması için alanı boş bırakın."
-    },
-    "options_general_maxsize_none": {
-        "message": "Sınırsız: RAM'e ve Firefox'un FastStream'e diskte ayırdığı yere sığan kadar."
-    },
-    "options_general_rambudget_none": {
-        "message": "Sınır yok: indirilen videonun tamamı RAM'de kalır. Uzun bir video bilgisayardaki bellekten fazlasını kaplayıp onu dondurabilir."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "$1 için önerilen: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Önerilen miktarı görmek için yukarıdan bu bilgisayarın belleğini seçin."
-    },
-    "options_general_rambudget_use": {
-        "message": "$1 kullan"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Kabul edilmedi: RAM'de video olmaması için yukarıdan \"Yalnızca disk\" seçin; \"Sınırsız\" yalnızca \"Yalnızca RAM\" içindir."
-    },
-    "options_general_rambudget_high": {
-        "message": "RAM'de bu kadar video bir bilgisayarı dondurabilir: sistem ve Firefox belleğin büyük kısmına ihtiyaç duyar. Daha küçük bir miktar aynı şekilde oynatılır, çünkü videonun geri kalanı diske gider veya gerektiğinde tekrar indirilir."
-    },
-    "options_general_ramsize": {
-        "message": "Bu bilgisayarın belleği (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Bir boyut seçildiğinde önerilen miktar aşağıdaki RAM alanına yazılır."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Belirtilmedi"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 veya üzeri"
     },
     "options_list_ignored_lines": {
         "message": "Atlandı, geçerli bir girdi değil: $1. satır"
     },
-    "options_general_bufferahead": {
-        "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (tüm video önceden indirilmediğinde, 0–3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: oynatma noktasının ilerisinde hiçbir şey arabellekte tutulmaz, bu yüzden video sık sık yükleme için durur."
-    },
     "options_general_bufferbehind": {
-        "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"
+        "message": "Oynatılmış kısmı sakla"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "İçinde geriye sarmak anında olur; daha eski kısımlar gerektiğinde yeniden yüklenir."
     },
     "options_general_bufferkeep": {
-        "message": "İndirilen videonun yeniden yükleme veya sekme kapatıldıktan sonra ne kadar saklanacağı (en fazla Firefox kapanana kadar)"
+        "message": "Yeniden yüklemeden veya sekme kapandıktan sonra videoyu sakla"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "Böylece yeniden yükleme sırasında video tekrar indirilmez. En geç Firefox kapanana kadar saklanır."
+    },
+    "options_storage_stored": {
+        "message": "Şu anda saklı: diskte $1 · RAM'de $2 · açık videolar: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "Bir videonun verisi, sekmesi kapandığında ya da yukarıdaki süre dolduğunda silinir. Firefox kapanınca geride bırakılanlar, bir sonraki açılışın ardından bir dakika sonra silinir."
     },
     "options_general_bufferkeep_off": {
         "message": "Kapalı"
@@ -924,7 +906,7 @@
         "message": "İndirilen videonun tutulacağı yer"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM, sonra disk"
+        "message": "RAM, sonra disk (önerilir)"
     },
     "options_general_storage_ramonly": {
         "message": "Yalnızca RAM"
@@ -933,49 +915,85 @@
         "message": "Yalnızca disk"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Önerilir. Video aşağıdaki miktara kadar RAM'de kalır; sığmayanlar diske gider ve aynı şekilde oynatılır. Gizli pencereler hiçbir zaman diske yazmaz: orada yalnızca RAM kullanılır."
+        "message": "Video, tüm sekmeler için birlikte en fazla $1 RAM'de kalır; sığmayanlar diske gider ve aynı şekilde oynatılır. Gizli pencereler hiçbir zaman diske yazmaz: orada yalnızca RAM kullanılır."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Diske hiçbir şey yazılmaz. Aşağıdaki RAM'e sığmayanlar silinir ve gerektiğinde tekrar indirilir."
+        "message": "Diske hiçbir şey yazılmaz; aşağıdaki sınıra sığmayanlar silinir ve gerektiğinde tekrar indirilir."
     },
     "options_general_storage_disk_hint": {
         "message": "Belleği az olan bilgisayarlar için: video geldikçe diske yazılır ve RAM'de yalnızca şu anda oynatılan bölüm kalır. Diske hiçbir şey yazmayan gizli pencereler RAM'de 64 MB tutar."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: oynatılmış kısım hemen atılır; geriye sarmak onu yeniden yükler. Sınırsız olması için alanı boş bırakın."
+    "options_storage_whole": {
+        "message": "Videonun tamamı"
     },
-    "options_general_bufferbehind_none": {
-        "message": "Sınırsız: oynatılmış her şey tutulur; aşağıda seçildiği şekilde RAM'de veya diskte tutulur."
+    "options_storage_all": {
+        "message": "Tümü"
+    },
+    "options_storage_ahead": {
+        "message": "Önden yükle"
+    },
+    "options_storage_ahead_desc": {
+        "message": "Videonun tamamı yüklenir, böylece her nokta anında oynatılabilir; ya da oynatma yerinden sabit bir süre önden yüklenir."
     },
     "options_general_blockpopups": {
-        "message": "Oynatıcıya tıkladıktan hemen sonra açılan açılır pencereleri/popunder'ları engelle"
+        "message": "Oynatıcıya tıkladıktan hemen sonra açılır pencereleri engelle"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Birçok site bir tıklamada reklam sekmesi açar: FastStream, sayfanın oynatıcıya tıklandıktan hemen sonra açtığı sekmeyi kapatır."
     },
     "options_general_previewenabled": {
-        "message": "Zaman çizelgesinde üzerine gelince önizlemeyi göster"
+        "message": "Zaman çizelgesinde önizleme göster"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Farenin altındaki görüntüyü gösterir; bunun için ikinci, küçük bir oynatıcı videoyu yükler."
     },
     "options_general_decodingawarequality": {
-        "message": "Ekran kartının çözebildiği sürümü tercih et (donanımsal kod çözme), ardından daha yüksek kare hızı ve AV1 gibi daha verimli codec'ler. Seçilen çözünürlüğü asla düşürmez"
+        "message": "Ekran kartının çözebildiği sürümü tercih et"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Seçilen çözünürlüğün sürümleri arasında: önce bu bilgisayarın ekran kartının çözebildiği, sonra daha yüksek kare hızı ve AV1 gibi daha verimli codec'ler. Çözünürlüğü asla düşürmez."
     },
     "options_general_storeprogress": {
-        "message": "Videoları son izlenen konumdan oynat"
+        "message": "Son izlenen yerden devam et"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Bu bilgisayarda, her videoda nerede kaldığınızı hatırlar."
     },
     "options_general_autosub": {
-        "message": "Bulunan en iyi altyazı parçasını otomatik olarak etkinleştir\n(Öntanımlı dili altyazı ayarlarından değiştirin)"
+        "message": "En iyi altyazı parçasını etkinleştir"
+    },
+    "options_general_autosub_desc": {
+        "message": "Oynatıcının altyazı ayarlarında belirlenen dilde."
     },
     "options_general_cyclesubs": {
-        "message": "Altyazı tuşu parçalar arasında sırayla geçer, sonuncudan sonra kapatır\n(İşaretsiz: altyazıyı açar ve kapatır)"
+        "message": "Altyazı tuşu parçalar arasında sırayla geçer"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "Parçaları birer birer geçer, en sonda altyazıyı kapatır. İşaretsiz: tuş altyazıyı açar ve kapatır."
     },
     "options_general_stream": {
-        "message": "Oynatma listesi URL'leri (.m3u8/.mpd) açıldığında HLS/DASH akışlarını oynatmak için oynatıcıyı kullan"
+        "message": "Akış bağlantılarını (.m3u8, .mpd) FastStream'de aç"
+    },
+    "options_general_stream_desc": {
+        "message": "Doğrudan bir akışa giden bağlantı, oynatma listesi dosyasını indirmek yerine oynatıcıda oynatılır."
     },
     "options_general_mp4": {
-        "message": "Video URL'leri (.mp4) açıldığında MP4 videoları oynatmak için oynatıcıyı kullan"
+        "message": ".mp4 bağlantılarını FastStream'de aç"
+    },
+    "options_general_mp4_desc": {
+        "message": "İşaretsiz: Firefox onları kendisi oynatır."
     },
     "options_general_seekstep": {
-        "message": "Ok tuşlarıyla sarma adımı (saniye)"
+        "message": "Sarma adımı, saniye cinsinden"
+    },
+    "options_general_seekstep_desc": {
+        "message": "Bir sarma tuşuna basıldığında ne kadar atlanacağı (varsayılan: sol ve sağ oklar)."
     },
     "options_general_replace_delay": {
-        "message": "Oynatıcıyı otomatik değiştirmeden önce gecikme (ms)"
+        "message": "Oynatıcı devralmadan önce bekleme, ms cinsinden"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "FastStream bir sayfada açıkken, bulunan video oynatıcı devralmadan önce ne kadar bekler."
     },
     "options_general_maxdownloaders": {
         "message": "Aynı anda yapılacak indirme sayısı (1–6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Varsayılan video kalitesi"
+    },
+    "options_general_quality_desc": {
+        "message": "Otomatik: videonun sunduğu en yüksek. Bir yükseklik: önce o, yoksa en yakın üstü, o da yoksa altındaki en yüksek."
     },
     "options_general_clickaction": {
         "message": "Tek tıklama eylemi"
@@ -1014,16 +1035,19 @@
         "message": "Oynatıcıyı gizle"
     },
     "options_general_vischangeaction": {
-        "message": "Oynatıcı görünürlüğü değiştiğinde"
+        "message": "Oynatıcı görünmez olduğunda"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Oynatıcı görünüm dışına kaydırıldığında ya da sekmesi arka plana geçtiğinde; tam ekran veya resim içinde resim durumunda geçerli değildir."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Hiçbir şey yapma"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Oynat/Duraklat"
+        "message": "Duraklat, geri gelince oynat"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Miniplayer aç/kapa"
+        "message": "Miniplayer göster"
     },
     "options_general_minipos": {
         "message": "Miniplayer konumu"
@@ -1045,6 +1069,9 @@
     },
     "options_general_color_theme": {
         "message": "Oynatıcı renk teması"
+    },
+    "options_general_color_theme_desc": {
+        "message": "Oynatıcının kontrollerinin ve menülerinin renkleri."
     },
     "options_general_color_theme_default": {
         "message": "Varsayılan Koyu"
@@ -1349,6 +1376,9 @@
     "player_outofstorage": {
         "message": "İndirilen video için Firefox'un depolama alanı açılamadı, bu yüzden FastStream videoyu bunun yerine bellekte (RAM) tutar; uzun bir video sığmayabilir. Firefox'u yeniden başlatmak veya diskte yer açmak genellikle bu sorunu çözer."
     },
+    "player_disk_full": {
+        "message": "Disk dolu, bu yüzden FastStream bu videonun kalanını yalnızca bellekte (RAM) tutar. Video yine de oynar ve RAM'e sığdığı kadar ileriye yüklenir. Diskte yeniden boş yer olduğunda, bir sonraki video tekrar diske kaydedilir."
+    },
     "player_vpn_allow": {
         "message": "Firefox VPN üzerinden oynat"
     },
@@ -1383,7 +1413,10 @@
         "message": "sekmesi kapalı veya MPV modu etkin değil"
     },
     "options_general_autoplay_countdown": {
-        "message": "Sonraki bölüme kadar geri sayım, saniye cinsinden (0: yok)"
+        "message": "Sonraki bölüme kadar geri sayım, saniye cinsinden"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "Oynatıcıda ve MPV'de. 0: sonraki bölüm hemen başlar."
     },
     "options_mpv_autoplaynext": {
         "message": "mpv'de sonraki bölümü otomatik oynat (mpv'deki otomatik oynatma düğmesi de bunu değiştirir)"
@@ -1430,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın"
     },
-    "options_problems_title": {
-        "message": "Otomatik oynatmanın takıldığı siteler"
-    },
-    "options_problems_note": {
-        "message": "FastStream, otomatik oynatmanın devam edemediği yerleri buraya not eder, böylece siteyi bildirebilirsiniz. Bildirim, kontrol etmeniz için bir GitHub issue'su açar: issue'lar herkese açıktır, bu yüzden paylaşmak istemediklerinizi silin."
-    },
-    "options_problems_none": {
-        "message": "Şu ana kadar yok."
-    },
-    "options_problems_no_next": {
-        "message": "sonraki bölüm bulunamadı (son bölüm veya FastStream'in henüz okuyamadığı bir sayfa)"
-    },
-    "options_problems_no_stream": {
-        "message": "sonraki bölümün sayfası video getirmedi"
-    },
-    "options_problems_mode_player": {
-        "message": "oynatıcıda"
-    },
-    "options_problems_mode_mpv": {
-        "message": "MPV modunda"
-    },
-    "options_problems_seen": {
-        "message": "$1 kez, son olarak $2 tarihinde"
-    },
-    "options_problems_report": {
-        "message": "GitHub'da bildir"
-    },
-    "options_problems_clear": {
-        "message": "Listeyi temizle"
-    },
     "player_nextvideo_cancel": {
         "message": "Bu sekme için otomatik oynatmayı durdur"
     },
@@ -1476,7 +1479,10 @@
         "message": "Kalite $1 değerine düşürüldü: bu bilgisayar $3 çözünürlüğünde karelerin %$2'sini düşürdü. Bu kalitede kalmak için kalite menüsünden $3 seçin."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Bu bilgisayar tüm kareleri zamanında gösteremediğinde video kalitesini düşür (oynatıcı her seferinde sizi bilgilendirir)"
+        "message": "Kareler düştüğünde video kalitesini düşür"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "Bu bilgisayar karelerin beşte birini zamanında gösteremediğinde bir alt sürüm oynatılır. Oynatıcı her seferinde sizi bilgilendirir."
     },
     "menu_play_in_faststream": {
         "message": "FastStream ile oynat"
@@ -1518,7 +1524,7 @@
         "message": "Uzun videoları diskte tutma"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Bu izin olmadan Firefox bir eklentinin en fazla 10 GB saklamasına izin verir; bu yüzden FastStream ayarlarında sınır olmasa bile uzun bir video tamamen önceden indirilemezdi. FastStream yine de \"Önceden indirilen videonun maksimum boyutu\" ayarından fazlasını saklamaz ve oynatıcı kapandığında videoyu siler. Yeniden yükleme veya sekme kapatıldıktan sonra saklanan video, bunun için ayarlanan süre dolunca silinir. Firefox bu izin için soru sormaz."
+        "message": "Bu izin olmadan Firefox bir eklentinin en fazla 10 GB saklamasına izin verir; bu yüzden FastStream ayarlarında sınır olmasa bile uzun bir videonun tamamı yüklenemezdi. FastStream yine de \"Tam yüklenebilen en büyük video\" ayarından fazlasını saklamaz ve oynatıcı kapandığında videoyu siler. Yeniden yükleme veya sekme kapatıldıktan sonra saklanan video, bunun için ayarlanan süre dolunca silinir. Firefox bu izin için soru sormaz."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Saklanan videoları zamanında silme"

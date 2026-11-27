@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "感谢安装 FastStream！如有问题或建议，请告知我们。"
     },
-    "welcome_page_ram_header": {
-        "message": "此电脑的内存"
-    },
-    "welcome_page_ram_question": {
-        "message": "此电脑有多少内存（RAM）？FastStream 会把每个视频的一部分放在内存中，其余放在磁盘上；你的回答决定它可以使用多少内存。"
-    },
-    "welcome_page_ram_set": {
-        "message": "已设置：FastStream 最多在内存中保留 $1 的视频，其余放在磁盘上。你可以在选项的“常规选项”中更改。"
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "已设置：FastStream 最多在内存中保留 $1 的视频；装不下的部分会在需要时重新下载。如需更改，请前往选项中的“常规选项”。"
-    },
     "welcome_page_keybinds_header": {
         "message": "默认键盘控制"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "下载已暂停：按 $1 继续"
     },
-    "player_wait_speed_zero": {
-        "message": "视频正在等待数据，因为“预下载器的目标下载速度”为 0：不会预先下载任何内容。将该设置留空即可不设限制。"
-    },
     "player_wait_speed_low": {
-        "message": "视频正在等待数据，因为“预下载器的目标下载速度”（$1 Mbit/s）低于该视频所需（约 $2 Mbit/s）：预先下载的内容很少。请调高该设置，或将其留空以不设限制。"
-    },
-    "player_wait_ahead_zero": {
-        "message": "视频正在等待数据，因为“在播放位置前方保留缓冲的秒数”为 0：前方不保留任何内容。请调高该设置。"
+        "message": "视频正在等待数据，因为“下载速度限制”（$1 Mbit/s）低于该视频所需（约 $2 Mbit/s）：预先下载的内容很少。请在该设置中选择更高的限制，或选择“无限制”。"
     },
     "player_wait_ram_zero": {
         "message": "视频正在等待数据：此处不会在磁盘上保留任何内容，而“仅磁盘”在内存中只保留 64 MB。请在“已下载视频的保存位置”下选择其他模式，以便在前方保留更多。"
@@ -696,13 +678,13 @@
         "message": "(未知)"
     },
     "player_buffer_size_warning": {
-        "message": "此视频（约 $1）超过了“预下载视频的最大大小”设置（$2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。如需完整预下载，请调大此设置或将其留空。"
+        "message": "此视频（约 $1）超过了“完整加载的最大视频大小”（$2），因此不会完整加载。它仍会正常播放，并持续向前加载最多 $3。如需完整加载，请在该设置中选择更大的大小，或选择“无限制”。"
     },
     "player_buffer_private_warning": {
-        "message": "在隐私窗口中，FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。"
+        "message": "在隐私窗口中，FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2），因此不会完整加载。它仍会正常播放，并持续向前加载最多 $3。"
     },
     "player_buffer_ram_warning": {
-        "message": "“已下载视频的保存位置”为“仅内存”，因此 FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2）。它不会完整预下载，但仍会正常播放，并持续向前加载最多 $3。如需完整预下载，请在此处选择“先内存，后磁盘”。"
+        "message": "“已下载视频的保存位置”为“仅内存”，因此 FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2）。它不会完整加载，但仍会正常播放，并持续向前加载最多 $3。如需完整加载，请在该设置中选择“先内存，后磁盘”。"
     },
     "player_buffer_disk_warning": {
         "message": "此视频（约 $1）超过了 Firefox 分配给 FastStream 的磁盘空间（剩余 $2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。清理磁盘空间会有帮助。"
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "缩放视频画面，或调整视频延迟以同步声音。视频缩放在画中画模式下不起作用。"
     },
+    "options_playback_header": {
+        "message": "播放"
+    },
+    "options_storage_header": {
+        "message": "下载与存储"
+    },
+    "options_subtitles_header": {
+        "message": "字幕"
+    },
+    "options_mouse_header": {
+        "message": "鼠标与窗口"
+    },
+    "options_opening_header": {
+        "message": "打开视频"
+    },
+    "options_section_reset": {
+        "message": "重置此部分"
+    },
+    "options_changed": {
+        "message": "与默认值不同"
+    },
     "options_video_zoom": {
         "message": "视频缩放"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "视频延迟"
     },
-    "options_general_header": {
-        "message": "常规选项"
-    },
-    "options_general_predownload": {
-        "message": "若可能，后台预下载整段视频"
-    },
     "options_general_targetspeed": {
-        "message": "预下载器的目标下载速度"
+        "message": "下载速度限制"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "预加载速度快于此限制时会暂停；播放当下所需的数据始终会加载。"
     },
     "options_general_maxsize": {
-        "message": "预下载视频的最大大小（仅在预下载开启时使用）"
+        "message": "完整加载的最大视频大小"
+    },
+    "options_general_maxsize_desc": {
+        "message": "更大的视频会加载能装得下的部分；仅在选择“整个视频”时生效。"
     },
     "options_general_rambudget": {
         "message": "缓冲视频所用内存（所有标签页合计）"
     },
+    "options_storage_ram_auto": {
+        "message": "自动：$1"
+    },
+    "options_storage_ram_unused": {
+        "message": "未使用"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "仅在选择“仅内存”时可设置。"
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB 及以上仅适用于内存 16 GB 及以上的电脑。"
+    },
     "options_general_nolimit": {
         "message": "无限制"
-    },
-    "options_general_targetspeed_zero": {
-        "message": "0：播放位置前方不会下载任何内容，视频可能需要停下来等待加载。将输入框留空即为无限制。"
-    },
-    "options_general_maxsize_zero": {
-        "message": "0：不进行任何预下载；只在播放位置前方保留下方设置的缓冲秒数。将输入框留空即为无限制。"
-    },
-    "options_general_maxsize_none": {
-        "message": "无限制：以能装进内存及 Firefox 分配给 FastStream 的磁盘空间为限。"
-    },
-    "options_general_rambudget_none": {
-        "message": "无限制：下载的视频全部留在内存中。长视频占用的内存可能超过电脑的内存并让电脑卡死。"
-    },
-    "options_general_rambudget_recommended": {
-        "message": "$1 的推荐值：$2。"
-    },
-    "options_general_rambudget_unknown": {
-        "message": "请在上方选择此电脑的内存，以查看推荐数值。"
-    },
-    "options_general_rambudget_use": {
-        "message": "使用 $1"
-    },
-    "options_general_rambudget_refused": {
-        "message": "未采纳：若不想在内存中保留视频，请在上方选择“仅磁盘”；“无限制”仅适用于“仅内存”。"
-    },
-    "options_general_rambudget_high": {
-        "message": "在内存中放这么多视频可能会让电脑卡死：系统和 Firefox 需要大部分内存。较少的量播放效果相同，因为视频的其余部分会转到磁盘上，或在需要时重新下载。"
-    },
-    "options_general_ramsize": {
-        "message": "此电脑的内存（RAM）"
-    },
-    "options_general_ramsize_note": {
-        "message": "选择某个大小后，推荐的数值会填入下方的内存输入框。"
-    },
-    "options_general_ramsize_unknown": {
-        "message": "未设置"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 或更多"
     },
     "options_list_ignored_lines": {
         "message": "已忽略，不是有效的条目：第 $1 行"
     },
-    "options_general_bufferahead": {
-        "message": "在播放位置前方保留缓冲的秒数（整段视频未预下载时，0 到 3600）"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0：播放位置前方不保留任何缓冲，因此视频会经常停下来等待加载。"
-    },
     "options_general_bufferbehind": {
-        "message": "在播放位置后方、裁剪前保留缓冲的秒数"
+        "message": "保留已播放的视频"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "在这段范围内回跳立即可用；更早的部分会在需要时重新加载。"
     },
     "options_general_bufferkeep": {
-        "message": "重新加载或关闭标签页后，已下载视频的保留时长（最长到关闭 Firefox 为止）"
+        "message": "重新加载或关闭标签页后保留视频"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "避免重新加载时再次下载。最迟保留到 Firefox 关闭为止。"
+    },
+    "options_storage_stored": {
+        "message": "当前已存储：磁盘上 $1 · 内存中 $2 · 打开的视频：$3"
+    },
+    "options_storage_stored_desc": {
+        "message": "视频数据会在其标签页关闭时删除，或在上述时间之后删除。Firefox 关闭时残留的内容，会在其下次启动一分钟后删除。"
     },
     "options_general_bufferkeep_off": {
         "message": "关闭"
@@ -924,7 +906,7 @@
         "message": "已下载视频的保存位置"
     },
     "options_general_storage_ramdisk": {
-        "message": "先内存，后磁盘"
+        "message": "先内存，后磁盘（推荐）"
     },
     "options_general_storage_ramonly": {
         "message": "仅内存"
@@ -933,49 +915,85 @@
         "message": "仅磁盘"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "推荐。视频在内存中最多保留下方设置的数量；装不下的部分会转存到磁盘上，播放效果相同。隐私窗口从不向磁盘写入内容：在其中仅使用内存。"
+        "message": "所有标签页合计最多在内存中保留 $1；装不下的部分会转存到磁盘上，播放效果相同。隐私窗口从不向磁盘写入内容：在其中仅使用内存。"
     },
     "options_general_storage_ramonly_hint": {
-        "message": "不会向磁盘写入任何内容。下方内存中装不下的内容会被丢弃，并在需要时重新下载。"
+        "message": "不会向磁盘写入任何内容；超出下方限制、内存装不下的内容会在需要时重新下载。"
     },
     "options_general_storage_disk_hint": {
         "message": "适用于内存较少的电脑：视频到达时即写入磁盘，只有正在播放的部分留在内存中。不向磁盘写入任何内容的隐私窗口会在内存中保留 64 MB。"
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0：已播放的内容会立即丢弃；往回跳转时会重新加载。将输入框留空即为无限制。"
+    "options_storage_whole": {
+        "message": "整个视频"
     },
-    "options_general_bufferbehind_none": {
-        "message": "无限制：已播放的内容会全部保留，在内存（RAM）或磁盘中，取决于下方的选择。"
+    "options_storage_all": {
+        "message": "全部"
+    },
+    "options_storage_ahead": {
+        "message": "预加载"
+    },
+    "options_storage_ahead_desc": {
+        "message": "下载整个视频，任何位置都能立即播放；或只加载播放位置前方固定的时长。"
     },
     "options_general_blockpopups": {
-        "message": "屏蔽点击播放器后立即打开的弹出窗口/底层弹窗"
+        "message": "屏蔽点击播放器后立即打开的弹出窗口"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "很多网站会在你点击时打开广告标签页：FastStream 会关闭页面在点击播放器后立即打开的标签页。"
     },
     "options_general_previewenabled": {
-        "message": "在时间轴悬停时显示预览"
+        "message": "在时间轴上显示预览图"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "显示鼠标所在位置的画面；由一个额外的小型播放器为其加载视频。"
     },
     "options_general_decodingawarequality": {
-        "message": "优先选择显卡可以解码的版本（硬件解码），其次是更高的帧率和更高效的编码（如 AV1）。绝不降低所选分辨率"
+        "message": "优先选择显卡可以解码的版本"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "在所选分辨率的各版本中：优先选择此电脑显卡可以解码的版本，其次是更高的帧率和更高效的编码（如 AV1）。绝不降低分辨率。"
     },
     "options_general_storeprogress": {
-        "message": "从上次观看位置播放视频"
+        "message": "从上次观看位置继续播放"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "记住你在每个视频中上次观看到的位置（仅限此电脑）。"
     },
     "options_general_autosub": {
-        "message": "自动启用匹配到的最佳字幕轨道\n（在字幕设置中更改默认语言）"
+        "message": "自动启用最佳字幕轨道"
+    },
+    "options_general_autosub_desc": {
+        "message": "使用播放器字幕设置中设定的语言。"
     },
     "options_general_cyclesubs": {
-        "message": "字幕键依次切换各条字幕轨道，最后一条之后关闭\n（未勾选：开启和关闭字幕）"
+        "message": "字幕键依次切换各条字幕轨道"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "依次切换各条轨道，最后关闭字幕。未勾选：按键只负责开启和关闭字幕。"
     },
     "options_general_stream": {
-        "message": "在打开播放列表 URL（.m3u8/.mpd）时使用播放器播放 HLS/DASH 流"
+        "message": "在 FastStream 中打开流链接（.m3u8、.mpd）"
+    },
+    "options_general_stream_desc": {
+        "message": "直接指向流的链接会在播放器中播放，而不是下载播放列表文件。"
     },
     "options_general_mp4": {
-        "message": "在打开视频 URL（.mp4）时使用播放器播放 MP4 视频"
+        "message": "在 FastStream 中打开 .mp4 链接"
+    },
+    "options_general_mp4_desc": {
+        "message": "未勾选：由 Firefox 自行播放。"
     },
     "options_general_seekstep": {
-        "message": "方向键跳转步长（秒）"
+        "message": "跳转步长（秒）"
+    },
+    "options_general_seekstep_desc": {
+        "message": "按一次跳转键移动的距离（默认为左右方向键）。"
     },
     "options_general_replace_delay": {
-        "message": "自动替换播放器前的延迟（毫秒）"
+        "message": "播放器接管前的等待时间（毫秒）"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "当页面启用 FastStream 时，找到的视频在播放器替换网站自带播放器之前要等待多久。"
     },
     "options_general_maxdownloaders": {
         "message": "同时下载数（1 至 6）"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "默认视频清晰度"
+    },
+    "options_general_quality_desc": {
+        "message": "自动：视频提供的最高清晰度。指定高度：选该高度；若不可用，选最接近的更高一档；再不可用，选其下最高一档。"
     },
     "options_general_clickaction": {
         "message": "单击操作"
@@ -1014,16 +1035,19 @@
         "message": "隐藏播放器"
     },
     "options_general_vischangeaction": {
-        "message": "播放器可见性变化时"
+        "message": "播放器不可见时"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "滚动出视野，或其标签页处于后台时生效；全屏或画中画时不会触发。"
     },
     "options_general_vischangeaction_nothing": {
         "message": "不执行任何操作"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "切换播放/暂停"
+        "message": "暂停，返回后继续播放"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "切换迷你播放器"
+        "message": "显示迷你播放器"
     },
     "options_general_minipos": {
         "message": "迷你播放器位置"
@@ -1045,6 +1069,9 @@
     },
     "options_general_color_theme": {
         "message": "播放器颜色主题"
+    },
+    "options_general_color_theme_desc": {
+        "message": "播放器控件和菜单的颜色。"
     },
     "options_general_color_theme_default": {
         "message": "默认（暗）"
@@ -1349,6 +1376,9 @@
     "player_outofstorage": {
         "message": "Firefox 用来存放已下载视频的存储空间无法打开，因此 FastStream 改为将视频保存在内存（RAM）中，较长的视频可能会放不下。重启 Firefox 或清理磁盘空间通常可以解决此问题。"
     },
+    "player_disk_full": {
+        "message": "磁盘已满，因此 FastStream 仅将此视频的剩余部分保存在内存（RAM）中。视频仍会继续播放，并在内存装得下的范围内尽量提前加载。等磁盘重新有可用空间后，下一个视频就会重新保存在磁盘上。"
+    },
     "player_vpn_allow": {
         "message": "通过 Firefox VPN 播放"
     },
@@ -1383,7 +1413,10 @@
         "message": "标签页已关闭，或不在 MPV 模式"
     },
     "options_general_autoplay_countdown": {
-        "message": "下一集自动播放的倒计时，单位为秒 (0: 无)"
+        "message": "下一集播放前的倒计时（秒）"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "适用于播放器和 MPV。设为 0 时，下一集立即开始。"
     },
     "options_mpv_autoplaynext": {
         "message": "在 mpv 中自动播放下一集 (mpv 中的自动播放按钮也可以切换)"
@@ -1430,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "页面在一分钟内未提供流媒体；请在浏览器中打开以查看原因"
     },
-    "options_problems_title": {
-        "message": "自动播放卡住的网站"
-    },
-    "options_problems_note": {
-        "message": "FastStream 在此记录自动播放无法继续的网站，方便您反馈。反馈会为您打开一个 GitHub issue 供检查：issue 是公开的，请删除您不想分享的内容。"
-    },
-    "options_problems_none": {
-        "message": "目前没有。"
-    },
-    "options_problems_no_next": {
-        "message": "未找到下一集（最后一集，或 FastStream 尚无法读取的页面）"
-    },
-    "options_problems_no_stream": {
-        "message": "下一集页面没有视频"
-    },
-    "options_problems_mode_player": {
-        "message": "在播放器中"
-    },
-    "options_problems_mode_mpv": {
-        "message": "在 MPV 模式下"
-    },
-    "options_problems_seen": {
-        "message": "$1 次，最后一次于 $2"
-    },
-    "options_problems_report": {
-        "message": "在 GitHub 上反馈"
-    },
-    "options_problems_clear": {
-        "message": "清空列表"
-    },
     "player_nextvideo_cancel": {
         "message": "停止此标签页的自动播放"
     },
@@ -1476,7 +1479,10 @@
         "message": "质量已降低至 $1：此电脑在 $3 时丢帧 $2%。请在质量菜单中选择 $3 以保持该质量。"
     },
     "options_general_lowerondroppedframes": {
-        "message": "当此电脑无法及时显示所有帧时降低视频质量（播放器每次都会通知您）"
+        "message": "掉帧时降低清晰度"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "当此电脑无法及时显示五分之一的帧时，就会改播更低一档的版本。播放器每次都会提示你。"
     },
     "menu_play_in_faststream": {
         "message": "使用 FastStream 播放"
@@ -1518,7 +1524,7 @@
         "message": "将长视频保存在磁盘上"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "没有此权限时，Firefox 最多只允许附加组件存储 10 GB，因此即使 FastStream 的设置中没有限制，长视频也无法完整预下载。FastStream 仍然不会超过“预下载视频的最大大小”设置来保存视频，并会在播放器关闭时删除视频。重新加载或关闭标签页后保留的视频会在设定的时间结束后删除。Firefox 不会就此权限询问你。"
+        "message": "没有此权限时，Firefox 最多只允许附加组件存储 10 GB，因此即使 FastStream 的设置中没有限制，长视频也无法完整加载。FastStream 保存的视频仍不会超过其“完整加载的最大视频大小”设置，并会在播放器关闭时删除视频。重新加载或关闭标签页后保留的视频，会在设定的时间到时删除。Firefox 不会就此权限询问你。"
     },
     "perms_page_breakdown_perm14h": {
         "message": "按时删除保留的视频"

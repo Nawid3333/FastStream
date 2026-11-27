@@ -1153,6 +1153,24 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(said.filter((key) => key === 'player_outofstorage')).toHaveLength(1);
   });
 
+  it('keeps the rest of a video in RAM when the disk is full, and says so once a video', () => {
+    const client = clientWithVideo({bufferToDisk: true, ramBudget: 500 * MB});
+    const blobStore = {diskGone: true, diskFull: true};
+    client.downloadManager = {...client.downloadManager, blobStore};
+    client.updateHasDownloadSpace();
+    client.updateHasDownloadSpace();
+    expect(client.keepsNothingOnDisk()).toBe(true);
+    expect(client.hasDownloadSpace).toBe(false);
+    expect(client.state.bufferAhead).toBe(fits(500 * MB) - 20);
+    const said = () => client.interfaceController.setStatusMessage.mock.calls.map((call) => call[1]);
+    // One message: not the one for a storage that never opened, and no "not loaded whole" beside it.
+    expect(said()).toEqual(['player_disk_full']);
+
+    client.source = {...client.source};
+    client.updateHasDownloadSpace();
+    expect(said()).toEqual(['player_disk_full', 'player_disk_full']);
+  });
+
   it('keeps ahead what fits in the RAM "Disk only" keeps anyway at 0, and has no limit with an empty field', () => {
     // Nothing ahead at all, the video waited for each part.
     const none = clientWithVideo({bufferToDisk: false, ramBudget: 0});
@@ -1265,12 +1283,6 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
         StringUtils.formatSize(5 * GB), StringUtils.formatDuration(client.state.bufferAhead)]);
       expect(client.interfaceController.setStatusMessage)
           .toHaveBeenCalledWith(expect.anything(), 'player_buffer_size_warning', 'info', 12000);
-    });
-
-    it('says nothing for a maximum size of 0: nothing predownloaded is what was asked', () => {
-      const client = movie({maxVideoSize: 0}, 900 * GB);
-      expect(client.hasDownloadSpace).toBe(false);
-      expect(said(client)).toEqual([]);
     });
 
     it('says nothing when nothing is kept ahead: a RAM limit too small for a second of it', () => {
@@ -1428,12 +1440,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     return client;
   }
 
-  it('predownloads nothing with a maximum size of 0, and all of it with no limit', () => {
-    const none = clientWithVideo({downloadAll: true, maxVideoSize: 0});
-    none.updateHasDownloadSpace();
-    expect(none.hasDownloadSpace).toBe(false);
-    expect(none.shouldDownloadAll()).toBeFalsy();
-
+  it('predownloads all of it with no limit', () => {
     const unlimited = clientWithVideo({downloadAll: true, maxVideoSize: -1});
     unlimited.updateHasDownloadSpace();
     expect(unlimited.hasDownloadSpace).toBe(true);

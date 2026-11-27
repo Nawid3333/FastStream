@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "Terima kasih telah memasang FastStream! Beri tahu kami jika Anda mengalami masalah atau punya saran."
     },
-    "welcome_page_ram_header": {
-        "message": "Memori komputer ini"
-    },
-    "welcome_page_ram_question": {
-        "message": "Berapa banyak memori (RAM) yang dimiliki komputer ini? FastStream menyimpan sebagian setiap video di RAM dan sisanya di disk; jawaban Anda menentukan berapa banyak RAM yang boleh dipakainya."
-    },
-    "welcome_page_ram_set": {
-        "message": "Sudah diatur: FastStream menyimpan hingga $1 video di RAM, sisanya di disk. Anda dapat mengubahnya di opsi, pada \"Opsi Umum\"."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Ditetapkan: FastStream menyimpan hingga $1 video di RAM; yang tidak muat diunduh lagi bila dibutuhkan. Anda dapat mengubahnya di opsi, di bagian \"Opsi Umum\"."
-    },
     "welcome_page_keybinds_header": {
         "message": "Kontrol Keyboard Bawaan"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "Unduhan dijeda: tekan $1 untuk melanjutkan"
     },
-    "player_wait_speed_zero": {
-        "message": "Video menunggu data karena \"Kecepatan unduh target predownloader\" bernilai 0: tidak ada yang diunduh lebih dulu. Kosongkan pengaturan itu agar tanpa batas."
-    },
     "player_wait_speed_low": {
-        "message": "Video menunggu data karena \"Kecepatan unduh target predownloader\" ($1 Mbit/s) di bawah kebutuhan video ini (sekitar $2 Mbit/s): hanya sedikit yang diunduh lebih dulu. Naikkan pengaturan itu, atau kosongkan agar tanpa batas."
-    },
-    "player_wait_ahead_zero": {
-        "message": "Video menunggu data karena \"Detik yang tetap dibuffer di depan pemutaran\" bernilai 0: tidak ada yang disimpan lebih dulu. Naikkan pengaturan itu."
+        "message": "Video menunggu data karena \"Batas kecepatan unduh\" ($1 Mbit/s) di bawah kebutuhan video ini (sekitar $2 Mbit/s): hanya sedikit yang diunduh lebih dulu. Pilih batas yang lebih tinggi di sana, atau \"Tidak ada batasan\"."
     },
     "player_wait_ram_zero": {
         "message": "Video menunggu data: tidak ada yang disimpan di disk di sini, dan \"Hanya disk\" hanya menyimpan 64 MB di RAM. Pilih mode lain di \"Tempat menyimpan video yang diunduh\" agar lebih banyak yang disimpan lebih dulu."
@@ -696,13 +678,13 @@
         "message": "(tidak diketahui)"
     },
     "player_buffer_size_warning": {
-        "message": "Video ini (sekitar $1) lebih besar dari pengaturan \"Ukuran maksimum video yang dipraunduh\" ($2), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk mempraunduh seluruhnya, naikkan pengaturan itu atau biarkan kolomnya kosong."
+        "message": "Video ini (sekitar $1) lebih besar dari pengaturan \"Video terbesar yang dimuat seluruhnya\" ($2), jadi tidak dimuat seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk memuatnya seluruhnya, pilih ukuran yang lebih besar di sana, atau \"Tidak ada batasan\"."
     },
     "player_buffer_private_warning": {
-        "message": "Di jendela pribadi, FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan."
+        "message": "Di jendela pribadi, FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2), jadi tidak dimuat seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Tempat menyimpan video yang diunduh\" disetel ke \"Hanya RAM\", jadi FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2). Video tidak dipraunduh seluruhnya, tetapi tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk mempraunduh seluruhnya, pilih \"RAM lalu disk\" di pengaturan itu."
+        "message": "\"Tempat menyimpan video yang diunduh\" disetel ke \"Hanya RAM\", jadi FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2). Video tidak dimuat seluruhnya, tetapi tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk memuatnya seluruhnya, pilih \"RAM lalu disk\" di pengaturan itu."
     },
     "player_buffer_disk_warning": {
         "message": "Video ini (sekitar $1) lebih besar dari ruang disk yang diberikan Firefox kepada FastStream ($2 kosong), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan. Mengosongkan ruang disk akan membantu."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Perbesar gambar atau atur penundaan video terhadap suara. Perbesaran video tidak berfungsi di picture-in-picture."
     },
+    "options_playback_header": {
+        "message": "Pemutaran"
+    },
+    "options_storage_header": {
+        "message": "Unduhan dan Penyimpanan"
+    },
+    "options_subtitles_header": {
+        "message": "Subtitle"
+    },
+    "options_mouse_header": {
+        "message": "Mouse dan Jendela"
+    },
+    "options_opening_header": {
+        "message": "Membuka Video"
+    },
+    "options_section_reset": {
+        "message": "Setel ulang bagian ini"
+    },
+    "options_changed": {
+        "message": "Diubah dari nilai bawaan"
+    },
     "options_video_zoom": {
         "message": "Perbesaran Video"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Penundaan Video"
     },
-    "options_general_header": {
-        "message": "Opsi Umum"
-    },
-    "options_general_predownload": {
-        "message": "Unduh seluruh video di latar belakang jika memungkinkan"
-    },
     "options_general_targetspeed": {
-        "message": "Kecepatan unduh target predownloader"
+        "message": "Batas kecepatan unduh"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Pemuatan ke depan dijeda selama kecepatannya lebih tinggi dari batas ini; yang dibutuhkan pemutaran saat itu selalu dimuat."
     },
     "options_general_maxsize": {
-        "message": "Ukuran maksimum video yang dipraunduh (hanya digunakan saat predownload aktif)"
+        "message": "Video terbesar yang dimuat seluruhnya"
+    },
+    "options_general_maxsize_desc": {
+        "message": "Video yang lebih besar dimuat sebanyak yang muat. Hanya dengan \"Seluruh video\"."
     },
     "options_general_rambudget": {
         "message": "RAM untuk video yang di-buffer (semua tab)"
     },
+    "options_storage_ram_auto": {
+        "message": "Otomatis: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Tidak digunakan"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Hanya bisa disetel dengan \"Hanya RAM\"."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB atau lebih hanya pada komputer dengan memori 16 GB atau lebih."
+    },
     "options_general_nolimit": {
         "message": "Tidak ada batasan"
-    },
-    "options_general_targetspeed_zero": {
-        "message": "0: tidak ada yang diunduh di depan pemutaran, jadi video mungkin berhenti untuk memuat. Biarkan kolom kosong agar tidak ada batasan."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: tidak ada yang dipraunduh; hanya detik yang diatur di bawah yang disimpan di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
-    },
-    "options_general_maxsize_none": {
-        "message": "Tanpa batas: sebanyak yang muat di RAM dan di ruang yang Firefox berikan untuk FastStream di disk."
-    },
-    "options_general_rambudget_none": {
-        "message": "Tanpa batas: semua video yang diunduh tetap di RAM. Video panjang dapat memakai lebih banyak memori daripada yang dimiliki komputer dan membuatnya macet."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "Direkomendasikan untuk $1: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Pilih memori komputer ini di atas untuk melihat jumlah yang disarankan."
-    },
-    "options_general_rambudget_use": {
-        "message": "Gunakan $1"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Tidak diterima: agar tidak ada video di RAM, pilih \"Hanya disk\" di atas; \"Tidak ada batasan\" hanya berlaku untuk \"Hanya RAM\"."
-    },
-    "options_general_rambudget_high": {
-        "message": "Video sebanyak ini di RAM dapat membuat komputer macet: sistem dan Firefox membutuhkan sebagian besar memorinya. Jumlah yang lebih kecil diputar sama saja, karena sisa video pindah ke disk atau diunduh lagi bila dibutuhkan."
-    },
-    "options_general_ramsize": {
-        "message": "Memori komputer ini (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Memilih ukuran akan memasukkan jumlah yang disarankan ke kolom RAM di bawah."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Belum diatur"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 atau lebih"
     },
     "options_list_ignored_lines": {
         "message": "Dilewati, bukan entri yang valid: baris $1"
     },
-    "options_general_bufferahead": {
-        "message": "Detik yang tetap dibuffer di depan pemutaran saat video tidak dipraunduh seluruhnya (0 hingga 3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: tidak ada yang tetap dibuffer di depan pemutaran, jadi video sering berhenti untuk memuat."
-    },
     "options_general_bufferbehind": {
-        "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"
+        "message": "Simpan video yang sudah diputar"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "Melompat balik di dalam rentang itu instan; bagian yang lebih lama dimuat ulang bila diperlukan."
     },
     "options_general_bufferkeep": {
-        "message": "Berapa lama video yang sudah diunduh disimpan setelah muat ulang atau tab ditutup (paling lama sampai Firefox ditutup)"
+        "message": "Simpan video setelah muat ulang atau tab ditutup"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "Agar muat ulang tidak mengunduhnya lagi. Paling lama sampai Firefox ditutup."
+    },
+    "options_storage_stored": {
+        "message": "Tersimpan saat ini: $1 di disk · $2 di RAM · video yang terbuka: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "Data suatu video dihapus saat tabnya ditutup, atau setelah waktu di atas. Apa yang tertinggal ketika Firefox ditutup dihapus satu menit setelah Firefox dijalankan lagi."
     },
     "options_general_bufferkeep_off": {
         "message": "Mati"
@@ -924,7 +906,7 @@
         "message": "Tempat menyimpan video yang diunduh"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM lalu disk"
+        "message": "RAM lalu disk (disarankan)"
     },
     "options_general_storage_ramonly": {
         "message": "Hanya RAM"
@@ -933,49 +915,85 @@
         "message": "Hanya disk"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Disarankan. Video tetap di RAM hingga jumlah di bawah; yang tidak muat pindah ke disk dan tetap diputar sama saja. Jendela privat tidak pernah menulis ke disk: di sana video hanya disimpan di RAM."
+        "message": "Video tetap di RAM hingga $1, digabung untuk semua tab; sisanya pindah ke disk dan tetap diputar sama saja. Jendela privat tidak pernah menulis ke disk: di sana berlaku \"Hanya RAM\"."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Tidak ada yang ditulis ke disk. Yang tidak muat di RAM di bawah akan dibuang dan diunduh lagi bila dibutuhkan."
+        "message": "Tidak ada yang ditulis ke disk; yang tidak muat dalam batas di bawah akan diunduh lagi bila dibutuhkan."
     },
     "options_general_storage_disk_hint": {
         "message": "Untuk komputer dengan memori sedikit: video langsung ke disk saat datang, dan hanya bagian yang sedang diputar tetap di RAM. Jendela privat, yang tidak menulis apa pun ke disk, menyimpan 64 MB di RAM."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: video yang sudah diputar langsung dibuang; mundur ke bagian sebelumnya akan memuatnya lagi. Biarkan kolom kosong untuk tanpa batas."
+    "options_storage_whole": {
+        "message": "Seluruh video"
     },
-    "options_general_bufferbehind_none": {
-        "message": "Tanpa batas: semua yang sudah diputar tetap disimpan, di RAM atau di disk sesuai yang dipilih di bawah."
+    "options_storage_all": {
+        "message": "Semua"
+    },
+    "options_storage_ahead": {
+        "message": "Muat ke depan"
+    },
+    "options_storage_ahead_desc": {
+        "message": "Seluruh video, sehingga setiap bagian bisa langsung diputar; atau waktu tetap di depan posisi pemutaran."
     },
     "options_general_blockpopups": {
-        "message": "Blokir popup/popunder yang dibuka tepat setelah mengklik pemutar"
+        "message": "Blokir popup yang dibuka tepat setelah mengklik pemutar"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Banyak situs membuka tab iklan saat diklik: FastStream menutup tab yang dibuka halaman tepat setelah mengklik pemutar."
     },
     "options_general_previewenabled": {
-        "message": "Tampilkan pratinjau saat mengarahkan kursor di atas garis waktu"
+        "message": "Tampilkan pratinjau di garis waktu"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Menampilkan gambar di bawah kursor; pemutar kecil kedua memuat videonya."
     },
     "options_general_decodingawarequality": {
-        "message": "Utamakan versi yang dapat didekode oleh kartu grafis (dekode perangkat keras), lalu frame rate lebih tinggi dan codec lebih efisien seperti AV1. Tidak pernah menurunkan resolusi yang dipilih"
+        "message": "Utamakan versi yang dapat didekode oleh kartu grafis"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Di antara versi dengan resolusi yang dipilih: utamakan yang dapat didekode kartu grafis komputer ini, lalu frame rate lebih tinggi dan codec yang lebih efisien seperti AV1. Tidak pernah menurunkan resolusi."
     },
     "options_general_storeprogress": {
-        "message": "Putar video dari posisi terakhir yang ditonton"
+        "message": "Lanjutkan dari posisi terakhir yang ditonton"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Mengingat di mana Anda berhenti di setiap video, di komputer ini."
     },
     "options_general_autosub": {
-        "message": "Secara otomatis aktifkan trek subtitle terbaik yang ditemukan\n(Ubah bahasa default di pengaturan subtitle)"
+        "message": "Aktifkan trek subtitle terbaik"
+    },
+    "options_general_autosub_desc": {
+        "message": "Dalam bahasa yang disetel di pengaturan subtitle pemutar."
     },
     "options_general_cyclesubs": {
-        "message": "Tombol subtitle berpindah ke tiap trek satu per satu, lalu mematikan subtitle\n(Tidak dicentang: menyalakan dan mematikan subtitle)"
+        "message": "Tombol subtitle berpindah ke tiap trek satu per satu"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "Satu trek demi satu trek, lalu mati. Tidak dicentang: tombol menyalakan dan mematikan subtitle."
     },
     "options_general_stream": {
-        "message": "Gunakan pemutar untuk memutar stream HLS/DASH saat membuka URL daftar putar (.m3u8/.mpd)"
+        "message": "Buka tautan stream (.m3u8, .mpd) di FastStream"
+    },
+    "options_general_stream_desc": {
+        "message": "Tautan yang langsung menuju stream diputar di pemutar, bukan mengunduh berkas daftar putarnya."
     },
     "options_general_mp4": {
-        "message": "Gunakan pemutar untuk memutar video MP4 saat membuka URL video (.mp4)"
+        "message": "Buka tautan .mp4 di FastStream"
+    },
+    "options_general_mp4_desc": {
+        "message": "Tidak dicentang: Firefox memutarnya sendiri."
     },
     "options_general_seekstep": {
-        "message": "Langkah lompat tombol panah (detik)"
+        "message": "Langkah lompat, dalam detik"
+    },
+    "options_general_seekstep_desc": {
+        "message": "Seberapa jauh sekali tekan tombol lompat melompat (bawaannya tombol panah kiri dan kanan)."
     },
     "options_general_replace_delay": {
-        "message": "Penundaan sebelum mengganti pemutar secara otomatis (ms)"
+        "message": "Penundaan sebelum pemutar mengambil alih, dalam ms"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "Saat FastStream aktif untuk sebuah halaman, berapa lama video yang ditemukan menunggu sebelum pemutar menggantikan pemutar milik situs."
     },
     "options_general_maxdownloaders": {
         "message": "Jumlah unduhan bersamaan (1 sampai 6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Kualitas video default"
+    },
+    "options_general_quality_desc": {
+        "message": "Otomatis: kualitas tertinggi yang ditawarkan video. Suatu tinggi: tinggi itu, atau yang terdekat di atasnya, atau yang tertinggi di bawahnya."
     },
     "options_general_clickaction": {
         "message": "Aksi klik tunggal"
@@ -1014,16 +1035,19 @@
         "message": "Sembunyikan pemutar"
     },
     "options_general_vischangeaction": {
-        "message": "Saat visibilitas pemutar berubah"
+        "message": "Saat pemutar tidak terlihat"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Tergulir keluar dari pandangan, atau tabnya berada di latar belakang; tidak berlaku saat layar penuh atau picture-in-picture."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Tidak melakukan apa-apa"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Beralih putar/jeda"
+        "message": "Jeda, putar lagi saat kembali"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Beralih mini pemutar"
+        "message": "Tampilkan mini pemutar"
     },
     "options_general_minipos": {
         "message": "Posisi mini pemutar"
@@ -1045,6 +1069,9 @@
     },
     "options_general_color_theme": {
         "message": "Tema warna pemutar"
+    },
+    "options_general_color_theme_desc": {
+        "message": "Warna kontrol dan menu pemutar."
     },
     "options_general_color_theme_default": {
         "message": "Gelap Bawaan"
@@ -1349,6 +1376,9 @@
     "player_outofstorage": {
         "message": "Penyimpanan Firefox untuk video yang diunduh tidak dapat dibuka, jadi FastStream menyimpan video di memori (RAM) sebagai gantinya, dan video yang panjang mungkin tidak muat. Memulai ulang Firefox, atau membebaskan ruang disk, biasanya memperbaikinya."
     },
+    "player_disk_full": {
+        "message": "Disk penuh, jadi FastStream menyimpan sisa video ini hanya di memori (RAM). Video tetap diputar, dan dimuat lebih awal sebanyak yang muat di RAM. Begitu ada lagi ruang kosong di disk, video berikutnya kembali disimpan di disk."
+    },
     "player_vpn_allow": {
         "message": "Putar melalui Firefox VPN"
     },
@@ -1383,7 +1413,10 @@
         "message": "tab ditutup atau tidak dalam Mode MPV"
     },
     "options_general_autoplay_countdown": {
-        "message": "Hitung mundur sebelum episode berikutnya, dalam detik (0: tidak ada)"
+        "message": "Hitung mundur sebelum episode berikutnya, dalam detik"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "Di pemutar dan di MPV. 0: episode berikutnya langsung dimulai."
     },
     "options_mpv_autoplaynext": {
         "message": "Putar otomatis episode berikutnya di mpv (tombol putar otomatis di mpv juga mengubahnya)"
@@ -1430,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "halaman tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya"
     },
-    "options_problems_title": {
-        "message": "Situs tempat autoplay terhambat"
-    },
-    "options_problems_note": {
-        "message": "FastStream mencatat di sini di mana autoplay tidak bisa lanjut, agar Anda bisa melaporkan situs tersebut. Laporan akan membuka issue GitHub untuk diperiksa: issue bersifat publik, jadi hapus bagian yang tidak ingin Anda bagikan."
-    },
-    "options_problems_none": {
-        "message": "Belum ada."
-    },
-    "options_problems_no_next": {
-        "message": "episode berikutnya tidak ditemukan (episode terakhir, atau halaman yang belum bisa dibaca FastStream)"
-    },
-    "options_problems_no_stream": {
-        "message": "halaman episode berikutnya tidak memuat video"
-    },
-    "options_problems_mode_player": {
-        "message": "di pemutar"
-    },
-    "options_problems_mode_mpv": {
-        "message": "dalam mode MPV"
-    },
-    "options_problems_seen": {
-        "message": "$1 kali, terakhir pada $2"
-    },
-    "options_problems_report": {
-        "message": "Laporkan di GitHub"
-    },
-    "options_problems_clear": {
-        "message": "Hapus daftar"
-    },
     "player_nextvideo_cancel": {
         "message": "Hentikan autoplay untuk tab ini"
     },
@@ -1476,7 +1479,10 @@
         "message": "Kualitas diturunkan ke $1: komputer ini menjatuhkan $2% frame pada $3. Pilih $3 di menu kualitas untuk mempertahankannya."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Turunkan kualitas video ketika komputer ini tidak dapat menampilkan semua frame tepat waktu (pemutar akan memberi tahu Anda setiap saat)"
+        "message": "Turunkan kualitas ketika frame terlewat"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "Bila komputer ini tidak dapat menampilkan seperlima frame tepat waktu, versi di bawahnya yang diputar. Pemutar memberi tahu setiap kali hal itu terjadi."
     },
     "menu_play_in_faststream": {
         "message": "Putar di FastStream"
@@ -1518,7 +1524,7 @@
         "message": "Menyimpan video panjang di disk"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Tanpa izin ini, Firefox hanya membolehkan pengaya menyimpan paling banyak 10 GB, sehingga video panjang tidak dapat dipraunduh seluruhnya meskipun tanpa batas di pengaturan FastStream. FastStream tetap tidak menyimpan lebih dari pengaturan \"Ukuran maksimum video yang dipraunduh\" dan menghapus video saat pemutar ditutup. Video yang disimpan setelah muat ulang atau tab ditutup dihapus begitu waktu yang ditetapkan habis. Firefox tidak menanyakan izin ini."
+        "message": "Tanpa izin ini, Firefox hanya membolehkan pengaya menyimpan paling banyak 10 GB, sehingga video panjang tidak dapat dimuat seluruhnya meskipun tanpa batas di pengaturan FastStream. FastStream tetap tidak menyimpan lebih dari pengaturan \"Video terbesar yang dimuat seluruhnya\" dan menghapus video saat pemutar ditutup. Video yang disimpan setelah muat ulang atau tab ditutup dihapus begitu waktu yang ditetapkan habis. Firefox tidak menanyakan izin ini."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Menghapus video yang disimpan tepat waktu"

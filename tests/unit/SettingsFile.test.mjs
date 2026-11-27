@@ -44,11 +44,9 @@ describe('importedForMigration', () => {
 
 describe('holdImportedNumbers', () => {
   it('keeps what the fields can save, and puts the default in for anything else', () => {
-    const options = {...DefaultOptions, ramBudget: -5e9, bufferAhead: Infinity, bufferBehind: 12.7, maxSpeed: -1,
-      maxVideoSize: NaN, videoZoom: 1e9, videoDelay: -Infinity};
+    const options = {...DefaultOptions, videoZoom: 1e9, videoDelay: -Infinity};
     holdImportedNumbers(options);
-    expect(options).toMatchObject({ramBudget: DefaultOptions.ramBudget, bufferAhead: DefaultOptions.bufferAhead,
-      bufferBehind: 12, maxSpeed: -1, maxVideoSize: DefaultOptions.maxVideoSize, videoZoom: 2, videoDelay: 0});
+    expect(options).toMatchObject({videoZoom: 2, videoDelay: 0});
   });
 
   it('keeps a buffer only for one of the settings steps, an hour at most', () => {
@@ -60,9 +58,9 @@ describe('holdImportedNumbers', () => {
   });
 
   it('leaves a sound file as it is', () => {
-    const options = {...DefaultOptions, ramBudget: 0, bufferAhead: -1, videoZoom: 0.5, videoDelay: -250};
+    const options = {...DefaultOptions, videoZoom: 0.5, videoDelay: -250};
     holdImportedNumbers(options);
-    expect(options).toMatchObject({ramBudget: 0, bufferAhead: -1, videoZoom: 0.5, videoDelay: -250});
+    expect(options).toMatchObject({videoZoom: 0.5, videoDelay: -250});
   });
 });
 

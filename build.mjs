@@ -162,7 +162,6 @@ async function buildWeb() {
     'perms.html',
     'perms.mjs',
     'welcome.html',
-    'welcome.mjs',
     'icon2_128.png',
     'icon3_128.png',
     'icon16.png',

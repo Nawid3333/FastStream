@@ -285,6 +285,17 @@ export class FakeElement {
     return this.querySelectorAll(selector)[0] || null;
   }
 
+  /**
+   * @param {string} selector
+   * @return {?FakeElement} This element or the nearest one above it that matches.
+   */
+  closest(selector) {
+    for (let node = this; node instanceof FakeElement; node = node.parentNode) {
+      if (node.matches(selector)) return node;
+    }
+    return null;
+  }
+
   get nextElementSibling() {
     const siblings = this.parentNode?.children || [];
     return siblings[siblings.indexOf(this) + 1] || null;

@@ -293,9 +293,9 @@ copy of it stayed in RAM as well, because Firefox keeps a private `Response.blob
 0.24 ms from RAM, 1.5 ms from OPFS and 5.6 ms from the Cache API (same measurement, 40 reads
 each): reads are not the bottleneck at one piece per 4 s of video; the writes were.
 
-- **The budget.** A setting (Options > General, "RAM for buffered video", 16 locales), 1 GB by
-  default (2 GB until 2026-11-22, "Where downloaded video is kept" below), for all FastStream
-  players together; an empty field is no limit, 0 is none (below):
+- **The budget.** `ramBudget`, 1 GB by default (2 GB until 2026-11-22, "Where downloaded video is
+  kept" below), for all FastStream players together: automatic with the disk on, picked only with
+  "RAM only" (512 MB to 4 GB), 0 for Disk only ("The options page, rebuilt" below).
   Firefox tells an extension
   nothing of the computer's RAM (no `navigator.deviceMemory`). Players announce their RAM over
   `PlayerPeers`; a player's share (`MemoryBudget.shareOf`) is its weight's part of the budget
@@ -305,8 +305,9 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   not resident memory; MSE SourceBuffers (Firefox caps them at 150 MiB video / 20 MiB audio each,
   and the players keep only 20-40 s there) are not counted.
 - **Too much for the computer** (issue #798, 2026-11-21: an 8 GB laptop froze with the budget at
-  20 GB, and nothing on the page said that was too much). With no RAM size to read, the user is
-  asked: once on the welcome page, and in Options > General right before the budget ("This
+  20 GB, and nothing on the page said that was too much). Since 2026-11-27 nothing can be picked
+  above 4 GB, and the question below is gone (the owner: "no RAM question"). Until then, with no
+  RAM size to read, the user was asked: once on the welcome page, and in Options > General right before the budget ("This
   computer's memory", `computerMemory` in GB, 0 when not given). An answer sets the budget to an
   eighth of it, at most 4 GB (`StorageMode.recommendedRamBudget`: 4 GB -> 500 MB, 8 -> 1 GB,
   16 -> 2 GB, 32 or more -> 4 GB); where the rest goes is the storage mode's (it turned "Keep
@@ -419,7 +420,7 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   (`player_buffer_disk_warning`, now only a nearly full disk; its figure is what the video may fill,
   the RAM share and 60 % of the quota, not the whole quota). With no disk backend
   `player_outofstorage` has said it already. Nothing either when nothing is kept ahead (a RAM share
-  of 0): "plays normally" would not hold, and the options page warns about that 0. Before, one message, "does not fit in the predownload
+  of 0): "plays normally" would not hold. Before, one message, "does not fit in the predownload
   limits (size, disk space or RAM)", was read as an error and became an issue.
 - **The Cache API backend** (a normal window without OPFS, the save converters) checks what it
   stored without reading it back (`match()`, body cancelled) and reads it when asked
@@ -453,8 +454,8 @@ were logged at the budget-0 check, with about 52 from the test before).
 with a 2 MB budget 64 fragments went to disk, 2.9 MB stayed, and the start played again from
 disk; the same with "Keep video on disk" off: let go, no file, played again);
 `FastStreamClient.test.mjs` "the RAM budget with nothing on disk" (2 GB, 8 GB, 500 MB, 100 MB,
-0, empty, a private window); `options-fields.e2e.mjs` (the storage modes, the amounts each refuses, the recommended amount);
-`StorageMode.test.mjs` (the modes, the migration); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
+0, empty, a private window); `options-fields.e2e.mjs` (the pickers, the storage modes, the changed marker and reset);
+`StorageMode.test.mjs`, `SettingSteps.test.mjs` (the modes, the steps, the migration); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
 `MemoryBudget.test.mjs`; `opfsStorage.test.mjs` (deferred saves, spill, `memoryOnly`, an old
 write racing a new save); `DownloadEntry.test.mjs`, `DownloadManager.test.mjs` (lost data).
 
@@ -468,19 +469,20 @@ RAM), and 0 with the disk off (nothing kept ahead, the video waiting for each pa
 - **"Where to keep downloaded video"** (Options > General): RAM, then disk / RAM only / Disk only,
   with a line under it saying what the chosen one does. No option of its own: `StorageMode.mjs`
   reads it from `ramBudget` and `bufferToDisk` (`storageModeOf`) and sets the two for a mode
-  (`optionsForStorageMode`): Disk only is 0, and leaving it, or no limit for RAM, then disk, takes
-  the recommended amount. The memory and RAM rows hide in Disk only. Cloud copies, files and older
-  builds read the same two keys.
+  (`optionsForStorageMode`): Disk only is 0, RAM, then disk the automatic amount, RAM only its
+  picked limit (the automatic amount when it held none). Cloud copies, files and older builds read
+  the same two keys.
 - **The contradicting pairs, saved before**, are read as what they did (`migrateStorage`, on every
   load in `Utils.getOptionsFromStorage` and on an import): no limit with the disk on is RAM only
   with no limit; 0 with the disk off is RAM only with the recommended amount (it did not work).
-- **The RAM field takes what its mode uses.** 0 (Disk only's) and an empty field (no limit, RAM
+  Since 2026-11-27 both end on a step, once ("The options page, rebuilt").
+- **Until 2026-11-27, the RAM field took what its mode used.** 0 (Disk only's) and an empty field (no limit, RAM
   only's) are refused in the other modes, on leaving the field: it shows its amount again and says
   why (`options_general_rambudget_refused`); the 400 ms save while typing takes neither. Under it,
   the recommended amount for the memory given (`options_general_rambudget_recommended`), the
   warning when the amount can freeze the computer, and a button that puts the recommended amount
   in. Picking the memory sets the amount only: where the rest goes stays the user's mode.
-- **"Seconds to keep buffered ahead" takes a number, 0 to 3600.** Empty was no limit and downloaded
+- **Until 2026-11-27, "Seconds to keep buffered ahead" took a number, 0 to 3600.** Empty was no limit and downloaded
   the whole video with predownload off, which made the predownload checkbox mean nothing. Empty is
   its default (300) now; a saved no limit is read as predownload on with no maximum size, which
   downloads the same.
@@ -522,6 +524,92 @@ virtual disk wrote 65-85 MB/s, still five times a 100 Mbit/s line.
 - So the default (no memory given) is 1 GB, not 2 GB: half a 4 GB laptop's memory bought nothing
   but fewer writes. The recommended amount for a memory given stays an eighth, at most 4 GB: a
   typical episode stays whole in RAM (no writes) on 8 GB and more.
+
+## The options page, rebuilt (2026-11-27)
+
+The owner: the General section had grown one row per finding, badly explained, some rows
+redundant, others conflicting; design it once so it is not reworked again. Upstream added each row
+for one issue (#1 a 6 GB PC out of memory, #194 a maximum size "just to be safe", #202, #208) and
+ordered them "by importance", never grouped; a request for tabs (#426) got the search box instead.
+What was taken from other settings pages (Microsoft's app-settings guidelines, Firefox's own, mpv,
+uBlock Origin): smart defaults; a dependent setting greyed with its reason, not hidden; five or fewer
+exclusive choices as radio buttons with a line each; plain units instead of raw numbers; an
+explicit "No limit" instead of 0 or an empty field; a marker on what differs from the default.
+
+- **Sections.** General became Video (with the colour theme), Playback, Download and storage,
+  Subtitles, Mouse and window, and Opening videos; the seek step went to Keyboard, the takeover
+  delay to Auto-enable URLs. Every row has a line saying what it does (`*_desc`). A row's
+  `data-keys` names its options: a dot after the label marks one that differs from the default
+  (`options_changed`), and "Reset this section" (shown only then) puts the section's keys back.
+- **Pickers, not numbers.** `SettingSteps.mjs`: Load ahead (30 s to 1 h, or Whole video, which is
+  `downloadAll`), Largest video loaded whole (1-20 GB or No limit, greyed unless Whole video),
+  Keep video already played (20 s to 30 min, or All), Download speed limit (No limit, 2-100
+  Mbit/s), RAM only's limit (512 MB to 4 GB). Each of 0 ahead, 0 speed and a 0 maximum size had
+  stopped the video or meant "predownload off" a second way; none can be set now.
+  `migrateStorage` moves a saved value to its nearest step (by ratio; no limit to No limit where
+  there is one, else the largest), also on an import and from a cloud copy. Once (`storageVersion`):
+  run on every load, it also turned the small RAM budgets the e2e specs save with the disk on
+  (`many-tabs`, `reload-keeps-buffer`: 60 MB, 2 MB) into 1 GB, and nothing reached the disk.
+  An import runs it always, whatever version the file names: a file comes from outside, and a
+  hand-edited one could bring back "0 ahead". It also does what `holdImportedNumbers` did for these
+  five values.
+- **No RAM question.** `computerMemory` (options and welcome page) and `RamGuard` are gone: with
+  the disk on, more RAM only saves SSD writes (the bench above), so the amount is automatic
+  (`AutomaticRamBudget`, 1 GB) and an amount set before becomes it. Only RAM only, where RAM is all
+  there is, asks; without "no limit", since a long video could then fill the memory.
+- **Stored now** (#853): `StoredNow.mjs` sums the files of FastStream's OPFS session directories
+  (`fsblob/*`) and the RAM the players announce on `PlayerPeers`' channel, every 5 s while the
+  section is on screen. Read-only: a player's directory goes when its tab closes, and a closed
+  Firefox's leftovers a minute after its next start; a delete button was not wanted.
+- **The autoplay problem list is gone** (`ProblemLog`, "Sites where autoplay got stuck" and its
+  GitHub report): used twice, both times by the owner. `forgetRemovedSettings` removes its
+  `siteProblems` key on the update.
+
+## A full disk (2026-11-27)
+
+Firefox's quota is no measure of free space: persisted, it is half the drive whatever is on it, so a nearly full
+drive looks roomy. When the drive is full, OPFS writes fail with `UnknownError` ("Unknown failure"), the first ones
+part-way (`opfs-worker`: "wrote 31049 of 334640 bytes"); not with `QuotaExceededError`.
+
+**Measured** in WSL (Ubuntu 26.04, Firefox 160.0.1, headless): the profile on a 3 GB tmpfs, the page persisted
+(quota 1.61 GB), the tmpfs then filled to 50 MB free; a 30-minute HLS stream (1,000 segments, ~475 MB) loaded whole with a
+64 MB RAM budget and the disk on, played for two minutes, with a seek back to the start after 72 s.
+
+| Two minutes | Before: each write tried | After: RAM only after the first failure |
+|---|---|---|
+| Failed writes | 23,162 | 1 |
+| Segments downloaded again | 22,523 | 91 (mostly the seek back) |
+| RAM held, at most | 217 MB (3.4 x the budget) | 48 MB |
+| Message | none | one, 2.3 s after the disk filled |
+| Playback waits / seek back | none / 4.1 s | none / 4.0 s |
+
+Before, a fragment whose write failed was let go of as one that could not be stored, downloaded again, and failed again:
+the "downloaded" figure climbed to 82 % and fell back to 23 % every three seconds, for good, without a word. On a real
+line that is the whole connection, for the whole video.
+
+**Repeated**, before and after taking turns: three runs each from an unlimited local server, two each over a shared
+40 Mbit/s line (median, range in brackets; "sent" is what the server sent in the two minutes):
+
+| Two minutes | Unlimited, before | Unlimited, after | 40 Mbit/s, before | 40 Mbit/s, after |
+|---|---|---|---|---|
+| Segments downloaded again | 22,458 (12,072-23,051) | 91 (91-92) | 1,013 (1,001-1,025) | 85 (85-85) |
+| Sent | 6.7 GB (3.7-6.9) | 136 MB (126-137) | 372 MB (367-378) | 85 MB (85-85) |
+| RAM held, at most | 219 MB (178-223) | 48 MB (48-49) | 62 MB (62-62) | 51 MB (51-51) |
+| Playback waits / seek back | none / 4.1 s | none / 4.0 s | none / 4.0 s | none / 4.0 s |
+
+On the slower line the loop runs only as fast as the line, and still takes four times what the video needs.
+
+- **`FSBlob.writeFailed`**: the first write that fails with its backend working (OPFS, the Cache API or IndexedDB; a
+  Cache API write that kept nothing too) sets `diskFull` and `diskGone`. Nothing more is written for this video; what
+  is on the disk stays readable. The player then works as with "RAM only" (`keepsNothingOnDisk`, `canSpill`): the
+  time ahead capped to its RAM share, and fragments outside the window let go of, their files deleted, which gave the
+  full disk back 16 MB in the measurement.
+- **One message a video** (`player_disk_full`), none of the "not loaded whole" ones beside it (`roomWarning`).
+- **The next video tries the disk again** (`FSBlob.clear`): this one's files go, and space may have been freed.
+- **A write `clear()` cut short** (its files deleted under it) says nothing of the disk: the generation the save began
+  with (`offloadBlob`) must still be the store's.
+- Tests: `opfsStorage.test.mjs` ("writes nothing more for this video once a write fails", "a write that clear() cut
+  short"), `FastStreamClient.test.mjs` ("when the disk is full").
 
 ## What goes to the disk, measured
 

@@ -58,7 +58,7 @@ reads no file with that name, checked against 2.1.278.) The rules load when a se
 so an already-open session keeps reading them.
 
 When one of those files has to be consulted, do not read it whole: run `grep -n` or `sed -n`
-through Bash, or have the ollama helper (`glm-5.3-flash:cloud`, through its HTTP API) pull out the
+through Bash, or have the ollama helper (`deepseek-v4.1-flash:1017-cloud`, through its HTTP API) pull out the
 lines that matter, and check what it reports against the source.
 
 ## Commands
