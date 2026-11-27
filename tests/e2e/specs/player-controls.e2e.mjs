@@ -631,7 +631,7 @@ describe('Player controls', function() {
     await waitForPicture();
     await browser.execute(() => {
       Object.assign(window.fastStream.options,
-          {singleClickAction: 'playpause', doubleClickAction: 'nothing', tripleClickAction: 'hidecontrols'});
+          {singleClickAction: 'playpause', doubleClickAction: 'nothing'});
       window.fastStream.play();
     });
     await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
@@ -661,20 +661,58 @@ describe('Player controls', function() {
     expect(await browser.execute(() => window.fastStream.player.getVideo().paused)).toBe(false);
   });
 
-  it('takes a double click as the system counts it: 450 ms apart, fullscreen and playing on', async function() {
+  it('follows the browser\'s click count: two clicks 450 ms apart, fullscreen and playing on', async function() {
     // Two clicks 320 ms apart, a double click to Windows (500 ms), were two single ones here: a pause and a play.
+    // WebDriver's clicks get its own count, on Linux too (GTK's double-click time is 400 ms): the system's own
+    // counts were measured with real X11 clicks (docs/notes/keybinds.md).
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
     await browser.execute(() => {
       Object.assign(window.fastStream.options,
-          {singleClickAction: 'playpause', doubleClickAction: 'fullscreen', tripleClickAction: 'nothing'});
+          {singleClickAction: 'playpause', doubleClickAction: 'fullscreen'});
       window.fastStream.play();
     });
     await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
     await browser.pause(400);
     const container = await browser.$('.mainplayer .video-container');
     await browser.action('pointer').move({origin: container}).down().up().pause(450).down().up().perform();
+    const state = await settle(() => browser.execute(() => ({fullscreen: !!document.fullscreenElement,
+      paused: window.fastStream.player.getVideo().paused})), (value) => value.fullscreen, 3000);
+    expect(state).toEqual({fullscreen: true, paused: false});
+    await browser.execute(() => document.exitFullscreen());
+    await settle(() => browser.execute(() => !document.fullscreenElement), (value) => value, 3000);
+  });
+
+  it('goes fullscreen on a double click\'s second press, before the button is let go', async function() {
+    // The system's own double click comes on the second press; the click event only on the release.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    await browser.execute(() => {
+      Object.assign(window.fastStream.options, {singleClickAction: 'playpause', doubleClickAction: 'fullscreen'});
+      window.fastStream.play();
+      const times = window.__pressTimes = {downs: [], ups: []};
+      const container = document.querySelector('.mainplayer .video-container');
+      container.addEventListener('mousedown', () => times.downs.push(performance.now()), true);
+      container.addEventListener('mouseup', () => times.ups.push(performance.now()), true);
+      const controller = window.fastStream.interfaceController;
+      const toggle = controller.fullscreenToggle;
+      controller.fullscreenToggle = function(...args) {
+        times.fullscreen ??= performance.now();
+        return toggle.apply(this, args);
+      };
+    });
+    await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
+    await browser.pause(400);
+    const container = await browser.$('.mainplayer .video-container');
+    // The second press held 250 ms.
+    await browser.action('pointer').move({origin: container}).down().up().pause(120).down().pause(250).up().perform();
+    const times = await settle(() => browser.execute(() => window.__pressTimes),
+        (t) => t.ups.length === 2 && t.fullscreen !== undefined, 3000);
+    console.log('      second press to fullscreen:', Math.round(times.fullscreen - times.downs[1]), 'ms, release',
+        Math.round(times.ups[1] - times.downs[1]), 'ms after the press');
+    expect(times.fullscreen).toBeLessThan(times.ups[1]);
     const state = await settle(() => browser.execute(() => ({fullscreen: !!document.fullscreenElement,
       paused: window.fastStream.player.getVideo().paused})), (value) => value.fullscreen, 3000);
     expect(state).toEqual({fullscreen: true, paused: false});

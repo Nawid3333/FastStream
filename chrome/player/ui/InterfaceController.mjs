@@ -471,6 +471,33 @@ export class InterfaceController {
       this.queueControlsHide(1);
     });
 
+    // A single and a double click on the video, each with its action (ClickSequence: a single
+    // click's play or pause at once, a double click on its second press).
+    const clicks = new ClickSequence(() => this.client.options, (clickAction) => {
+      switch (clickAction) {
+        case ClickActions.FULLSCREEN:
+          this.fullscreenToggle();
+          break;
+        case ClickActions.WINDOWED_FULLSCREEN:
+          this.toggleWindowedFullscreen();
+          break;
+        case ClickActions.PIP:
+          this.pipToggle();
+          break;
+        case ClickActions.PLAY_PAUSE:
+          this.playPauseToggle();
+          break;
+        case ClickActions.HIDE_CONTROLS:
+          this.focusingControls = false;
+          this.mouseOverControls = false;
+          this.hideControlBar();
+          break;
+        case ClickActions.HIDE_PLAYER:
+          this.toggleHide();
+          break;
+      }
+    });
+
     // Holding the video plays it at twice the speed until the press ends (PressTracker: let go
     // anywhere, or ended without a release) or the pointer leaves the video: with the window
     // switched during the hold, the mouseup goes to the other window. A hold is no click: its
@@ -504,6 +531,8 @@ export class InterfaceController {
         stopSpeedUp();
         if (spedUp) {
           PressTracker.swallowClick(release ?? e);
+          // A hold is no click of a row: a double click after it undoes no play or pause before it.
+          clicks.consumed();
         }
       }});
     });
@@ -525,32 +554,6 @@ export class InterfaceController {
       hold?.cancel();
     });
 
-    // One, two or three clicks on the video, each with its action (ClickSequence: a single
-    // click's play or pause at once).
-    const clicks = new ClickSequence(() => this.client.options, (clickAction) => {
-      switch (clickAction) {
-        case ClickActions.FULLSCREEN:
-          this.fullscreenToggle();
-          break;
-        case ClickActions.WINDOWED_FULLSCREEN:
-          this.toggleWindowedFullscreen();
-          break;
-        case ClickActions.PIP:
-          this.pipToggle();
-          break;
-        case ClickActions.PLAY_PAUSE:
-          this.playPauseToggle();
-          break;
-        case ClickActions.HIDE_CONTROLS:
-          this.focusingControls = false;
-          this.mouseOverControls = false;
-          this.hideControlBar();
-          break;
-        case ClickActions.HIDE_PLAYER:
-          this.toggleHide();
-          break;
-      }
-    });
     DOMElements.videoContainer.addEventListener('click', (e) => {
       if (this.closeAllMenus(false) || InterfaceUtils.closeWindows()) {
         clicks.consumed(e.detail);
@@ -564,6 +567,10 @@ export class InterfaceController {
       }
 
       clicks.click(e.detail);
+    });
+    DOMElements.videoContainer.addEventListener('mousedown', (e) => {
+      // A click while the big play button shows only plays or pauses.
+      if (e.button === 0 && !this.isBigPlayButtonVisible()) clicks.press(e.detail);
     });
     DOMElements.hideButton.addEventListener('click', () => {
       DOMElements.hideButton.blur();

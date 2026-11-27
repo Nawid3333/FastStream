@@ -9,10 +9,10 @@ const OLD = {
   doubleClickAction: ClickActions.PLAY_PAUSE,
   tripleClickAction: ClickActions.FULLSCREEN,
 };
+// The triple click is gone from the options; saved ones still name it.
 const NOW = {
   singleClickAction: ClickActions.PLAY_PAUSE,
   doubleClickAction: ClickActions.FULLSCREEN,
-  tripleClickAction: ClickActions.HIDE_CONTROLS,
 };
 
 describe('Utils.migrateClickActions', () => {
@@ -43,9 +43,11 @@ describe('Utils.getOptionsFromStorage, saved with the old default clicks', () =>
     vi.restoreAllMocks();
   });
 
-  it('plays and pauses on a click', async () => {
+  it('plays and pauses on a click, and forgets the triple click', async () => {
     vi.spyOn(Utils, 'getConfig').mockImplementation(async () => JSON.stringify({...OLD, keybindsVersion: 1}));
     vi.spyOn(console, 'info').mockImplementation(() => {});
-    expect(await Utils.getOptionsFromStorage()).toMatchObject(NOW);
+    const options = await Utils.getOptionsFromStorage();
+    expect(options).toMatchObject(NOW);
+    expect(options).not.toHaveProperty('tripleClickAction');
   });
 });
