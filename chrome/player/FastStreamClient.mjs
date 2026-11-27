@@ -50,6 +50,7 @@ import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFul
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 import {VideoLevel} from './players/Levels.mjs';
 import {WebStorage} from './utils/WebStorage.mjs';
+import {PreviewSeeks, SeekLostMs} from './ui/PreviewSeeks.mjs';
 
 
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
@@ -259,6 +260,7 @@ export class FastStreamClient extends EventEmitter {
     this.player = null;
     this.syncedAudioPlayer = null;
     this.previewPlayer = null;
+    this.previewSeeks = new PreviewSeeks();
     this.artworkTaken = false;
     /** @type {?number} */
     this.artworkAt = null;
@@ -593,10 +595,43 @@ export class FastStreamClient extends EventEmitter {
 
   /** @param {number} time */
   seekPreview(time) {
-    if (this.previewPlayer) {
-      this.previewPlayer.currentTime = time;
-      this.updatePreview();
+    if (!this.previewPlayer) return;
+    const next = this.previewSeeks.request(time, (a, b) => this.previewPxApart(a, b), performance.now());
+    if (next !== null) {
+      this.seekPreviewTo(next);
+    } else {
+      // A seek that never ends (its part does not load) holds the pointer's place back no longer than this.
+      clearTimeout(this.previewOverdueTimer);
+      this.previewOverdueTimer = setTimeout(() => {
+        const overdue = this.previewPlayer ? this.previewSeeks.overdue(performance.now()) : null;
+        if (overdue === null) return;
+        this.seekPreviewTo(overdue);
+        this.updatePreview();
+      }, SeekLostMs);
     }
+    this.updatePreview();
+  }
+
+  /**
+   * How far apart two times are on the progress bar, in px.
+   * @param {number} a
+   * @param {number} b
+   * @return {number}
+   */
+  previewPxApart(a, b) {
+    const width = DOMElements.progressContainer?.clientWidth ?? 0;
+    // Not measurable: every other place is far.
+    if (!Number.isFinite(this.duration) || this.duration <= 0 || !(width > 0)) return a === b ? 0 : Infinity;
+    return Math.abs(a - b) / this.duration * width;
+  }
+
+  /** @param {number} time */
+  seekPreviewTo(time) {
+    if (!this.previewPlayer) return;
+    this.previewPlayer.currentTime = time;
+    // The element seeks there now; an MP4 preview can hold the place (and its element still run an earlier seek).
+    const video = this.previewPlayer.getVideo();
+    this.previewSeeks.sent(video.seeking && Math.abs(video.currentTime - time) < 0.001);
   }
 
   hidePreview() {
@@ -622,25 +657,9 @@ export class FastStreamClient extends EventEmitter {
 
   updatePreview() {
     if (!this.previewPlayer) return;
-
-    // Shown at once only when the element is at the preview's time: an MP4 preview can hold a place it has not reached.
-    const video = this.previewPlayer.getVideo();
-    if (video.readyState > 1 && this.previewPlayer.currentTime === video.currentTime) {
-      this.showPreview();
-      return;
-    }
-
-    let shouldShowPreview = false;
-    const time = this.previewPlayer.currentTime;
-    const buffered = this.previewPlayer.buffered;
-    for (let i = 0; i < buffered.length; i++) {
-      if (time >= buffered.start(i) && time <= buffered.end(i)) {
-        shouldShowPreview = true;
-        break;
-      }
-    }
-
-    if (shouldShowPreview) {
+    // The frame on screen is the pointer's place or near it (PreviewSeeks); an MP4 preview can hold a place it has
+    // not reached, and its frame is then the last place's.
+    if (this.previewPlayer.getVideo().readyState > 0 && this.previewSeeks.fits((a, b) => this.previewPxApart(a, b))) {
       this.showPreview();
     } else {
       this.hidePreview();
@@ -942,6 +961,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.previewContext = context;
     this.previewPlayer = previewPlayer;
+    this.previewSeeks.reset();
     this.interfaceController.addPreviewVideo(previewPlayer.getVideo());
     this.updateVideoTransform();
   }
@@ -2651,6 +2671,11 @@ export class FastStreamClient extends EventEmitter {
     });
 
     context.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
+      // Not the seeked of an earlier seek, queued before the next began.
+      if (this.previewPlayer === player && !player.getVideo().seeking) {
+        const next = this.previewSeeks.seeked(performance.now(), player.getVideo().currentTime);
+        if (next !== null) this.seekPreviewTo(next);
+      }
       this.updatePreview();
     });
 
