@@ -1475,6 +1475,12 @@
     "player_quality_lowered": {
         "message": "Jakość obniżona do $1: ten komputer pominął $2% klatek przy $3. Wybierz $3 w menu jakości, aby ją zachować."
     },
+    "player_page_quality_switching": {
+        "message": "Przełączanie odtwarzacza strony na $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "Odtwarzacz strony nie przełączył się na $1."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Obniżaj jakość przy gubieniu klatek"
     },

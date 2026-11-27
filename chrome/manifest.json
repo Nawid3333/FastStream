@@ -69,6 +69,7 @@
         "page-fetch.js",
         "episode-links.js",
         "page-qualities.js",
+        "page-quality-control.js",
         "content.js"
       ]
     }

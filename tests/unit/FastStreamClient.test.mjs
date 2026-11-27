@@ -1983,6 +1983,203 @@ describe('FastStreamClient, the qualities a page\'s player offers its file in', 
   });
 });
 
+describe('FastStreamClient, the qualities only the page player\'s menu offers', () => {
+  // A hoster that makes a file only of the quality picked in its menu (page-quality-control.js reads and clicks it).
+  const PLAYING = 'https://h.test/v/360.mp4';
+  const CHOICES = [
+    {label: 'Auto', height: 0, auto: true, selected: false},
+    {label: '360p', height: 360, auto: false, selected: false},
+    {label: '480p', height: 480, auto: false, selected: false},
+    {label: '1080p', height: 1080, auto: false, selected: false},
+  ];
+
+  /**
+   * A client in a page, playing the page's file, the page answering as `answers` says.
+   * @param {{probe?: *, select?: function(Object): *}} answers
+   * @param {Object} [options]
+   * @return {Promise<{client: FastStreamClient, player: FakePlayer, asked: function(string): Object[]}>}
+   */
+  async function inPage(answers, options = {}) {
+    const client = makeClient(options);
+    client.recoveries = {url: null, times: []};
+    client.page = {tabId: 3, frameId: 7};
+    chrome.runtime.sendMessage.mockImplementation(async (message) => {
+      if (message.type === MessageTypes.PAGE_QUALITY_PROBE) return answers.probe ?? null;
+      if (message.type === MessageTypes.PAGE_QUALITY_SELECT) return answers.select ? answers.select(message) : null;
+      return undefined;
+    });
+    const source = makeSource(PLAYING, {mode: 'accelerated_mp4', pageFrameId: 7, qualities: null, pageQualitiesProbed: false,
+      setQualities(list) {
+        this.qualities = list;
+      }});
+    const player = await setSource(client, source, (made) => {
+      made.video.videoWidth = 640;
+      made.video.videoHeight = 360;
+    });
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      const made = new FakePlayer(null);
+      made.video.videoWidth = 1920;
+      made.video.videoHeight = 1080;
+      return made;
+    });
+    const asked = (type) => chrome.runtime.sendMessage.mock.calls.map(([message]) => message).filter((message) => message.type === type);
+    return {client, player, asked};
+  }
+
+  it('lists them, then plays the highest through the page', async () => {
+    const {client, asked} = await inPage({
+      probe: {id: 4, choices: CHOICES},
+      select: (message) => (message.index === 3 ? {url: 'https://h.test/v/1080.mp4', width: 1920, height: 1080, changed: true} : null),
+    });
+    client.probePageQualities();
+    await settle();
+    await client.sourceChange;
+    await settle();
+
+    expect(asked(MessageTypes.PAGE_QUALITY_PROBE)).toEqual([{type: MessageTypes.PAGE_QUALITY_PROBE, frameId: 7, url: PLAYING}]);
+    expect(asked(MessageTypes.PAGE_QUALITY_SELECT)).toEqual([{type: MessageTypes.PAGE_QUALITY_SELECT, frameId: 7, id: 4, index: 3}]);
+    expect(client.source.url).toBe('https://h.test/v/1080.mp4');
+    expect(client.source.qualities.map((entry) => [entry.label, entry.url])).toEqual([
+      ['360p', PLAYING], ['480p', null], ['1080p', 'https://h.test/v/1080.mp4'],
+    ]);
+    expect(client.getMenuVideoLevelID()).toBe('page-quality:2');
+  });
+
+  it('stays on the file playing when the higher label is a file no bigger', async () => {
+    const {client} = await inPage({
+      probe: {id: 4, choices: CHOICES},
+      select: () => ({url: 'https://h.test/v/other.mp4', width: 640, height: 360, changed: true}),
+    });
+    const setSource = vi.spyOn(client, 'setSource');
+    client.probePageQualities();
+    await settle();
+
+    expect(setSource).not.toHaveBeenCalled();
+    expect(client.source.url).toBe(PLAYING);
+    // Known now: picked by hand, it plays.
+    expect(client.source.qualities[2].url).toBe('https://h.test/v/other.mp4');
+  });
+
+  it('plays no file the page switched to on another host', async () => {
+    const {client} = await inPage({
+      probe: {id: 4, choices: CHOICES},
+      select: () => ({url: 'https://elsewhere.test/1080.mp4', width: 1920, height: 1080, changed: true}),
+    });
+    const setSource = vi.spyOn(client, 'setSource');
+    client.probePageQualities();
+    await settle();
+
+    expect(setSource).not.toHaveBeenCalled();
+    expect(client.source.qualities[2].url).toBeNull();
+  });
+
+  it('switches the page first for a quality picked in the menu', async () => {
+    const {client, asked} = await inPage({
+      probe: {id: 4, choices: CHOICES.map((choice) => ({...choice, selected: choice.label === '360p'}))},
+      select: (message) => (message.index === 2 ? {url: 'https://h.test/v/480.mp4', width: 854, height: 480, changed: true} : null),
+    }, {defaultQuality: '360p'});
+    client.probePageQualities();
+    await settle();
+    expect(asked(MessageTypes.PAGE_QUALITY_SELECT)).toEqual([]);
+
+    client.setCurrentVideoLevelID('page-quality:1');
+    await settle();
+    await client.sourceChange;
+    await settle();
+
+    expect(asked(MessageTypes.PAGE_QUALITY_SELECT)).toEqual([{type: MessageTypes.PAGE_QUALITY_SELECT, frameId: 7, id: 4, index: 2}]);
+    expect(client.source.url).toBe('https://h.test/v/480.mp4');
+  });
+
+  it('says that the page switches for a pick by hand, and when it did not', async () => {
+    const {client} = await inPage({
+      probe: {id: 4, choices: CHOICES.map((choice) => ({...choice, selected: choice.label === '360p'}))},
+      select: () => ({changed: false, error: 'menu: list'}),
+    }, {defaultQuality: '360p'});
+    client.probePageQualities();
+    await settle();
+    const said = () => client.interfaceController.setStatusMessage.mock.calls.map(([, message, type]) => [message === null ? null : 'text', type]);
+    expect(said()).toEqual([]);
+
+    client.setCurrentVideoLevelID('page-quality:2');
+    await settle();
+
+    expect(said()).toEqual([['text', 'info'], ['text', 'warning']]);
+    expect(client.source.url).toBe(PLAYING);
+  });
+
+  it('makes a pick by hand during an automatic switch once that one is done, instead of it', async () => {
+    let autoDone;
+    const {client, asked} = await inPage({
+      probe: {id: 4, choices: CHOICES},
+      select: (message) => (message.index === 3 ?
+        new Promise((resolve) => {
+          autoDone = () => resolve({url: 'https://h.test/v/1080.mp4', width: 1920, height: 1080, changed: true});
+        }) :
+        {url: 'https://h.test/v/480.mp4', width: 854, height: 480, changed: true}),
+    });
+    client.probePageQualities();
+    await settle();
+    expect(asked(MessageTypes.PAGE_QUALITY_SELECT).map((message) => message.index)).toEqual([3]);
+
+    client.setCurrentVideoLevelID('page-quality:1');
+    await settle();
+    autoDone();
+    await settle();
+    await client.sourceChange;
+    await settle();
+
+    expect(asked(MessageTypes.PAGE_QUALITY_SELECT).map((message) => message.index)).toEqual([3, 2]);
+    expect(client.source.url).toBe('https://h.test/v/480.mp4');
+    expect(client.source.qualities[2].url).toBe('https://h.test/v/1080.mp4');
+  });
+
+  it('keeps the file playing when it is picked during an automatic switch', async () => {
+    let autoDone;
+    const {client} = await inPage({
+      probe: {id: 4, choices: CHOICES},
+      select: () => new Promise((resolve) => {
+        autoDone = () => resolve({url: 'https://h.test/v/1080.mp4', width: 1920, height: 1080, changed: true});
+      }),
+    });
+    client.probePageQualities();
+    await settle();
+    const setSource = vi.spyOn(client, 'setSource');
+
+    client.setCurrentVideoLevelID('page-quality:0');
+    autoDone();
+    await settle();
+
+    expect(setSource).not.toHaveBeenCalled();
+    expect(client.source.url).toBe(PLAYING);
+    expect(client.source.qualities[2].url).toBe('https://h.test/v/1080.mp4');
+  });
+
+  it('asks once', async () => {
+    const {client, asked} = await inPage({probe: null});
+    client.probePageQualities();
+    client.probePageQualities();
+    await settle();
+    expect(asked(MessageTypes.PAGE_QUALITY_PROBE)).toHaveLength(1);
+  });
+
+  it('does not ask for a stream with levels of its own, a live one or one from no page', async () => {
+    const levels = await inPage({probe: null});
+    levels.player.getVideoLevels = () => new Map([['a', {id: 'a'}], ['b', {id: 'b'}]]);
+    levels.client.probePageQualities();
+    const live = await inPage({probe: null});
+    live.player.duration = Infinity;
+    live.client.probePageQualities();
+    const noPage = await inPage({probe: null});
+    noPage.client.page = null;
+    noPage.client.probePageQualities();
+    await settle();
+    for (const {asked} of [levels, live, noPage]) {
+      expect(asked(MessageTypes.PAGE_QUALITY_PROBE)).toEqual([]);
+    }
+  });
+});
+
 describe('FastStreamClient, the page\'s qualities with a query of their own', () => {
   it('knows which plays after a switch, though the time came and went in the query', async () => {
     // Taking faststream-timestamp off a URL keeps its query as written ("a b", not "a+b").

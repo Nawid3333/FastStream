@@ -51,6 +51,8 @@ import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 import {VideoLevel} from './players/Levels.mjs';
 import {WebStorage} from './utils/WebStorage.mjs';
 import {PreviewSeeks, SeekLostMs} from './ui/PreviewSeeks.mjs';
+import {closerTo, menuQualities, playableSwitch, sizeClass} from './utils/PageQualityMenu.mjs';
+import {desiredHeight, pickQuality} from './utils/PageQualityPick.mjs';
 
 
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
@@ -156,6 +158,11 @@ export class FastStreamClient extends EventEmitter {
     this.version = EnvUtils.getVersion();
     /** @type {?{tabId: number, frameId: number}} */
     this.page = null;
+    // A switch of the page player's quality waiting for the page (switchPageQuality): one at a time, and the
+    // pick made meanwhile.
+    this.pageQualitySwitching = false;
+    /** @type {?{source: VideoSource, index: number}} */
+    this.pageQualityQueued = null;
 
     /** @type {ClientOptions} */
     this.options = {
@@ -2584,6 +2591,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.LOADEDMETADATA, (/** @type {undefined} */ event) => {
       this.interfaceController.updateQualityLevels();
+      this.probePageQualities();
     });
 
 
@@ -3006,7 +3014,7 @@ export class FastStreamClient extends EventEmitter {
   playingPageQuality() {
     const qualities = this.source?.qualities || [];
     const playing = this.recoverySourceURL(this.source?.url || '');
-    return qualities.findIndex((entry) => this.recoverySourceURL(entry.url) === playing);
+    return qualities.findIndex((entry) => !!entry.url && this.recoverySourceURL(entry.url) === playing);
   }
 
   /**
@@ -3016,7 +3024,21 @@ export class FastStreamClient extends EventEmitter {
   playPageQuality(index) {
     const source = this.source;
     const entry = source?.qualities?.[index];
-    if (!entry || index === this.playingPageQuality()) return;
+    if (!source || !entry) return;
+    // A pick while the page switches its player: made once that switch is done, instead of what it brings.
+    if (this.pageQualitySwitching) {
+      this.pageQualityQueued = {source, index};
+      if (!entry.url) {
+        this.interfaceController.setStatusMessage(StatusTypes.QUALITY,
+            Localize.getMessage('player_page_quality_switching', [entry.label]), 'info', 10000);
+      }
+      return;
+    }
+    if (index === this.playingPageQuality()) return;
+    if (!entry.url) {
+      this.switchPageQuality(index, false).catch((e) => console.warn('The page\'s player did not switch', e));
+      return;
+    }
     const wasPlaying = !!this.state.playing || !this.paused;
     const next = source.copy();
     next.url = entry.url;
@@ -3027,6 +3049,86 @@ export class FastStreamClient extends EventEmitter {
     console.log('Playing the page\'s ' + (entry.label || entry.height + 'p') + ' instead');
     // The same video in another file: a version picked by hand stays picked.
     this.setSource(next, [], {play: wasPlaying, keepChoice: true}).catch((e) => console.warn('Could not switch the quality', e));
+  }
+
+  /**
+   * Asks the page's player for the qualities its menu offers, once a file it plays has its size: a page that
+   * makes only the quality picked a file has no list FastStream could read (page-qualities.js). The quality
+   * setting then picks among them, as among a list's.
+   */
+  probePageQualities() {
+    const source = this.source;
+    if (!source || source.qualities || source.pageQualitiesProbed || typeof source.pageFrameId !== 'number' ||
+        !this.page || !/^https?:/.test(source.url) || this.isLive() || this.getVideoLevels().size > 1) {
+      return;
+    }
+    source.pageQualitiesProbed = true;
+    const url = this.recoverySourceURL(source.url);
+    chrome.runtime.sendMessage({type: MessageTypes.PAGE_QUALITY_PROBE, frameId: source.pageFrameId, url}).then((answer) => {
+      if (this.source !== source || source.qualities) return;
+      const entries = menuQualities(answer, source.url, this.videoWidth, this.videoHeight);
+      if (!entries) return;
+      source.setQualities(entries);
+      this.interfaceController.updateQualityLevels();
+      const best = pickQuality(/** @type {Array<{url: string, label: string, height: number}>} */ (entries),
+          desiredHeight(this.options.defaultQuality));
+      const index = best ? entries.indexOf(best) : -1;
+      return index >= 0 && index !== this.playingPageQuality() ? this.switchPageQuality(index, true) : undefined;
+    }).catch((e) => console.warn('Could not read the page player\'s qualities', e));
+  }
+
+  /**
+   * Has the page's player switch to one of its menu's qualities, then plays the file it loaded. Picked by the
+   * quality setting (auto), only a file that really gets closer to it plays: a label may name one no bigger.
+   * @param {number} index - In VideoSource.qualities.
+   * @param {boolean} auto
+   * @return {Promise<void>}
+   */
+  async switchPageQuality(index, auto) {
+    const source = this.source;
+    const entry = source?.qualities?.[index];
+    if (!source || !entry?.control || this.pageQualitySwitching) return;
+    // The page takes a moment (its menu opens, its file loads): said for a pick by hand.
+    if (!auto) {
+      this.interfaceController.setStatusMessage(StatusTypes.QUALITY,
+          Localize.getMessage('player_page_quality_switching', [entry.label]), 'info', 10000);
+    }
+    this.pageQualitySwitching = true;
+    /** @type {*} */
+    let answer = null;
+    try {
+      answer = await chrome.runtime.sendMessage({type: MessageTypes.PAGE_QUALITY_SELECT,
+        frameId: source.pageFrameId, id: entry.control.id, index: entry.control.index});
+    } finally {
+      this.pageQualitySwitching = false;
+    }
+    const queued = this.pageQualityQueued;
+    this.pageQualityQueued = null;
+    const switched = this.source === source && !!answer && playableSwitch(answer.url, source.url);
+    if (switched) entry.url = answer.url;
+    if (queued && queued.source === this.source && (queued.source !== source || queued.index !== index)) {
+      this.interfaceController.setStatusMessage(StatusTypes.QUALITY, null);
+      this.playPageQuality(queued.index);
+      return;
+    }
+    if (this.source !== source) return;
+    const byHand = !auto || !!queued;
+    if (!switched) {
+      console.warn('The page\'s player did not switch to ' + entry.label, answer?.error || '');
+      if (byHand) {
+        this.interfaceController.setStatusMessage(StatusTypes.QUALITY,
+            Localize.getMessage('player_page_quality_failed', [entry.label]), 'warning', 5000);
+      }
+      return;
+    }
+    if (byHand) {
+      this.interfaceController.setStatusMessage(StatusTypes.QUALITY, null);
+    } else {
+      // Without the page's size (a file slow to load), its label's.
+      const next = answer.height > 0 ? sizeClass(answer.width, answer.height) : entry.height;
+      if (!closerTo(desiredHeight(this.options.defaultQuality), sizeClass(this.videoWidth, this.videoHeight), next)) return;
+    }
+    this.playPageQuality(index);
   }
 
   /** @param {string|number} levelID */

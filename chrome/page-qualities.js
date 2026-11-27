@@ -182,6 +182,22 @@ const PageQualities = (() => {
   }
 
   /**
+   * Calls a page object's method, and nothing that throws or is not a function. Reflect.apply is this
+   * script's own: the page's Function.prototype.apply could not read this script's argument list.
+   * @param {*} object
+   * @param {string} name
+   * @return {*}
+   */
+  function call(object, name) {
+    try {
+      const method = field(object, name);
+      return typeof method === 'function' ? Reflect.apply(method, object, []) : undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  /**
    * An array-like page object as an array, at most a few dozen items.
    * @param {*} value
    * @return {Array<*>}
@@ -190,6 +206,49 @@ const PageQualities = (() => {
     const out = [];
     const length = Math.min(Number(field(value, 'length')) || 0, 50);
     for (let i = 0; i < length; i++) out.push(field(value, i));
+    return out;
+  }
+
+  /**
+   * A page object's own values, at most a few dozen: a registry keyed by id.
+   * @param {*} value
+   * @return {Array<*>}
+   */
+  function values(value) {
+    try {
+      return value && typeof value === 'object' ? Object.keys(value).slice(0, 50).map((key) => field(value, key)) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /**
+   * An element's page-side object, where a custom element keeps its properties.
+   * @param {*} element
+   * @return {*}
+   */
+  function pageSide(element) {
+    return field(element, 'wrappedJSObject') || element;
+  }
+
+  // The page's globals read when looking for a player its variable holds.
+  const MAX_GLOBALS = 5000;
+
+  /**
+   * The page's own variables that hold objects: data properties only, so no getter of the window runs.
+   * @param {*} page
+   * @return {Array<*>}
+   */
+  function globalObjects(page) {
+    const out = [];
+    try {
+      for (const name of Object.getOwnPropertyNames(page).slice(0, MAX_GLOBALS)) {
+        const descriptor = Object.getOwnPropertyDescriptor(page, name);
+        if (descriptor && 'value' in descriptor && descriptor.value && typeof descriptor.value === 'object') out.push(descriptor.value);
+      }
+    } catch (e) {
+      // A window that refuses to be listed.
+    }
     return out;
   }
 
@@ -223,10 +282,55 @@ const PageQualities = (() => {
     } catch (e) {
       // Not set up, or not a JW Player after all.
     }
-    // DPlayer keeps no list of its instances: the page's own variable, as its docs name it.
-    for (const name of ['dp', 'dplayer', 'player']) {
-      const quality = field(field(field(field(page, name), 'options'), 'video'), 'quality');
+    // Video.js: each player's sources [{src, label}] (@silvermine/videojs-quality-selector, the resolution
+    // switchers). Sources without a label are formats of one file, not qualities.
+    for (const player of values(call(field(page, 'videojs'), 'getPlayers'))) {
+      add(items(call(player, 'currentSources')).map((s) => ({url: field(s, 'src'), label: field(s, 'label') ?? field(s, 'res')}))
+          .filter((entry) => entry.label !== undefined && entry.label !== null && String(entry.label).trim()));
+    }
+    // OvenPlayer: every instance, its sources [{file, label}].
+    for (const player of items(call(field(page, 'OvenPlayer'), 'getPlayerList'))) {
+      add(items(call(player, 'getSources')).map((s) => ({url: field(s, 'file'), label: field(s, 'label')})));
+    }
+    // DPlayer keeps no list of its instances: whichever of the page's variables holds one ({options.video.quality,
+    // video}). A const or a module's variable is not on the window.
+    for (const value of globalObjects(page)) {
+      const quality = field(field(field(value, 'options'), 'video'), 'quality');
+      if (!(Number(field(quality, 'length')) > 0)) continue;
+      if (String(field(field(value, 'video'), 'tagName') || '').toUpperCase() !== 'VIDEO') continue;
       add(items(quality).map((q) => ({url: field(q, 'url'), label: field(q, 'name')})));
+    }
+    return lists;
+  }
+
+  /**
+   * The lists the page's player elements hold.
+   * @param {Document} doc
+   * @param {string} base
+   * @return {Array<Array<Quality>>}
+   */
+  function fromPlayerElements(doc, base) {
+    /** @type {Array<Array<Quality>>} */
+    const lists = [];
+    /** @param {Array<{url: *, label: *}>} entries */
+    const add = (entries) => {
+      const list = toList(entries, base);
+      if (list && !lists.some((known) => sameList(known, list))) lists.push(list);
+    };
+    // Vidstack: a <media-player>'s qualities, from sources given with their size ({src, width, height}). An HLS or
+    // DASH rendition has no src.
+    for (const player of Array.from(doc.querySelectorAll('media-player')).slice(0, 10)) {
+      add(items(field(pageSide(player), 'qualities')).map((q) => {
+        const height = Number(field(q, 'height')) || 0;
+        return {url: field(q, 'src'), label: height ? `${height}p` : field(q, 'id')};
+      }));
+    }
+    // xgplayer's definition menu: each item carries its entry's fields as attributes (url, definition), once
+    // the video could play.
+    for (const menu of Array.from(doc.querySelectorAll('.xgplayer-definition')).slice(0, 10)) {
+      const options = Array.from(menu.querySelectorAll('li[url]')).slice(0, MAX_ENTRIES * 4);
+      add(options.map((option) => ({url: option.getAttribute('url'),
+        label: (option.textContent || '').trim() || option.getAttribute('definition')})));
     }
     return lists;
   }
@@ -241,7 +345,8 @@ const PageQualities = (() => {
   function find(doc, page, base) {
     /** @type {Array<Array<Quality>>} */
     const lists = [];
-    for (const list of [...fromSourceElements(doc, base), ...fromPlayers(page, base), ...fromScripts(doc, base)]) {
+    for (const list of [...fromSourceElements(doc, base), ...fromPlayers(page, base), ...fromPlayerElements(doc, base),
+      ...fromScripts(doc, base)]) {
       if (!lists.some((known) => sameList(known, list))) lists.push(list);
     }
     return lists;

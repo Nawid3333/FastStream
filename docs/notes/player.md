@@ -371,11 +371,18 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
 
 - **Reading them** (`chrome/page-qualities.js`, a content script before content.js; the
   background asks with `GET_PAGE_QUALITIES`): `<source>` lists with a quality attribute (Plyr's
-  `size`, Video.js's `label`/`res`, Fluid Player's `title`, OpenPlayerJS's and MediaElement's
+  `size`, Video.js's `label`/`res`, Fluid Player's and OpenPlayerJS's `title`, MediaElement's
   `data-quality`), Artplayer's instances (`option.quality`, checked against its 5.4.0 typings),
-  JW Player's playlist item (`sources` with labels), a DPlayer in a page variable (it keeps no
-  list of its instances), and Playerjs's file string in the page's scripts. Only what the page
-  holds; no guessed sibling URLs. A list counts with 2 to 12 files.
+  JW Player's playlist item (`sources` with labels), Video.js players' labelled sources
+  (`videojs.getPlayers()`, `currentSources()`: @silvermine/videojs-quality-selector), OvenPlayer's
+  instances (`getPlayerList()`, `getSources()`), a Vidstack `<media-player>`'s qualities from
+  sized sources (only those have a `src`), xgplayer's definition menu (each item carries its
+  entry's `url` as an attribute, from the video's `canplay` on), a DPlayer in any of the page's
+  global variables (it keeps no list of its instances; data properties only, so no getter of
+  the window runs), and Playerjs's file string in the page's scripts. A page method is called
+  with this script's `Reflect.apply`: the page's `Function.prototype.apply` cannot read the
+  content script's argument list, and every call came back empty. Only what the page holds; no
+  guessed sibling URLs. A list counts with 2 to 12 files.
 - **Tying them to the stream** (`PageQualityPick.listForSource`): the stream's URL, or the address
   its request was first made to (`TabHolder.noteRedirect`, from `webRequest.onBeforeRedirect`; the
   source keeps it as `requestedUrl`). `sendSources` asks each frame the streams came from
@@ -399,6 +406,82 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
   302s to a "CDN") - the 720p file plays, the menu offers both, a switch at 4 s goes on at 4 s.
   Live, on the real hoster (the same file): 1080p (1920x816) played, 360p/720p/1080p listed, the
   switch to 720p went on from where it was.
+- **The player libraries, in CI** (`ext-specs/player-qualities.e2e.mjs`, 2026-11-27): one page per
+  library, set up as its docs tell a site to offer several files, all playing 240p/360p/480p
+  files of the run's own from 127.0.0.1 (made from `long-av.mp4` by `mp4Shapes.mjs`) and starting
+  on 240p. First each page's own quality menu must offer the three, FastStream off; then
+  FastStream must list the three in `source.qualities`, play 480p (Auto) and switch to 240p and
+  360p through `setCurrentVideoLevelID('page-quality:<i>')`. Covered: Plyr (`<source size>`),
+  Video.js 8 with @silvermine/videojs-quality-selector, Artplayer, xgplayer (`definition`),
+  MediaElement with mediaelement-plugins' quality feature, OvenPlayer, OpenPlayerJS (`title` and
+  its levels control), Vidstack (sized sources), and DPlayer through its menu
+  (page-quality-control.js: its docs' `const dp` is on no window, and its menu names no files).
+  The libraries are the releases
+  `live-specs/player-libraries.json` pins, from the npm registry (`tests/e2e/npmPackages.mjs`,
+  integrity-checked, in memory; no Actions cache: `pnpm install` needs the registry anyway), so
+  `toolchain-updates.yml`'s rolling update PR runs this spec on every new release, and one that
+  moves its qualities turns CI red there. Not covered: libraries without an npm release a page
+  can load (JW Player, Playerjs, Bitmovin, THEOplayer, Flowplayer: proprietary), Fluid Player
+  (its npm package holds only sources for a bundler), and those whose quality menus list only
+  HLS/DASH renditions (Shaka, Clappr, Media Chrome, Video.js 10, hls-video-element).
+  `QUALITY_PLAYERS=plyr,xgplayer` narrows a run.
+
+### Qualities only the page player's menu knows (2026-11-27)
+
+His report: cineby.xyz with the "Simplify" source (a zxcstream.xyz hoster) played 360p, though its
+player offers 360p/480p/1080p. Read in its bundle: one encrypted link per quality, and only the one
+picked in the menu is decrypted into a file, so no page list holds the others. Its menu: controls
+that leave the DOM when the mouse rests, a gear, then a "Source quality 360p" row, then the list,
+each built on its click (framer-motion); Escape closes nothing; a new `<video>` per file; its
+"1080p" is the 854x480 file. Script clicks (`element.click()`, no user activation) and synthetic
+mouse moves work on it, also after the takeover shrank the player to 0x0.
+
+- **Reading the menu** (`chrome/page-quality-control.js`, a content script before content.js;
+  `PAGE_QUALITY_PROBE`): a list already in the page around the video, else one opened through its
+  controls: buttons named after quality, then settings (FastStream's languages and the players'
+  own), then quality/gear classes, then an unnamed menu button, at most 4; in an opened menu, a
+  row that shows a quality as its value first. A list is 2 to 12 entries whose whole text is a
+  quality label, with two heights at least, most of its parent's children (an entry in a wrapper of
+  its own counts in the list above it); a bare number only in a list that says what it is, and only
+  a height videos have (no years). Open shadow roots count. The steps are kept by name, taken before
+  their click (a class that changes when open is left out, and so is the quality a row shows), and
+  found again in the video's player first, outside it never in another video's player. The menu's
+  own mark of the entry in use counts on the entry, what it holds, and its wrappers. The menus are closed again: Escape, then the opener when
+  it says it is open or its menu still shows (a menu hidden by the page is closed; what a takeover
+  hid with `display: none !important` does not count).
+- **Switching** (`PAGE_QUALITY_SELECT`): the menu opened again from its deepest step still open,
+  the entry clicked (the same label twice: the one at the same place), then the page's video waited
+  for until it plays another file or loads again: the same element, a new one, or one of this player
+  on another file than before the click (a teaser or a feed beside it is none of them); its address
+  and size are the answer. One probe or switch at a time per frame; the latest 8 menus are kept, and
+  a probe that found none is made again when asked again.
+- **The relay**: only from FastStream's player, only to the frame it sits in. The page's new file is
+  no new video for the background: a frame with FastStream's player is not watched at all.
+- **The player** (`FastStreamClient.probePageQualities`, `PageQualityMenu.mjs`): asked once per
+  source, at its metadata, for a single file from the page (no levels of its own, not live). The
+  entries have no address but the playing one (the menu's mark, else the nearest size class: a
+  1920x800 film is "1080p"). The quality setting picks as for a page list; the switch goes through
+  the page, and its file plays only from the played file's origin (it gets that request's headers;
+  no step down from https), and, picked automatically, only when its real size (else its label's,
+  for a file slow to load) gets closer to the setting. A pick by hand says that the page switches,
+  and when it did not; any pick made during a switch (of the same source) is made once that one
+  is done, instead of what it brings. MPV gets a list only when every entry has its file.
+- **Tests:** `PageQualityMenu.test.mjs` (labels, entries, the host rule), `FastStreamClient.test.mjs`
+  (probe, automatic pick, a label that lies, another host, a pick in the menu),
+  `backgroundPageQualityControl.test.mjs` (the relay's frames), and `page-quality-menu.e2e.mjs`:
+  the hoster's player rebuilt locally (cross-origin frame, controls that unmount, gear -> row ->
+  list of entries each in a wrapper, no Escape, a new `<video>` per file, a lying "1080p", a teaser
+  video playing beside it): the 480p file plays through its "1080p", and a pick of 360p in
+  FastStream's menu switches the page and plays its file. Live on cineby (2026-11-27): the "1080p"
+  (854x480) played within the first seconds; 360p picked by hand played in about 1 s.
+- **Reviewed** by DeepSeek V4.1 Flash (2026-11-27), twice: 15 of the first review's 22 points and 13
+  of the second's led to the fixes above; the first's 3 others found nothing wrong (the relay's frame checks, labels written as text, no work at injection). Not
+  taken: a video that is a direct child of `<body>` has no player around it to search (its controls
+  would be the whole page's); `javascript:` links stay clickable (the page runs its own script
+  anyway); a list found in the page keeps no opener (none was needed to find it); the page walks
+  while waiting run only during a probe or a switch, a few seconds; a hidden list is clicked as it
+  is (the second review wanted it opened first: Plyr, Video.js, DPlayer and others keep theirs hidden
+  in the page, and a script's click reaches it; the library suite passes so).
 
 ## Player engines: reasons behind the code
 

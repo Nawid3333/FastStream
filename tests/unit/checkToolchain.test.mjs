@@ -1204,14 +1204,16 @@ describe('applyPlayers', () => {
 
 describe('tests/e2e/live-specs/player-libraries.json', () => {
   const pins = JSON.parse(fs.readFileSync(PLAYER_LIBRARIES, 'utf8'));
-  const spec = fs.readFileSync('tests/e2e/live-specs/players.e2e.mjs', 'utf8');
+  // The live suite's pages and CI's quality pages (ext-specs/player-qualities.e2e.mjs) load them.
+  const spec = ['tests/e2e/live-specs/players.e2e.mjs', 'tests/e2e/ext-specs/player-qualities.e2e.mjs']
+      .map((file) => fs.readFileSync(file, 'utf8')).join(' ');
 
   it('pins plain versions, in the format the recipe writes', () => {
     for (const version of Object.values(pins)) expect(version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(applyPlayers(fs.readFileSync(PLAYER_LIBRARIES, 'utf8'), pins)).toBe(fs.readFileSync(PLAYER_LIBRARIES, 'utf8'));
   });
 
-  it('names every package the pages load from /npm/, and nothing they do not', () => {
+  it('names every package the pages of either suite load from /npm/, and nothing they do not', () => {
     // The pages' quoted paths only: the spec's comments name /npm/ paths too.
     const loaded = new Set([...spec.matchAll(/["']\/npm\/((?:@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*)\//g)].map((match) => match[1]));
     loaded.delete('hls.js'); // the repository's own pin, served next to them

@@ -130,8 +130,12 @@ export class VideoSource {
     /** @type {?{level?: string|number, audioLevel?: string|number}} */
     this.defaultLevelInfo = null;
     this.loadedFromArchive = false;
-    // The page player's own qualities as separate files ([{url, label, height}], page-qualities.js), or null.
+    // The page player's own qualities as separate files (page-qualities.js), or the ones its menu switches to
+    // (page-quality-control.js, url null until switched to), or null.
+    /** @type {?Array<import('./utils/PageQualityMenu.mjs').PageQuality>} */
     this.qualities = null;
+    // Whether the page's menu was asked for its qualities (FastStreamClient.probePageQualities).
+    this.pageQualitiesProbed = false;
     // The asking page's frame, or null: what loads it when FastStream itself is refused (PageFetch.mjs).
     /** @type {?number} */
     this.pageFrameId = null;
@@ -149,16 +153,22 @@ export class VideoSource {
 
   /**
    * Gives the source the qualities its page's player offers. They are one video: the remembered time goes by
-   * the list's first file.
-   * @param {?Array<{url: string, label: string, height: number}>|undefined} qualities
+   * the list's first file. A menu's (url null but the one playing) keep the source's own.
+   * @param {?Array<import('./utils/PageQualityMenu.mjs').PageQuality>|undefined} qualities
    */
   setQualities(qualities) {
     if (!Array.isArray(qualities) || qualities.length < 2) {
       this.qualities = null;
       return;
     }
-    this.qualities = qualities.map((entry) => ({url: entry.url, label: entry.label || '', height: entry.height || 0}));
-    this.identifier = URLUtils.mediaIdentifier(this.qualities[0].url);
+    this.qualities = qualities.map((entry) => {
+      /** @type {import('./utils/PageQualityMenu.mjs').PageQuality} */
+      const kept = {url: entry.url || null, label: entry.label || '', height: entry.height || 0};
+      if (entry.control) kept.control = {id: entry.control.id, index: entry.control.index};
+      return kept;
+    });
+    const first = this.qualities[0].url;
+    if (first && this.qualities.every((entry) => entry.url)) this.identifier = URLUtils.mediaIdentifier(first);
   }
 
   /**
@@ -273,6 +283,7 @@ export class VideoSource {
     newsource.loadedFromArchive = this.loadedFromArchive;
     newsource.headers = {...this.headers};
     newsource.qualities = this.qualities ? this.qualities.map((entry) => ({...entry})) : null;
+    newsource.pageQualitiesProbed = this.pageQualitiesProbed;
     newsource.pageFrameId = this.pageFrameId;
     return newsource;
   }

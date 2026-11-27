@@ -1475,6 +1475,12 @@
     "player_quality_lowered": {
         "message": "Qualität auf $1 gesenkt: Dieser Computer hat $2% der Bilder bei $3 ausgelassen. Wähle $3 im Qualitätsmenü, um dabei zu bleiben."
     },
+    "player_page_quality_switching": {
+        "message": "Der Player der Seite wechselt zu $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "Der Player der Seite hat nicht zu $1 gewechselt."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Qualität senken, wenn Bilder ausfallen"
     },

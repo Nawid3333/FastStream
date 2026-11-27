@@ -1475,6 +1475,12 @@
     "player_quality_lowered": {
         "message": "品質已降低至 $1：此電腦在 $3 時掉幀 $2%。請在品質選單中選擇 $3 以保持該品質。"
     },
+    "player_page_quality_switching": {
+        "message": "正在將頁面播放器切換至 $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "頁面播放器未切換至 $1。"
+    },
     "options_general_lowerondroppedframes": {
         "message": "丟格時降低影片品質"
     },

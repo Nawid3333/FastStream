@@ -1475,6 +1475,12 @@
     "player_quality_lowered": {
         "message": "Kalite $1 değerine düşürüldü: bu bilgisayar $3 çözünürlüğünde karelerin %$2'sini düşürdü. Bu kalitede kalmak için kalite menüsünden $3 seçin."
     },
+    "player_page_quality_switching": {
+        "message": "Sayfanın oynatıcısı $1 kalitesine geçiriliyor..."
+    },
+    "player_page_quality_failed": {
+        "message": "Sayfanın oynatıcısı $1 kalitesine geçmedi."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Kareler düştüğünde video kalitesini düşür"
     },

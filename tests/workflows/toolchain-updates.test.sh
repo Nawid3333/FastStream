@@ -424,7 +424,7 @@ players_new_major() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'at the set' test "$(origin show "toolchain/player-libraries:$PFILE")" = "$(printf '{\n  "plyr": "4.0.1",\n  "dplayer": "1.27.2"\n}')"
-  check 'names the new major' grep -qF 'A new major, whose page in `tests/e2e/live-specs/players.e2e.mjs` may need a change (the live suite shows it): plyr 3.8.5 to 4.0.1' "$STATE/created.body"
+  check 'names the new major' grep -qF 'A new major, whose page in `tests/e2e/live-specs/players.e2e.mjs` or `tests/e2e/ext-specs/player-qualities.e2e.mjs` may need a change (the live suite and CI show it): plyr 3.8.5 to 4.0.1' "$STATE/created.body"
   check 'no issue' bash -c '! grep -qE "^issue (create|edit|reopen|close)|creator=" "$0"' "$STATE/gh.log"
 }
 
