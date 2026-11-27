@@ -1013,9 +1013,6 @@
     "options_general_dblclickaction": {
         "message": "Çift tıklama eylemi"
     },
-    "options_general_tplclickaction": {
-        "message": "Üçlü tıklama eylemi"
-    },
     "options_general_clickaction_nothing": {
         "message": "Hiçbir şey yapma"
     },

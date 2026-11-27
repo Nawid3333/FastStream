@@ -1013,9 +1013,6 @@
     "options_general_dblclickaction": {
         "message": "雙擊動作"
     },
-    "options_general_tplclickaction": {
-        "message": "三擊動作"
-    },
     "options_general_clickaction_nothing": {
         "message": "不執行任何動作"
     },

@@ -596,9 +596,9 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
   behind the playhead are while a video plays: held, a far hover into a long file kept most of
   it in RAM, which the memory budget cannot let go of, and stopped the main player's downloads
   ahead. The request loop starts at the range of the last keyframe known before the place, so
-  none is asked for again. `FastStreamClient.updatePreview` shows the preview only when its
-  element is at the player's time, so the old frame is hidden meanwhile (every other player's
-  time is its element's). `mp4PreviewPastDuration.test.mjs`, `FastStreamClient.test.mjs`,
+  none is asked for again. A held place is no seek of the element's for the preview
+  (`PreviewSeeks`, under "Interface"): the old frame is hidden meanwhile unless the pointer is
+  near it. `mp4PreviewPastDuration.test.mjs`, `FastStreamClient.test.mjs`,
   `mp4-seek-preview.e2e.mjs`.
 - **A player for sound only plays no picture (2026-11-13).** With a video delay set on an MP4,
   the two extra audio players (and the audio analyzer's player) each buffered and appended the
@@ -1916,6 +1916,26 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   nearly invisible at first on a dark video. The rule stays for transitions added later and
   for the libraries' styles. The tools that closed a second after their last use (precise
   seek, the silence skipper, the subtitle syncer) close at once.
+- **The seek preview shows no frame of another place** (`PreviewSeeks`, 2026-11-28; the owner:
+  "show the wrong frame", after a quick move from one place to another). Every pointer move set
+  the preview's time, and `updatePreview` showed the preview while the place was buffered, also
+  while its element was still seeking there: the old place's frame showed at the new one until
+  the new frame came, and each move's seek cancelled the last, so a sweep showed few frames.
+  Now one seek runs at a time while the pointer moves on (the newest place next, at the
+  element's `seeked`); after a jump (a step over 30 px on the bar) the new place is sought at
+  once. A frame shows only at its own place, within 30 px of it, or during the same movement (a
+  sweep's frames come a little behind the pointer); otherwise the preview is empty (its loading
+  mark after 200 ms, as before). A seek counts only if the element itself went to the time (an
+  MP4 preview can hold a place, `previewSeek`); one that has not ended after 1 s holds the
+  pointer's place back no longer. Measured in headless Firefox on a 2-minute 1080p HLS stream
+  with 4 s segments, served here: 12 moves a run (after 20 ms to 1 s on a place) and a 3-second
+  sweep, 3 runs each. The old place's frame at the new one: 4 of 36 moves (87 ms in all) ->
+  none; the old code hid the preview where the new place was not in the preview's buffer yet,
+  most moves here, and showed the old frame where it was. The new place's frame after 88 -> 87
+  ms; the sweep 6-8 -> 18-22 different frames. The cost: the last place's frame after the sweep
+  233 -> 277 ms, as the seek running when the pointer stops ends first. Waiting only for a seek
+  near the pointer (any farther seek at once) cancelled most seeks of a sweep again (13 frames,
+  the preview shown 15 % of it). `previewSeeks.test.mjs`, `FastStreamClient.test.mjs`.
 - **A status message the bar cuts short shows whole above it** (`StatusManager.updateFullText`, the owner,
   2026-11-22: "make sure that the message is always readable"). The status line is one line between the
   left and right buttons: in a player inside a page (640 px) the disk warning showed about a quarter of its

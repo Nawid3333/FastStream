@@ -1013,9 +1013,6 @@
     "options_general_dblclickaction": {
         "message": "Aksi klik ganda"
     },
-    "options_general_tplclickaction": {
-        "message": "Aksi klik tiga kali"
-    },
     "options_general_clickaction_nothing": {
         "message": "Jangan lakukan apa-apa"
     },

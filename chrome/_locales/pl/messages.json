@@ -1013,9 +1013,6 @@
     "options_general_dblclickaction": {
         "message": "Akcja przy podwójnym kliknięciu"
     },
-    "options_general_tplclickaction": {
-        "message": "Akcja przy potrójnym kliknięciu"
-    },
     "options_general_clickaction_nothing": {
         "message": "Nic nie rób"
     },

@@ -1013,9 +1013,6 @@
     "options_general_dblclickaction": {
         "message": "Tindakan klik dua kali"
     },
-    "options_general_tplclickaction": {
-        "message": "Tindakan klik tiga kali"
-    },
     "options_general_clickaction_nothing": {
         "message": "Jangan buat apa-apa"
     },

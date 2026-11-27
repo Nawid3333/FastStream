@@ -207,10 +207,10 @@ describe('the options page once the saved options are read', () => {
 describe('the options page\'s controls', () => {
   it('names each menu on the <select> itself', () => {
     const selects = doc.querySelectorAll('select');
-    // The eight options.mjs builds (quality, three clicks, visibility, theme, aspect ratio, miniplayer
+    // The seven options.mjs builds (quality, two clicks, visibility, theme, aspect ratio, miniplayer
     // position), and the six pickers of downloading and storage (ahead, largest size, behind, speed, RAM,
     // keep after a reload).
-    expect(selects.length).toBe(14);
+    expect(selects.length).toBe(13);
     for (const select of selects) {
       // A menu options.mjs builds takes its name from its wrapper; a unit picker written in
       // the page carries its own, which i18n.mjs applies.
