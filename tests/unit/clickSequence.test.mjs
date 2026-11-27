@@ -117,3 +117,73 @@ describe('a click on the video', () => {
     expect(acted).toEqual([ClickActions.PLAY_PAUSE]);
   });
 });
+
+// #855: the row as the browser counts it (the click's detail, with the system's double-click time).
+describe('a click row as the browser counts it', () => {
+  /**
+   * The browser's clicks of one row, this far apart.
+   * @param {ClickSequence} clicks
+   * @param {number} n
+   * @param {number} apartMs
+   */
+  function browserRow(clicks, n, apartMs) {
+    for (let i = 1; i <= n; i++) {
+      if (i > 1) vi.advanceTimersByTime(apartMs);
+      clicks.click(i);
+    }
+  }
+
+  it('takes two clicks 450 ms apart for the double click the system made of them', () => {
+    const clicks = video();
+    browserRow(clicks, 2, 450);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.PLAY_PAUSE]);
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.PLAY_PAUSE, ClickActions.FULLSCREEN]);
+  });
+
+  it('does the double click\'s action at once where no triple click does anything', () => {
+    const clicks = video({tripleClickAction: ClickActions.NOTHING});
+    browserRow(clicks, 2, 100);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.PLAY_PAUSE, ClickActions.FULLSCREEN]);
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.PLAY_PAUSE, ClickActions.FULLSCREEN]);
+  });
+
+  it('a triple click: its action at once, the pause gone back, nothing for a fourth', () => {
+    const clicks = video();
+    browserRow(clicks, 4, 100);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.PLAY_PAUSE, ClickActions.HIDE_CONTROLS]);
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.PLAY_PAUSE, ClickActions.HIDE_CONTROLS]);
+  });
+
+  it('undoes nothing when the row\'s first click closed a menu: the double click\'s action only', () => {
+    const clicks = video();
+    clicks.click(1);
+    vi.advanceTimersByTime(5000);
+    acted = [];
+    clicks.consumed(1);
+    vi.advanceTimersByTime(200);
+    clicks.click(2);
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([ClickActions.FULLSCREEN]);
+  });
+
+  it('never undoes an older row\'s pause', () => {
+    const clicks = video();
+    clicks.click(1);
+    vi.advanceTimersByTime(5000);
+    clicks.click(2);
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.FULLSCREEN]);
+  });
+
+  it('two single clicks as the browser counts them are two pauses', () => {
+    const clicks = video();
+    clicks.click(1);
+    vi.advanceTimersByTime(700);
+    clicks.click(1);
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE, ClickActions.PLAY_PAUSE]);
+  });
+});

@@ -256,3 +256,16 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   `Utils.migrateClickActions` moves all three, when still exactly so, to today's defaults
   once (`clickActionsVersion`); a set the user changed in any part stays.
   `tests/unit/migrateClickActions.test.mjs`.
+- **A double click as the system counts it** (2026-11-27, issue #855). `ClickSequence` counted
+  a row with its own 300 ms window, and Windows' double-click time is 500 ms: two clicks 320 or
+  450 ms apart, a double click to Firefox (the event's `detail` is 2), were two single clicks
+  here, a pause and a play, and no fullscreen (measured with real clicks in headless Firefox 161:
+  60-290 ms fullscreen and playing, 320 and 450 ms no fullscreen; MP4 and HLS, the player page
+  and one framed in a site). The row's count is now the click's `detail`; a click without one
+  (no pointer) is counted with the window as before. A row's earlier click that did something
+  else (closed a menu, the big play button) is `consumed()`: the next one undoes no pause of an
+  older row, nor one more than 1 s back. The double click's action comes at once where no triple
+  click does anything; with a triple-click action it waits 300 ms for a third click (the
+  default triple click hides the controls). The reported "fullscreen, but paused" did not show
+  in any of these runs. `tests/unit/clickSequence.test.mjs` (red before: 5 cases),
+  `player-controls.e2e.mjs` ("takes a double click as the system counts it").

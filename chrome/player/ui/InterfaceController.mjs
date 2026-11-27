@@ -552,20 +552,18 @@ export class InterfaceController {
       }
     });
     DOMElements.videoContainer.addEventListener('click', (e) => {
-      if (this.closeAllMenus(false)) {
-        return;
-      }
-
-      if (InterfaceUtils.closeWindows()) {
+      if (this.closeAllMenus(false) || InterfaceUtils.closeWindows()) {
+        clicks.consumed(e.detail);
         return;
       }
 
       if (this.isBigPlayButtonVisible()) {
+        clicks.consumed(e.detail);
         this.playPauseToggle();
         return;
       }
 
-      clicks.click();
+      clicks.click(e.detail);
     });
     DOMElements.hideButton.addEventListener('click', () => {
       DOMElements.hideButton.blur();

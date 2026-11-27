@@ -660,6 +660,27 @@ describe('Player controls', function() {
     await browser.pause(600);
     expect(await browser.execute(() => window.fastStream.player.getVideo().paused)).toBe(false);
   });
+
+  it('takes a double click as the system counts it: 450 ms apart, fullscreen and playing on', async function() {
+    // Two clicks 320 ms apart, a double click to Windows (500 ms), were two single ones here: a pause and a play.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    await browser.execute(() => {
+      Object.assign(window.fastStream.options,
+          {singleClickAction: 'playpause', doubleClickAction: 'fullscreen', tripleClickAction: 'nothing'});
+      window.fastStream.play();
+    });
+    await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
+    await browser.pause(400);
+    const container = await browser.$('.mainplayer .video-container');
+    await browser.action('pointer').move({origin: container}).down().up().pause(450).down().up().perform();
+    const state = await settle(() => browser.execute(() => ({fullscreen: !!document.fullscreenElement,
+      paused: window.fastStream.player.getVideo().paused})), (value) => value.fullscreen, 3000);
+    expect(state).toEqual({fullscreen: true, paused: false});
+    await browser.execute(() => document.exitFullscreen());
+    await settle(() => browser.execute(() => !document.fullscreenElement), (value) => value, 3000);
+  });
 });
 
 // The hide is decided again on each check, not from flags read once when its timer fired.
