@@ -18,14 +18,16 @@ name: Toolchain updates
 #   - actionlint and zizmor, the images CI's "Lint workflows" job runs: the newest x.y.z tag
 #     and the digest its registry gives for it, on the FROM line of .github/<name>/Dockerfile,
 #     and nothing else. Routine: CI runs every workflow file through the new image.
-#   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json):
+#   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json), and
+#     CI's quality spec (tests/e2e/ext-specs/player-qualities.e2e.mjs) with its own files:
 #     ONE rolling pull request, "Toolchain update: player libraries" on
 #     toolchain/player-libraries, rebuilt in place on main whenever the set changes. Each
 #     library goes to its newest release that fits the ranges the others
 #     declare on it, a new major included (the pull request names it: its page may need a
 #     change); MAJOR_HOLDS in tools/check-toolchain.mjs keeps a library on its major on
-#     purpose, and a hold to look at again fails the run. CI and the live suite
-#     (live-streams.yml, which plays them; CI does not) are started on each new head, and
+#     purpose, and a hold to look at again fails the run. CI (whose quality spec plays local
+#     files through them) and the live suite (live-streams.yml, which plays public streams
+#     through them) are started on each new head, and
 #     update-prs.yml calls it ready only once both passed. Closing it skips that set: it
 #     comes again only with another.
 # The daily run also rebuilds an open one on main when main has moved into conflict with
@@ -284,7 +286,7 @@ jobs:
               printf '| Library | Now | Then |\n| --- | --- | --- |\n'
               jq -r '.changes[] | "| [\(.name)](https://www.npmjs.com/package/\(.name)?activeTab=versions) | \(.from) | \(.to) |"' "$players"
               if [ "$(jq '.newMajors | length' "$players")" != 0 ]; then
-                printf '\nA new major, whose page in `tests/e2e/live-specs/players.e2e.mjs` may need a change (the live suite shows it): '
+                printf '\nA new major, whose page in `tests/e2e/live-specs/players.e2e.mjs` or `tests/e2e/ext-specs/player-qualities.e2e.mjs` may need a change (the live suite and CI show it): '
                 jq -r '[.newMajors[] | "\(.name) \(.from) to \(.to)"] | join(", ")' "$players"
               fi
               if [ "$(jq '.kept | length' "$players")" != 0 ]; then

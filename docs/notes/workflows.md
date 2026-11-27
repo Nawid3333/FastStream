@@ -199,7 +199,8 @@
   was not enough: it leaves out a TLS handshake AMO cut off (curl exit 35), which turned the
   daily run red once (#791, 2026-11-21). The plan's output carries every track (`updates`), so an open one
   that conflicts with `main` is rebuilt with its file, or left for the plan to replace
-  when a newer release is out. The player libraries the live suite plays
+  when a newer release is out. The player libraries the live suite plays, and CI's quality
+  spec (`ext-specs/player-qualities.e2e.mjs`) with local files
   (`tests/e2e/live-specs/player-libraries.json`; 2026-10-24; a Dependabot entry for that
   folder was ruled out, since Dependabot's npm fetcher takes `pnpm-lock.yaml` and
   `pnpm-workspace.yaml` from a parent folder when the folder has none) come as ONE rolling PR,

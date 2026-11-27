@@ -24,10 +24,9 @@ import http from 'node:http';
 
 import {browser, expect} from '@wdio/globals';
 
+import {npmFile} from '../npmPackages.mjs';
 import {OPENER_URL} from '../wdio.extension.conf.mjs';
-import {
-  ORIGIN, STREAMS, enterPlayer, npmFile, playFor, seekAndPlay, setOptions, waitPlayable,
-} from './liveSite.mjs';
+import {ORIGIN, STREAMS, enterPlayer, playFor, seekAndPlay, setOptions, waitPlayable} from './liveSite.mjs';
 
 const SITE_PORT = 41987;
 // Two origins on one server: the player-in-an-iframe case needs the frame to be

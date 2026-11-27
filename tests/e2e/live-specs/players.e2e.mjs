@@ -9,25 +9,15 @@
 // Not part of verify or CI: `pnpm run build:keep && pnpm run test:live` after a change to how
 // FastStream finds videos.
 
-import fs from 'node:fs';
 import http from 'node:http';
 
 import {browser, expect} from '@wdio/globals';
 
-import {
-  STREAMS, enterPlayer, npmFile, npmPackage, pageVideos, pinnedVersion, playFor, seekAndPlay,
-  setOptions, waitPlayable,
-} from './liveSite.mjs';
+import {NPM_FILE_TYPES, PLAYER_LIBRARIES, npmFile, npmPackage, playerLibraryFile} from '../npmPackages.mjs';
+import {STREAMS, enterPlayer, pageVideos, playFor, seekAndPlay, setOptions, waitPlayable} from './liveSite.mjs';
 
 const SITE_PORT = 41960;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
-
-/**
- * The releases the pages load, served at /npm/<package>/<file>: player-libraries.json, a
- * file of its own so that toolchain-updates.yml can move them (tools/check-toolchain.mjs).
- * @type {Object<string, string>}
- */
-const PACKAGES = JSON.parse(fs.readFileSync(new URL('./player-libraries.json', import.meta.url), 'utf8'));
 
 const MIME = {hls: 'application/x-mpegURL', dash: 'application/dash+xml', mp4: 'video/mp4'};
 
@@ -248,25 +238,6 @@ const CASES = Object.entries(PLAYERS).flatMap(([name, player]) =>
     .filter(({name, type}) => !ONLY.length || ONLY.some((only) => `${name} ${type}`.includes(only)));
 const PHASE = process.env.LIVE_PHASE || '';
 
-/**
- * A file of one of PACKAGES (or the pinned hls.js), by its path under /npm/.
- * @param {string} rest - "<package>/<file>", the package possibly scoped.
- * @return {Promise<?Buffer>} The file, or null for none.
- */
-async function packageFile(rest) {
-  const parts = rest.split('/');
-  const pkg = parts[0].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
-  const file = parts.slice(pkg.split('/').length).join('/');
-  // Own keys only: a path such as /npm/constructor/x would find Object.prototype's.
-  const version = Object.hasOwn(PACKAGES, pkg) ? PACKAGES[pkg] : (pkg === 'hls.js' ? pinnedVersion('hls.js') : null);
-  if (!version) {
-    return null;
-  }
-  return (await npmPackage(pkg, version)).get(file) || null;
-}
-
-const TYPES = {js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', json: 'application/json'};
-
 let siteServer;
 let hlsJs;
 
@@ -282,8 +253,9 @@ async function openPage({name, type}) {
 describe('Websites\' own players', function() {
   before(async function() {
     hlsJs = await npmFile('hls.js', 'dist/hls.min.js');
-    // Every package once, before any page asks for one.
-    for (const [pkg, version] of Object.entries(PACKAGES)) {
+    // Every package once, before any page asks for one: the releases player-libraries.json pins, which
+    // toolchain-updates.yml moves (tools/check-toolchain.mjs).
+    for (const [pkg, version] of Object.entries(PLAYER_LIBRARIES)) {
       await npmPackage(pkg, version);
     }
 
@@ -294,10 +266,10 @@ describe('Websites\' own players', function() {
         let type = 'text/html; charset=utf-8';
         if (pathname === '/lib/hls.js') {
           body = hlsJs;
-          type = TYPES.js;
+          type = NPM_FILE_TYPES.js;
         } else if (pathname.startsWith('/npm/')) {
-          body = await packageFile(decodeURIComponent(pathname.slice('/npm/'.length)));
-          type = TYPES[pathname.split('.').pop()] || 'application/octet-stream';
+          body = await playerLibraryFile(decodeURIComponent(pathname.slice('/npm/'.length)));
+          type = NPM_FILE_TYPES[pathname.split('.').pop()] || 'application/octet-stream';
         } else if (pathname.startsWith('/p/')) {
           // Only values of this file's own reach a page: the server echoes nothing it is sent.
           const player = PLAYERS[Object.keys(PLAYERS).find((name) => name === pathname.slice('/p/'.length))];

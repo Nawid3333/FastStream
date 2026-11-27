@@ -92,8 +92,8 @@ jobs:
           retention-days: 30
 
   # The player libraries' rolling update pull request (toolchain-updates.yml, branch
-  # toolchain/player-libraries): CI does not play them, this suite does, and update-prs.yml
-  # calls it ready only once this suite passed on its commit. This suite ends after CI, so its
+  # toolchain/player-libraries): CI plays only local files through them, this suite public
+  # streams, and update-prs.yml calls it ready only once this suite passed on its commit. This suite ends after CI, so its
   # end starts update-prs.yml again, by workflow_dispatch with the CI run on this commit (a run
   # the repository's token started sends no workflow_run). Only when that CI run passed: one
   # still running or red decides through ci.yml's own hand-off. always(): a failed or

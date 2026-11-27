@@ -31,17 +31,18 @@ function element(tag, attributes = {}, children = [], text = '') {
 }
 
 /**
- * A document of videos and inline scripts.
+ * A document of videos and inline scripts, and of other elements by their selector.
  * @param {Array<Object>} videos
  * @param {Array<string>} [scripts] - Inline scripts' text.
+ * @param {Object<string, Array<Object>>} [others] - Elements by the selector that finds them.
  * @return {Object}
  */
-function documentOf(videos, scripts = []) {
+function documentOf(videos, scripts = [], others = {}) {
   return {
     querySelectorAll: (selector) => {
       if (selector === 'video') return videos;
       if (selector === 'script:not([src])') return scripts.map((text) => element('script', {}, [], text));
-      return [];
+      return others[selector] || [];
     },
   };
 }
@@ -98,11 +99,65 @@ describe('PageQualities.find', () => {
         {html: '<b>1080P</b>', url: 'https://a.example/1080.mp4', default: true}, {html: '720P', url: 'https://a.example/720.mp4'}]}}]},
       jwplayer: () => ({getPlaylistItem: () => ({sources: [
         {file: 'https://j.example/v_480.mp4', label: '480p'}, {file: 'https://j.example/v_720.mp4', label: '720p'}]})}),
-      dp: {options: {video: {quality: [{name: 'HD', url: 'https://d.example/hd.mp4'}, {name: 'SD', url: 'https://d.example/sd.mp4'}]}}},
+      dp: {options: {video: {quality: [{name: 'HD', url: 'https://d.example/hd.mp4'}, {name: 'SD', url: 'https://d.example/sd.mp4'}]}},
+        video: {tagName: 'VIDEO'}},
     };
     const lists = PageQualities.find(documentOf([]), page, BASE);
     expect(lists.map((list) => list.map((q) => `${q.label}=${q.height}`))).toEqual([
       ['1080P=1080', '720P=720'], ['480p=480', '720p=720'], ['HD=720', 'SD=480']]);
+  });
+
+  it('reads Video.js players\' labelled sources, OvenPlayer\'s instances and a DPlayer in any variable', () => {
+    const page = {
+      videojs: {getPlayers: () => ({
+        v1: {currentSources: () => [{src: '/v/480.mp4', type: 'video/mp4', label: '480P'},
+          {src: '/v/240.mp4', type: 'video/mp4', label: '240P', selected: true}]},
+        // Formats of one file: no quality.
+        v2: {currentSources: () => [{src: '/v/a.webm', type: 'video/webm'}, {src: '/v/a.mp4', type: 'video/mp4'}]},
+        disposed: null,
+      })},
+      OvenPlayer: {getPlayerList: () => [{getSources: () => [{file: '/o/360.mp4', label: '360p', type: 'mp4', index: 0},
+        {file: '/o/720.mp4', label: '720p', type: 'mp4', index: 1}]}]},
+      filmPlayer: {options: {video: {quality: [{name: '1080P', url: '/d/1080.mp4'}, {name: '480P', url: '/d/480.mp4'}]}},
+        video: {tagName: 'VIDEO'}},
+      // The same shape without a video element: not a DPlayer.
+      settings: {options: {video: {quality: [{name: '1P', url: '/x/1.mp4'}, {name: '2P', url: '/x/2.mp4'}]}}},
+    };
+    const lists = PageQualities.find(documentOf([]), page, 'https://site.example/watch/1');
+    expect(lists.map((list) => list.map((q) => `${q.label}=${q.height} ${q.url}`))).toEqual([
+      ['480P=480 https://site.example/v/480.mp4', '240P=240 https://site.example/v/240.mp4'],
+      ['360p=360 https://site.example/o/360.mp4', '720p=720 https://site.example/o/720.mp4'],
+      ['1080P=1080 https://site.example/d/1080.mp4', '480P=480 https://site.example/d/480.mp4'],
+    ]);
+  });
+
+  it('runs no getter of the page\'s globals while looking for a DPlayer', () => {
+    let read = false;
+    const page = {
+      get expensive() {
+        read = true;
+        return {options: {video: {quality: []}}};
+      },
+    };
+    expect(PageQualities.find(documentOf([]), page, BASE)).toEqual([]);
+    expect(read).toBe(false);
+  });
+
+  it('reads a Vidstack player\'s sized sources and xgplayer\'s definition menu', () => {
+    const vidstack = {wrappedJSObject: {qualities: [
+      {id: '720p', src: 'https://v.example/720.mp4', width: 1280, height: 720},
+      {id: '360p', src: 'https://v.example/360.mp4', width: 640, height: 360}]}};
+    // An HLS stream's renditions: no file of their own.
+    const hls = {wrappedJSObject: {qualities: [{id: 'hls-0', width: 1280, height: 720}, {id: 'hls-1', width: 640, height: 360}]}};
+    const option = (url, definition, text) => element('li', {url, definition}, [], text);
+    const xgMenu = {querySelectorAll: (selector) => (selector === 'li[url]' ?
+      [option('/x/480.mp4', '480p', ' 480P '), option('/x/240.mp4', '240p', '')] : [])};
+    const doc = documentOf([], [], {'media-player': [vidstack, hls], '.xgplayer-definition': [xgMenu]});
+    const lists = PageQualities.find(doc, null, 'https://site.example/watch/1');
+    expect(lists.map((list) => list.map((q) => `${q.label}=${q.height} ${q.url}`))).toEqual([
+      ['720p=720 https://v.example/720.mp4', '360p=360 https://v.example/360.mp4'],
+      ['480P=480 https://site.example/x/480.mp4', '240p=240 https://site.example/x/240.mp4'],
+    ]);
   });
 
   it('leaves no tag in a label, however it is nested', () => {

@@ -371,11 +371,18 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
 
 - **Reading them** (`chrome/page-qualities.js`, a content script before content.js; the
   background asks with `GET_PAGE_QUALITIES`): `<source>` lists with a quality attribute (Plyr's
-  `size`, Video.js's `label`/`res`, Fluid Player's `title`, OpenPlayerJS's and MediaElement's
+  `size`, Video.js's `label`/`res`, Fluid Player's and OpenPlayerJS's `title`, MediaElement's
   `data-quality`), Artplayer's instances (`option.quality`, checked against its 5.4.0 typings),
-  JW Player's playlist item (`sources` with labels), a DPlayer in a page variable (it keeps no
-  list of its instances), and Playerjs's file string in the page's scripts. Only what the page
-  holds; no guessed sibling URLs. A list counts with 2 to 12 files.
+  JW Player's playlist item (`sources` with labels), Video.js players' labelled sources
+  (`videojs.getPlayers()`, `currentSources()`: @silvermine/videojs-quality-selector), OvenPlayer's
+  instances (`getPlayerList()`, `getSources()`), a Vidstack `<media-player>`'s qualities from
+  sized sources (only those have a `src`), xgplayer's definition menu (each item carries its
+  entry's `url` as an attribute, from the video's `canplay` on), a DPlayer in any of the page's
+  global variables (it keeps no list of its instances; data properties only, so no getter of
+  the window runs), and Playerjs's file string in the page's scripts. A page method is called
+  with this script's `Reflect.apply`: the page's `Function.prototype.apply` cannot read the
+  content script's argument list, and every call came back empty. Only what the page holds; no
+  guessed sibling URLs. A list counts with 2 to 12 files.
 - **Tying them to the stream** (`PageQualityPick.listForSource`): the stream's URL, or the address
   its request was first made to (`TabHolder.noteRedirect`, from `webRequest.onBeforeRedirect`; the
   source keeps it as `requestedUrl`). `sendSources` asks each frame the streams came from
@@ -399,6 +406,24 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
   302s to a "CDN") - the 720p file plays, the menu offers both, a switch at 4 s goes on at 4 s.
   Live, on the real hoster (the same file): 1080p (1920x816) played, 360p/720p/1080p listed, the
   switch to 720p went on from where it was.
+- **The player libraries, in CI** (`ext-specs/player-qualities.e2e.mjs`, 2026-11-27): one page per
+  library, set up as its docs tell a site to offer several files, all playing 240p/360p/480p
+  files of the run's own from 127.0.0.1 (made from `long-av.mp4` by `mp4Shapes.mjs`) and starting
+  on 240p. First each page's own quality menu must offer the three, FastStream off; then
+  FastStream must list the three in `source.qualities`, play 480p (Auto) and switch to 240p and
+  360p through `setCurrentVideoLevelID('page-quality:<i>')`. Covered: Plyr (`<source size>`),
+  Video.js 8 with @silvermine/videojs-quality-selector, Artplayer, xgplayer (`definition`),
+  MediaElement with mediaelement-plugins' quality feature, OvenPlayer, OpenPlayerJS (`title` and
+  its levels control), Vidstack (sized sources); DPlayer's page (its docs' `const dp`) waits in
+  the spec's `MENU_ONLY` for the menu reader. The libraries are the releases
+  `live-specs/player-libraries.json` pins, from the npm registry (`tests/e2e/npmPackages.mjs`,
+  integrity-checked, in memory; no Actions cache: `pnpm install` needs the registry anyway), so
+  `toolchain-updates.yml`'s rolling update PR runs this spec on every new release, and one that
+  moves its qualities turns CI red there. Not covered: libraries without an npm release a page
+  can load (JW Player, Playerjs, Bitmovin, THEOplayer, Flowplayer: proprietary), Fluid Player
+  (its npm package holds only sources for a bundler), and those whose quality menus list only
+  HLS/DASH renditions (Shaka, Clappr, Media Chrome, Video.js 10, hls-video-element).
+  `QUALITY_PLAYERS=plyr,xgplayer` narrows a run.
 
 ### Qualities only the page player's menu knows (2026-11-27)
 

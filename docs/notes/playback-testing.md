@@ -89,8 +89,9 @@ says whose it is: each page first plays on its own with FastStream not enabled t
 (the page and the library are right), then, auto-enabled, FastStream must replace each
 player, play, seek and play on. `LIVE_PLAYERS=plyr,mp4` (substrings of "name format")
 and `LIVE_PHASE=own|faststream` narrow a run to look into one failure. The shared steps
-(the npm cache, entering the player, its state, play and seek) are in
-`live-specs/liveSite.mjs`, which `streams.e2e.mjs` uses too. Its first run (one Windows
+(entering the player, its state, play and seek) are in
+`live-specs/liveSite.mjs`, which `streams.e2e.mjs` uses too; the npm downloads in
+`tests/e2e/npmPackages.mjs` (since 2026-11-27, shared with CI's `ext-specs/player-qualities.e2e.mjs`). Its first run (one Windows
 pass, about 9 minutes): every page played on its own, FastStream took over all of them
 for HLS and DASH (the shadow-root `<hls-video>` included), and missed the MP4 in 5 of 9
 (the bug below). VHS, video.js's engine, plays DASH only from fMP4: Shaka's angel-one
