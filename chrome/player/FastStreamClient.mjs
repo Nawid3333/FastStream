@@ -2289,11 +2289,19 @@ export class FastStreamClient extends EventEmitter {
     // Into this realm: Blobs from another realm are not `instanceof Blob` here; their data is shared, not copied.
     const handOff = structuredClone(answer.handOff);
     // The RAM's at once; the disk's while the player starts.
-    // Under another link than its own (another host, a token in the path), its data is checked before it plays.
-    const {taken, bytes, onDisk, checked} = this.downloadManager.adopt(handOff, source.url);
+    // Under another link than its own (another host, a token in the path), its data is checked before it plays; one
+    // found by the tab's page alone is lent, and told the check's verdict.
+    const lent = typeof answer.lent === 'number' ? answer.lent : null;
+    const {taken, bytes, onDisk, checked} = this.downloadManager.adopt(handOff, source.url, {lent: lent !== null});
     /** @type {{taken: number, of: number, checked?: boolean}} */
     const record = this.bufferTakenBack = {taken, of: handOff.entries.length};
-    checked.then((same) => {
+    checked.then(async (same) => {
+      if (lent !== null) {
+        // Another source meanwhile: the stash has it back.
+        same = same && this.source === source;
+        const kept = await chrome.runtime.sendMessage({type: MessageTypes.BUFFER_LENT, lent, same}).catch(() => false);
+        same = this.downloadManager.confirmLent(same && kept === true);
+      }
       record.checked = same;
       if (!same || !(bytes > 0) || this.source !== source) return;
       // A reload to mend a load that went wrong keeps what it downloaded: one click starts over without it.

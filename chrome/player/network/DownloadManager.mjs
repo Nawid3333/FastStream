@@ -10,8 +10,10 @@ import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 const AdoptAtOnce = 8;
 
 /**
- * @typedef {{state: 'pending'|'same'|'other', candidates: Map<string, DownloadEntry>, settle: (same: boolean) => void}}
- *   AdoptCheck - candidates: the kept twin of each part downloaded anew meanwhile, by the new part's key.
+ * @typedef {{state: 'pending'|'confirming'|'same'|'other', candidates: Map<string, DownloadEntry>,
+ *   settle: (same: boolean) => void, lent: boolean, confirm: (taken: boolean) => void}} AdoptCheck - candidates: the
+ *   kept twin of each part downloaded anew meanwhile, by the new part's key. lent: the stash keeps it until its
+ *   verdict (confirmLent), so nothing of it is moved or deleted before.
  */
 
 /**
@@ -34,7 +36,7 @@ function sameBytes(a, b) {
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 /**
  * @typedef {{entry: DownloadEntry, identifier: string, session: string, file: string, generation: number,
- *   moved: ?Promise<boolean>}} AdoptedFile
+ *   moved: ?Promise<boolean>, lent: boolean}} AdoptedFile - lent: still the stash's, read where it is.
  */
 
 export class DownloadManager {
@@ -304,9 +306,11 @@ export class DownloadManager {
     const entries = [];
     const store = this.blobStore;
     const opfs = store?.opfsManager;
+    // A buffer still checked is another player's: the stash has it back (a lent one) or it goes.
+    const unchecked = this.adoptCheck && this.adoptCheck.state !== 'same' ? new Set(this.adopted?.values()) : null;
     this.storage?.forEach((entry, identifier) => {
       if (entry.status !== DownloadStatus.DOWNLOAD_COMPLETE || entry.storeRaw || entry.responseType !== 'arraybuffer' ||
-          typeof entry.data !== 'function') {
+          typeof entry.data !== 'function' || unchecked?.has(entry)) {
         return;
       }
       const blobId = entry.blobId ?? identifier;
@@ -329,23 +333,32 @@ export class DownloadManager {
    * Takes back what an earlier player of this video handed over; its disk files are moved meanwhile.
    * @param {{url: string, session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}} handOff
    * @param {string} url
+   * @param {{lent?: boolean}} [how] - lent: found by the tab's page alone (BufferStash.lendNear), so checked whatever
+   *   its link, and still the stash's until confirmLent: its disk files are moved only then.
    * @return {{taken: number, bytes: number, onDisk: Promise<number>, checked: Promise<boolean>}} Taken at once (RAM),
    *   the size of all taken (RAM and disk), how many of the disk's once moved, and whether it is used: at once for the
    *   same place (only the query changed), else once a part downloaded anew is the same (checkAdopted).
    */
-  adopt(handOff, url) {
+  adopt(handOff, url, {lent = false} = {}) {
     const change = linkChange(handOff.url, url);
     if (change === null || !this.blobStore) {
       return {taken: 0, bytes: 0, onDisk: Promise.resolve(0), checked: Promise.resolve(false)};
     }
-    this.adoptedLink = change;
     this.endAdoptCheck(false);
+    this.adoptedLink = change;
+    const verify = lent || !change.samePlace;
     /** @type {(same: boolean) => void} */
     let settle = () => {};
-    const checked = change.samePlace ? Promise.resolve(true) : new Promise((resolve) => {
+    const checked = verify ? new Promise((resolve) => {
       settle = resolve;
-    });
-    this.adoptCheck = change.samePlace ? null : {state: 'pending', candidates: new Map(), settle};
+    }) : Promise.resolve(true);
+    /** @type {(taken: boolean) => void} */
+    let confirm = () => {};
+    /** @type {Promise<boolean>} */
+    const confirmed = lent ? new Promise((resolve) => {
+      confirm = resolve;
+    }) : Promise.resolve(true);
+    this.adoptCheck = verify ? {state: 'pending', candidates: new Map(), settle, lent, confirm} : null;
     this.adopted = new Map();
     let taken = 0;
     let bytes = 0;
@@ -375,9 +388,11 @@ export class DownloadManager {
         if (this.storage.has(identifier)) continue;
         // Here at once, read once its file is moved: in its turn, or at once for a read that comes first.
         /** @type {AdoptedFile} */
-        const item = {entry, identifier, session: handOff.session, file: record.file, generation: this.storageGeneration, moved: null};
+        const item = {entry, identifier, session: handOff.session, file: record.file, generation: this.storageGeneration,
+          moved: null, lent};
         entry.data = async () => {
           try {
+            if (item.lent) return await this.blobStore?.opfsManager?.readSessionFile(item.session, item.file);
             return await this.adoptOne(item) ? await this.blobStore.getBlob(identifier) : undefined;
           } catch (e) {
             return undefined;
@@ -388,7 +403,15 @@ export class DownloadManager {
         bytes += entry.dataSize;
       }
     }
-    return {taken, bytes, onDisk: this.adoptDiskFiles(disk, handOff.session), checked};
+    const session = handOff.session;
+    const onDisk = !lent ? this.adoptDiskFiles(disk, session) : confirmed.then((taken) => {
+      if (!taken) return 0;
+      disk.forEach((item) => {
+        item.lent = false;
+      });
+      return this.adoptDiskFiles(disk, session);
+    });
+    return {taken, bytes, onDisk, checked};
   }
 
   /**
@@ -489,14 +512,42 @@ export class DownloadManager {
       this.forgetAdopted(kept);
       check.candidates.forEach((twin) => this.forgetAdopted(twin));
       check.candidates.clear();
-      check.state = 'same';
+      // A lent one plays once the stash let it go (confirmLent).
+      check.state = check.lent ? 'confirming' : 'same';
     } else {
       console.warn('A handed-over buffer was another video\'s: it is not used');
-      this.adopted?.forEach((entry) => this.forgetAdopted(entry));
-      this.adopted = null;
-      check.state = 'other';
+      this.dropAdopted(check);
     }
     check.settle(same);
+  }
+
+  /**
+   * The stash's answer for a lent buffer found to be this video's: let go of to this player (it plays, its disk files
+   * are moved), or no longer there (its time up, the background restarted): not used.
+   * @param {boolean} taken
+   * @return {boolean} Whether it is used.
+   */
+  confirmLent(taken) {
+    const check = this.adoptCheck;
+    if (!check?.lent || check.state !== 'confirming') return false;
+    if (!taken) {
+      this.dropAdopted(check);
+      return false;
+    }
+    check.state = 'same';
+    check.confirm(true);
+    return true;
+  }
+
+  /**
+   * None of a handed-over buffer is used: what this player holds of it goes. A lent one's files stay the stash's.
+   * @param {AdoptCheck} check
+   */
+  dropAdopted(check) {
+    this.adopted?.forEach((entry) => this.forgetAdopted(entry));
+    this.adopted = null;
+    check.state = 'other';
+    check.confirm(false);
   }
 
   /**
@@ -518,11 +569,12 @@ export class DownloadManager {
    */
   endAdoptCheck(same) {
     const check = this.adoptCheck;
-    this.adoptCheck = null;
-    if (check?.state === 'pending') {
-      check.state = 'other';
+    if (check?.state === 'pending' || check?.state === 'confirming') {
+      // Unchecked, it is no download of this video's: a new link (relink) would take it for one.
+      this.dropAdopted(check);
       check.settle(same);
     }
+    this.adoptCheck = null;
   }
 
   /**

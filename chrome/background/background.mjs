@@ -657,6 +657,7 @@ export const MessageSenders = {
   [MessageTypes.REQUEST_FRESH_LINK]: 'own',
   [MessageTypes.BUFFER_STASH]: 'own',
   [MessageTypes.BUFFER_TAKE]: 'own',
+  [MessageTypes.BUFFER_LENT]: 'own',
   [MessageTypes.REQUEST_SOURCES]: 'own',
   [MessageTypes.CLEAR_SOURCES]: 'own',
   [MessageTypes.SET_HEADERS]: 'own',
@@ -1003,18 +1004,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return;
     }
     // The tab's page: where a buffer is looked for when the hoster's frame or the stream's link came anew in another
-    // form; the taker checks its data first under another link (DownloadManager.adopt).
+    // form; one under another link is lent, the taker checks its data first and says so (BUFFER_LENT).
     const near = tab.url || '';
     // After the options, as BUFFER_STASH's put: a hand-off just made is there.
     ensureOptions().then(async () => {
       const own = await bufferStash.take(key);
-      if (own || !near || typeof msg.url !== 'string') return own;
-      return bufferStash.takeNear(playerNearKey(near, sender), msg.url);
-    }).then((handOff) => sendResponse({page, near, handOff}), (e) => {
+      if (own || !near || typeof msg.url !== 'string') return {handOff: own, lent: null};
+      return await bufferStash.lendNear(playerNearKey(near, sender), msg.url, `${tab.tabId}/${frame.frameId}`, key) ??
+        {handOff: null, lent: null};
+    }).then(({handOff, lent}) => sendResponse({page, near, handOff, ...(lent ? {lent} : {})}), (e) => {
       console.warn('Could not take back a handed-over buffer', e);
       sendResponse({page, near, handOff: null});
     });
     return true;
+  } else if (msg.type === MessageTypes.BUFFER_LENT) {
+    // The word of the player a buffer was lent to: its video's, or back in the stash for its own.
+    sendResponse(BackgroundUtils.isUrlPlayerUrl(sender.url || '') && typeof msg.lent === 'number' &&
+      bufferStash.endLend(msg.lent, msg.same === true, `${tab.tabId}/${frame.frameId}`));
+    return;
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
     // The page took the player iframe out before it loaded: no PLAYER_LOADED will end the opening.
     if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {

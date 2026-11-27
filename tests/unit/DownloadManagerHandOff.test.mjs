@@ -15,7 +15,8 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
       this.blobStore = new Map();
       this.inRam = new Map();
       this.names = new Map();
-      this.opfsManager = {sessionName: `fsblob-${++this.constructor.sessions}-me`, fileName: (id) => this.names.get(id) ?? null};
+      this.opfsManager = {sessionName: `fsblob-${++this.constructor.sessions}-me`, fileName: (id) => this.names.get(id) ?? null,
+        readSessionFile: vi.fn(async (session, name) => new Blob([`from ${session}/${name}`]))};
       this.adoptStoredFile = vi.fn(async (id, session, name) => {
         if (name === 'broken') return false;
         this.blobStore.set(id, new Blob([`from ${session}/${name}`]));
@@ -310,6 +311,69 @@ describe('DownloadManager.adopt', () => {
         stored = true;
       }}, 0);
       expect(stored).toBe(true);
+    });
+
+    it('lent by the stash: checked though only the query changed, and used once the stash let it go', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked, onDisk} = manager.adopt(handOff, NEW, {lent: true});
+      await download(manager, seg(1, NEW_SIG), 'one');
+      expect(await checked).toBe(true);
+      // Not before the stash's word, and nothing of it moved.
+      expect(ask(manager, seg(2, NEW_SIG)).stored).toBe(false);
+      expect(manager.blobStore.adoptStoredFile).not.toHaveBeenCalled();
+      expect(manager.confirmLent(true)).toBe(true);
+      expect(await onDisk).toBe(1);
+      expect(manager.blobStore.adoptStoredFile).toHaveBeenCalledWith(expect.any(String), handOff.session, 'f7');
+      expect(manager.blobStore.dropSession).toHaveBeenCalledWith(handOff.session);
+      expect(ask(manager, seg(3, NEW_SIG)).stored).toBe(true);
+    });
+
+    it('lent: a part on the disk is compared where it is', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked} = manager.adopt(handOff, NEW, {lent: true});
+      await download(manager, seg(3, NEW_SIG), `from ${handOff.session}/f7`);
+      expect(await checked).toBe(true);
+      expect(manager.blobStore.opfsManager.readSessionFile).toHaveBeenCalledWith(handOff.session, 'f7');
+      expect(manager.blobStore.adoptStoredFile).not.toHaveBeenCalled();
+    });
+
+    it('lent, another video\'s: nothing of it moved or deleted, its files stay the stash\'s', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked, onDisk} = manager.adopt(handOff, NEW, {lent: true});
+      await download(manager, seg(1, NEW_SIG), 'uno');
+      expect(await checked).toBe(false);
+      expect(await onDisk).toBe(0);
+      expect(manager.blobStore.adoptStoredFile).not.toHaveBeenCalled();
+      expect(manager.blobStore.dropSession).not.toHaveBeenCalled();
+      expect(ask(manager, seg(2, NEW_SIG)).stored).toBe(false);
+      // Nothing of it goes on to the next player.
+      expect(manager.handOff().entries.map((e) => e.url)).toEqual([seg(1, NEW_SIG)]);
+    });
+
+    it('lent, the stash no longer has it (its time up): not used', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked, onDisk} = manager.adopt(handOff, NEW, {lent: true});
+      await download(manager, seg(1, NEW_SIG), 'one');
+      expect(await checked).toBe(true);
+      expect(manager.confirmLent(false)).toBe(false);
+      expect(await onDisk).toBe(0);
+      expect(ask(manager, seg(2, NEW_SIG)).stored).toBe(false);
+    });
+
+    it('a check ended before its verdict (a new link): nothing it held stays, nor goes on to the next player', async () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const {checked} = manager.adopt(issuedAt('https://cdn.test/hls/AAA/'), 'https://cdn.test/hls/BBB/master.m3u8?s=1');
+      manager.relink('https://cdn.test/hls/BBB/master.m3u8?s=1', 'https://cdn.test/hls/BBB/master.m3u8?s=2');
+      expect(await checked).toBe(false);
+      expect(manager.blobStore.deleteBlob).toHaveBeenCalledWith(
+          manager.getIdentifier({url: 'https://cdn.test/hls/AAA/seg-2.ts', responseType: 'arraybuffer'}));
+      expect(manager.handOff().entries).toEqual([]);
     });
 
     it('a new source before the check: the check ends, nothing used', async () => {

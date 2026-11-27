@@ -755,20 +755,36 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   was found only under the same host and path. Now:
   - The background keeps each buffer under the tab's page too (`nearKey`, sent back by the player
     in its hand-off as BUFFER_TAKE told it, and in the record on the disk); a player whose own key
-    finds none gets the one of the same tab page (`BufferStash.takeNear`: a link of the same shape
-    first, else the newest).
+    finds none gets the one of the same tab page (`BufferStash.lendNear`: one from the same hoster
+    page first, then a link of the same shape, else the newest). Under the very same link it is
+    taken; under another it is only lent, as it may be another video's (a hoster's other language
+    in the same page): out of the stash meanwhile, its disk files left where they are (the check
+    reads one there, `OPFSManager.readSessionFile`), and the player says whose it is
+    (BUFFER_LENT, `endLend`). Its video's: the player has it for good, its files are moved then
+    (`confirmLent`). Another's: back under its own key for the rest of its time (a newer one of
+    that video there meanwhile wins), so the first language's buffer is still there when the user
+    goes back to it. A player that never says: back after `LendMs` (60 s).
   - `linkChange` also names a changed host and the path segments that changed in place (the same
     depth), and `looseLink` leaves them out of the old parts' links and the new requests' alike;
     the stream's own link stands for itself, so a single file whose whole link changed keeps its
     ranges.
-  - Beyond the query nothing of it is used until one part downloaded anew is the same, byte for
-    byte (`DownloadManager.checkAdopted`): the parts asked for meanwhile download anew, and the
-    first one done decides. Other bytes: another video's, all of it let go of. The notice of a
-    buffer taken back waits for that (`checked`).
+  - Beyond the query, and for every lent one (its query alone changed too: on another hoster page
+    a query may name another video, `?id=`), nothing of it is used until one part downloaded anew
+    is the same, byte for byte (`DownloadManager.checkAdopted`): the parts asked for meanwhile
+    download anew, and the first one done decides. Other bytes: another video's, none of it used,
+    nothing of it goes on in this player's own hand-off. A check ended before its word (a new
+    source, a new link) leaves none of it behind. The notice of a buffer taken back waits for that
+    (`checked`).
   - After: path token 67/67 taken back, 5 parts downloaded again (those asked for before the
     check); another host 97/97, 1 again; the frame's new address 84/84, 0 again. Another video on
     the same page under a new link (each segment one TS null packet longer): not used, all of it
     downloaded, playback fine. The red runs before the change are the measurement above.
+  - With the lend (DeepSeek's review): the frame's new address is checked now, 1 to 23 parts
+    downloaded again in five runs (the parts asked for before the word, many on this fast local
+    server), path and host 1. The page's frame switched to another video and back
+    (`switch-frame`): the other video's player had the first one's buffer lent, found it was not
+    its own, gave it back, and the first video's next player took it, 1 part again; before the
+    lend it had been deleted by the other's check and all 72 parts downloaded again.
   - Not covered: a hoster whose segments each carry a path token of their own, unrelated to the
     stream's link (no part lines up: downloaded again, as before), and a playlist whose variant
     links change differently from its master's.

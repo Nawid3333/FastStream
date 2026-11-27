@@ -7,6 +7,9 @@ import {BufferKeepMaxMs, BufferKeepRamOnlySeconds} from '../player/options/Buffe
  */
 
 export const BufferKeepMs = BufferKeepRamOnlySeconds * 1000;
+// How long a buffer lent to a player under another link waits for its word (lendNear): its first part downloaded
+// anew and compared takes seconds.
+export const LendMs = 60 * 1000;
 // The record of a buffer on the disk is written again after this much of its RAM was written there: what an event page
 // that went meanwhile wrote and had not recorded is downloaded again.
 const RecordEveryBytes = 64 * 1024 * 1024;
@@ -77,6 +80,19 @@ export function bufferKey({pageUrl, identifier, incognito, cookieStoreId}) {
 }
 
 /**
+ * @param {string} key - bufferKey's.
+ * @return {?string} The hoster's page it names.
+ */
+function pageOf(key) {
+  try {
+    const page = JSON.parse(key)[2];
+    return typeof page === 'string' ? page : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * @param {HandedEntry[]} entries
  * @return {number}
  */
@@ -141,6 +157,9 @@ export class BufferStash {
     this.disk = disk;
     /** @type {Map<string, Kept>} */
     this.kept = new Map();
+    /** @type {Map<number, {key: string, kept: Kept, to: string, timer: ReturnType<typeof setTimeout>}>} */
+    this.lent = new Map();
+    this.lends = 0;
     // What an unloaded event page kept on the disk: take() and expire() wait for it.
     this.ready = disk ? this.restore().catch((e) => console.warn('Could not read the buffers kept on the disk', e)) :
       Promise.resolve();
@@ -184,34 +203,89 @@ export class BufferStash {
     if (!kept) return null;
     clearTimeout(kept.timer);
     this.kept.delete(key);
-    if (kept.onDisk) {
-      this.schedule();
-      // Its record, read back by a later event page, would hand it over again: files the taker moved away, and a
-      // newer buffer of the same video deleted as the older one.
-      const session = kept.handOff.session;
-      const disk = /** @type {KeptDisk} */ (this.disk);
-      if (session) {
-        kept.busy.then(() => disk.removeRecord(session))
-            .catch((e) => console.warn('Could not remove a taken buffer\'s record', e));
-      }
-    }
+    this.taken(kept);
     return kept.handOff;
   }
 
   /**
-   * A buffer handed over in the same tab page when the video's own key finds none: one whose link looks like this
-   * one's first, the newest of them. The taker checks its data before using it (DownloadManager.adopt, loose).
+   * @param {Kept} kept - Gone to its taker for good.
+   */
+  taken(kept) {
+    if (!kept.onDisk) return;
+    this.schedule();
+    // Its record, read back by a later event page, would hand it over again: files the taker moved away, and a
+    // newer buffer of the same video deleted as the older one.
+    const session = kept.handOff.session;
+    const disk = /** @type {KeptDisk} */ (this.disk);
+    if (session) {
+      kept.busy.then(() => disk.removeRecord(session))
+          .catch((e) => console.warn('Could not remove a taken buffer\'s record', e));
+    }
+  }
+
+  /**
+   * A buffer handed over in the same tab page when the video's own key finds none: first one from the same hoster's
+   * page (its link issued anew), then one whose link looks like this one's, the newest of them. Under this very link it
+   * is taken; under another it is lent, as it may be another video's (a hoster's other language on the same page):
+   * the taker checks its data (DownloadManager.adopt) and says so (endLend); until then it is out of the stash, its
+   * files where they are.
    * @param {string} near - nearKey.
    * @param {string} url - The new player's stream.
-   * @return {Promise<?BufferHandOff>}
+   * @param {string} to - Who it is lent to: only they end the lend.
+   * @param {string} [own] - The new player's bufferKey, whose hoster's page goes first.
+   * @return {Promise<?{handOff: BufferHandOff, lent: ?number}>}
    */
-  async takeNear(near, url) {
+  async lendNear(near, url, to, own = '') {
     await this.ready;
     const shape = linkShape(url);
+    const page = pageOf(own);
+    /** @type {(entry: [string, Kept]) => number} */
+    const rank = ([key, kept]) => (page !== null && pageOf(key) === page ? 2 : 0) + (linkShape(kept.handOff.url) === shape ? 1 : 0);
     const found = [...this.kept].filter(([, kept]) => kept.near === near)
-        .sort(([, a], [, b]) => Number(linkShape(b.handOff.url) === shape) - Number(linkShape(a.handOff.url) === shape) ||
-          b.since - a.since);
-    return found.length ? this.take(found[0][0]) : null;
+        .sort((a, b) => rank(b) - rank(a) || b[1].since - a[1].since);
+    if (!found.length) return null;
+    const [key, kept] = found[0];
+    if (kept.handOff.url === url) {
+      const handOff = await this.take(key);
+      return handOff ? {handOff, lent: null} : null;
+    }
+    clearTimeout(kept.timer);
+    this.kept.delete(key);
+    const id = ++this.lends;
+    // A taker gone without a word: it is back after LendMs.
+    const timer = setTimeout(() => this.endLend(id, false, to), LendMs);
+    this.lent.set(id, {key, kept, to, timer});
+    return {handOff: kept.handOff, lent: id};
+  }
+
+  /**
+   * The taker's word on a lent buffer: its video's, it has it for good (as take); another's, it is back under its own
+   * key for the rest of its time, unless a newer one of that video is there now.
+   * @param {number} id
+   * @param {boolean} same
+   * @param {string} from
+   * @return {boolean} Whether the taker has it.
+   */
+  endLend(id, same, from) {
+    const lent = this.lent.get(id);
+    if (!lent || lent.to !== from) return false;
+    clearTimeout(lent.timer);
+    this.lent.delete(id);
+    const {key, kept} = lent;
+    if (same) {
+      this.taken(kept);
+      return true;
+    }
+    const left = kept.until - Date.now();
+    const newer = this.kept.get(key);
+    if (newer || !(left > 0)) {
+      if (kept.handOff.session !== newer?.handOff.session) this.drop(kept.handOff.session, kept.busy);
+      if (kept.onDisk) this.schedule();
+      return false;
+    }
+    kept.timer = this.timerFor(key, left);
+    this.kept.set(key, kept);
+    return false;
   }
 
   /**

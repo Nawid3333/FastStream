@@ -3792,6 +3792,23 @@ describe('FastStreamClient, a buffer taken back', () => {
     expect(client.bufferTakenBack.checked).toBe(false);
   });
 
+  it('tells the stash the check\'s word on a lent buffer, and uses it only once the stash let it go', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    for (const [same, stashLets, used] of [[true, true, true], [true, false, false], [false, false, false]]) {
+      const client = clientTaking({taken: 1, bytes: 1.4e9, same});
+      client.downloadManager.confirmLent = vi.fn((taken) => taken);
+      const answers = chrome.runtime.sendMessage;
+      chrome.runtime.sendMessage = vi.fn(async (message) => (message.type === 'BUFFER_LENT' ? stashLets :
+        {...await answers(message), lent: 7}));
+      await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+      await vi.waitFor(() => expect(client.bufferTakenBack.checked).toBe(used));
+      expect(client.downloadManager.adopt).toHaveBeenCalledWith(expect.anything(), 'https://cdn.example/v.m3u8', {lent: true});
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({type: 'BUFFER_LENT', lent: 7, same});
+      expect(client.downloadManager.confirmLent).toHaveBeenCalledWith(same && stashLets);
+      expect(client.interfaceController.showBufferKept).toHaveBeenCalledTimes(used ? 1 : 0);
+    }
+  });
+
   it('says nothing when none of it was taken (another link)', async () => {
     const client = clientTaking({taken: 0, bytes: 0});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));

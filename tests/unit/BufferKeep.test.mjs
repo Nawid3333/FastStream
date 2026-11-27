@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {BufferStash} from '../../chrome/background/BufferStash.mjs';
+import {BufferStash, LendMs} from '../../chrome/background/BufferStash.mjs';
 import {keptBufferDisk} from '../../chrome/background/KeptBufferDisk.mjs';
 import {BufferKeepChoices, bufferKeepLabel, bufferKeepMs, bufferKeepSeconds} from '../../chrome/player/options/BufferKeep.mjs';
 
@@ -287,6 +287,27 @@ describe('a buffer kept longer than the event page lives', () => {
     await settle();
     expect(dropSession).not.toHaveBeenCalled();
     expect((await stash.take(KEY)).session).toBe('fsblob-1-1');
+  });
+
+  it('keeps one lent on the disk as it is: back after the lend, forgotten once its taker says it is its video', async () => {
+    const disk = fakeDisk();
+    const {stash, dropSession} = stashOn(disk);
+    stash.put(KEY, handOff(), HOUR, {near: 'near'});
+    await settle();
+    const OTHER = 'https://cdn.test/w/master.m3u8';
+    const first = await stash.lendNear('near', OTHER, '1/5');
+    expect(first.lent).toEqual(expect.any(Number));
+    // Lent: its record stays, so an event page loaded again meanwhile has it back.
+    await settle();
+    expect(disk.dirs.get('fsblob-1-1').record).not.toBe(null);
+    // Its taker never said: back for the rest of its hour.
+    vi.advanceTimersByTime(LendMs);
+    const again = await stash.lendNear('near', OTHER, '1/5');
+    expect(again.handOff).toBe(first.handOff);
+    expect(stash.endLend(again.lent, true, '1/5')).toBe(true);
+    await settle();
+    expect(disk.dirs.get('fsblob-1-1').record).toBe(null);
+    expect(dropSession).not.toHaveBeenCalled();
   });
 
   it('forgets one taken: a later event page does not hand it over again', async () => {

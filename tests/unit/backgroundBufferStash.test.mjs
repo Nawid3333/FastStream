@@ -76,11 +76,32 @@ describe('a player\'s buffer handed over as it goes', () => {
     // Another tab page finds none.
     const elsewhere = await playerOn(2, 'https://site.test/watch/2');
     expect((await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, elsewhere))?.handOff).toBeNull();
-    // Its own key finds none (another identifier): the tab's page does, once.
+    // Its own key finds none (another identifier): the tab's page does, lent until the player says whose it is.
     const next = await playerOn(1, PAGE);
-    const taken = (await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, next))?.handOff;
-    expect(taken?.url).toBe(SOURCE + '?t=A');
+    const lent = await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, next);
+    expect(lent?.handOff?.url).toBe(SOURCE + '?t=A');
+    expect(lent?.lent).toEqual(expect.any(Number));
     expect((await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, next))?.handOff).toBeNull();
+    // Only that player says; another video's: back for its own.
+    expect(await bg.message({type: 'BUFFER_LENT', lent: lent.lent, same: false}, elsewhere)).toBe(false);
+    expect(await bg.message({type: 'BUFFER_LENT', lent: lent.lent, same: false}, next)).toBe(false);
+    const own = await take(await playerOn(1, PAGE));
+    expect(own?.url).toBe(SOURCE + '?t=A');
+  });
+
+  it('lent and found to be the new player\'s video: its for good', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    const player = await playerOn(1, PAGE);
+    const told = await ask(player);
+    await bg.navigated(1, PAGE);
+    await bg.message({...handOff, near: told.near}, player);
+    const NEW = 'https://cdn.test/hls/t2/master.m3u8';
+    const next = await playerOn(1, PAGE);
+    const {lent} = await bg.message({type: 'BUFFER_TAKE', identifier: NEW, url: NEW}, next);
+    expect(await bg.message({type: 'BUFFER_LENT', lent, same: true}, next)).toBe(true);
+    // No longer lent: a later word brings nothing back.
+    expect(await bg.message({type: 'BUFFER_LENT', lent, same: false}, next)).toBe(false);
+    expect(await take(await playerOn(1, PAGE))).toBeNull();
   });
 
   it('comes from FastStream\'s player alone', async () => {

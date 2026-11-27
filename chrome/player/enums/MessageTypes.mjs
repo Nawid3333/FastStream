@@ -46,6 +46,7 @@ export const MessageTypes = {
   // A player going away hands its buffer over, and the next one takes it back (BufferStash).
   BUFFER_STASH: 'BUFFER_STASH',
   BUFFER_TAKE: 'BUFFER_TAKE',
+  BUFFER_LENT: 'BUFFER_LENT',
   DOWNLOAD: 'DOWNLOAD',
   HANDLE_DOWNLOAD: 'HANDLE_DOWNLOAD',
   PAUSE_MEDIA: 'PAUSE_MEDIA',
