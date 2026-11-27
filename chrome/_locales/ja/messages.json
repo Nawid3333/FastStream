@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "品質が $1 に下げられました：このコンピュータは $3 でフレームの $2% をドロップしました。維持したい場合は品質メニューで $3 を選択してください。"
     },
+    "player_page_quality_switching": {
+        "message": "ページのプレーヤーを$1に切り替えています..."
+    },
+    "player_page_quality_failed": {
+        "message": "ページのプレーヤーは$1に切り替わりませんでした。"
+    },
     "options_general_lowerondroppedframes": {
         "message": "フレームが落ちたときに動画品質を下げる"
     },

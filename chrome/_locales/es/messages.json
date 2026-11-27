@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "Calidad reducida a $1: este ordenador ha perdido el $2% de los fotogramas en $3. Elige $3 en el menú de calidad para mantenerla."
     },
+    "player_page_quality_switching": {
+        "message": "Cambiando el reproductor de la página a $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "El reproductor de la página no cambió a $1."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Bajar la calidad del vídeo cuando se pierdan fotogramas"
     },

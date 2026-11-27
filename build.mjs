@@ -156,6 +156,7 @@ async function buildWeb() {
     'overlay-guard.js',
     'episode-links.js',
     'page-qualities.js',
+    'page-quality-control.js',
     'page-fetch.js',
     'background',
     '_locales',

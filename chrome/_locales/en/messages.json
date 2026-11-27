@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "Quality lowered to $1: this computer dropped $2% of the frames at $3. Choose $3 in the quality menu to keep it."
     },
+    "player_page_quality_switching": {
+        "message": "Switching the page's player to $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "The page's player did not switch to $1."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Lower the quality when frames are dropped"
     },

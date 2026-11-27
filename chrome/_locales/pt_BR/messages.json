@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "Qualidade reduzida para $1: este computador perdeu $2% dos quadros em $3. Escolha $3 no menu de qualidade para mantê-la."
     },
+    "player_page_quality_switching": {
+        "message": "Mudando o player da página para $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "O player da página não mudou para $1."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Reduzir a qualidade quando quadros forem descartados"
     },

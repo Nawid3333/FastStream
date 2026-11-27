@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "Qualità abbassata a $1: questo computer ha perso il $2% dei fotogrammi a $3. Scegli $3 nel menu qualità per mantenerla."
     },
+    "player_page_quality_switching": {
+        "message": "Passaggio del lettore della pagina a $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "Il lettore della pagina non è passato a $1."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Abbassa la qualità quando i fotogrammi vanno persi"
     },

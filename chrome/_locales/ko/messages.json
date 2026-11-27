@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "화질이 $1(으)로 낮아졌습니다: 이 컴퓨터가 $3에서 프레임의 $2%를 드롭했습니다. 계속 유지하려면 화질 메뉴에서 $3을(를) 선택하세요."
     },
+    "player_page_quality_switching": {
+        "message": "페이지 플레이어를 $1(으)로 전환하는 중..."
+    },
+    "player_page_quality_failed": {
+        "message": "페이지 플레이어가 $1(으)로 전환되지 않았습니다."
+    },
     "options_general_lowerondroppedframes": {
         "message": "프레임이 드랍되면 영상 품질 낮추기"
     },

@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "Kualiti diturunkan kepada $1: komputer ini menggugurkan $2% bingkai pada $3. Pilih $3 dalam menu kualiti untuk mengekalkannya."
     },
+    "player_page_quality_switching": {
+        "message": "Menukar pemain halaman kepada $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "Pemain halaman tidak bertukar kepada $1."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Turunkan kualiti apabila bingkai tercicir"
     },

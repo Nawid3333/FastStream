@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "Kwaliteit verlaagd naar $1: deze computer miste $2% van de frames bij $3. Kies $3 in het kwaliteitsmenu om daarbij te blijven."
     },
+    "player_page_quality_switching": {
+        "message": "De speler van de pagina schakelt naar $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "De speler van de pagina is niet naar $1 overgeschakeld."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Videokwaliteit verlagen wanneer frames weglopen"
     },

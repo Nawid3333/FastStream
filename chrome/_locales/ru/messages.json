@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "Качество снижено до $1: этот компьютер пропустил $2% кадров при $3. Выберите $3 в меню качества, чтобы вернуть его."
     },
+    "player_page_quality_switching": {
+        "message": "Переключение плеера страницы на $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "Плеер страницы не переключился на $1."
+    },
     "options_general_lowerondroppedframes": {
         "message": "Снижать качество видео при пропуске кадров"
     },

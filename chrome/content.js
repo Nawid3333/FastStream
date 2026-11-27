@@ -5,6 +5,8 @@
     GET_VIDEO_SIZE: 'GET_VIDEO_SIZE',
     GET_PLAYED_VIDEO: 'GET_PLAYED_VIDEO',
     GET_PAGE_QUALITIES: 'GET_PAGE_QUALITIES',
+    PAGE_QUALITY_PROBE: 'PAGE_QUALITY_PROBE',
+    PAGE_QUALITY_SELECT: 'PAGE_QUALITY_SELECT',
     FRAME_ADDED: 'FRAME_ADDED',
     REMOVE_PLAYERS: 'REMOVE_PLAYERS',
     IS_FULL: 'IS_FULL',
@@ -158,6 +160,18 @@
         console.warn('Reading the page player\'s qualities failed', e);
       }
       sendResponse(lists);
+    } else if (request.type === MessageTypes.PAGE_QUALITY_PROBE) {
+      // A file the page's video plays: one through MSE (a blob:) switches to no file FastStream could play.
+      const video = qualityVideo(request);
+      if (!video || !/^https?:/.test(video.currentSrc)) {
+        sendResponse(null);
+        return;
+      }
+      PageQualityControl.probe(video).then(sendResponse, () => sendResponse(null));
+      return true;
+    } else if (request.type === MessageTypes.PAGE_QUALITY_SELECT) {
+      PageQualityControl.select(request.id, request.index).then(sendResponse, () => sendResponse({changed: false, error: 'failed'}));
+      return true;
     } else if (request.type === MessageTypes.GET_PLAYED_VIDEO) {
       // Before the player linked up, the latest replaced (one player opens per frame at a time).
       const linked = iframeMap.get(request.frameId);
@@ -2656,6 +2670,24 @@
     const now = playedVideo(player.video);
     const {src, duration} = now && now.playing === player.played.playing ? now : player.played;
     return {src, duration};
+  }
+
+  /**
+   * The page's video a player plays the stream of: the one playing its address, else the one its takeover
+   * replaced, else the only one playing a file.
+   * @param {{url?: string, requestedUrl?: string, playerFrameId?: number}} request
+   * @return {?HTMLVideoElement}
+   */
+  function qualityVideo(request) {
+    const videos = /** @type {HTMLVideoElement[]} */ (querySelectorAllIncludingShadows('video', document.documentElement));
+    const urls = [request.url, request.requestedUrl].filter((url) => typeof url === 'string' && /^https?:/.test(url));
+    const playing = videos.find((video) => urls.includes(video.currentSrc));
+    if (playing) return playing;
+    const linked = typeof request.playerFrameId === 'number' ? iframeMap.get(request.playerFrameId) : null;
+    const replaced = linked?.replacedData?.video;
+    if (replaced && replaced.isConnected) return replaced;
+    const files = videos.filter((video) => /^https?:/.test(video.currentSrc));
+    return files.length === 1 ? files[0] : null;
   }
 
   // The requests a page's player makes for its stream, as Resource Timing names them.

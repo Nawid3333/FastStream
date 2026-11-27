@@ -9,6 +9,7 @@ import pageListenersSource from '../../chrome/page-listeners.js?raw';
 import overlayGuardSource from '../../chrome/overlay-guard.js?raw';
 import episodeLinksSource from '../../chrome/episode-links.js?raw';
 import pageQualitiesSource from '../../chrome/page-qualities.js?raw';
+import pageQualityControlSource from '../../chrome/page-quality-control.js?raw';
 import contentSource from '../../chrome/content.js?raw';
 
 const CAMEL_PROPERTIES = ['width', 'height', 'overflow', 'margin', 'contain', 'display', 'position',
@@ -532,7 +533,8 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
   context.top = inFrame ? {} : context;
   vm.createContext(context);
   for (const [file, source] of [['chrome/page-listeners.js', pageListenersSource], ['chrome/overlay-guard.js', overlayGuardSource], ['chrome/episode-links.js', episodeLinksSource],
-    ['chrome/page-qualities.js', pageQualitiesSource], ['chrome/content.js', contentSource]]) {
+    ['chrome/page-qualities.js', pageQualitiesSource], ['chrome/page-quality-control.js', pageQualityControlSource],
+    ['chrome/content.js', contentSource]]) {
     vm.runInContext(source, context, {filename: file});
   }
 

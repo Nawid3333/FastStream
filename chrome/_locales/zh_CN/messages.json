@@ -1478,6 +1478,12 @@
     "player_quality_lowered": {
         "message": "质量已降低至 $1：此电脑在 $3 时丢帧 $2%。请在质量菜单中选择 $3 以保持该质量。"
     },
+    "player_page_quality_switching": {
+        "message": "正在将页面播放器切换到 $1..."
+    },
+    "player_page_quality_failed": {
+        "message": "页面播放器未切换到 $1。"
+    },
     "options_general_lowerondroppedframes": {
         "message": "掉帧时降低清晰度"
     },

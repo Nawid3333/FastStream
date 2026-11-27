@@ -400,6 +400,44 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
   Live, on the real hoster (the same file): 1080p (1920x816) played, 360p/720p/1080p listed, the
   switch to 720p went on from where it was.
 
+### Qualities only the page player's menu knows (2026-11-27)
+
+His report: cineby.xyz with the "Simplify" source (a zxcstream.xyz hoster) played 360p, though its
+player offers 360p/480p/1080p. Read in its bundle: one encrypted link per quality, and only the one
+picked in the menu is decrypted into a file, so no page list holds the others. Its menu: controls
+that leave the DOM when the mouse rests, a gear, then a "Source quality 360p" row, then the list,
+each built on its click (framer-motion); Escape closes nothing; a new `<video>` per file; its
+"1080p" is the 854x480 file. Script clicks (`element.click()`, no user activation) and synthetic
+mouse moves work on it, also after the takeover shrank the player to 0x0.
+
+- **Reading the menu** (`chrome/page-quality-control.js`, a content script before content.js;
+  `PAGE_QUALITY_PROBE`): a list already in the page around the video, else one opened through its
+  controls: buttons named after quality, then settings (FastStream's languages and the players'
+  own), then quality/gear classes, then an unnamed menu button, at most 4; in an opened menu, a
+  row that shows a quality as its value first. A list is 2 to 12 entries whose whole text is a
+  quality label, with two heights at least, most of its parent's children; a bare number only in
+  a list that says what it is, and only a height videos have (no years). Open shadow roots count.
+  The steps are kept by name; the menus are closed again (Escape, then the opener when still open).
+- **Switching** (`PAGE_QUALITY_SELECT`): the menu opened again from its deepest step still open,
+  the entry clicked, then the page's video (the same element or the one put in its place) waited
+  for until it plays another file or loads again; its address and size are the answer. One probe or
+  switch at a time per frame.
+- **The relay**: only from FastStream's player, only to the frame it sits in. The page's new file is
+  no new video for the background: a frame with FastStream's player is not watched at all.
+- **The player** (`FastStreamClient.probePageQualities`, `PageQualityMenu.mjs`): asked once per
+  source, at its metadata, for a single file from the page (no levels of its own, not live). The
+  entries have no address but the playing one (the menu's mark, else the nearest size class: a
+  1920x800 film is "1080p"). The quality setting picks as for a page list; the switch goes through
+  the page, and its file plays only on the played file's host (it gets that request's headers),
+  and, picked automatically, only when its real size gets closer to the setting. MPV gets a list
+  only when every entry has its file.
+- **Tests:** `PageQualityMenu.test.mjs` (labels, entries, the host rule), `FastStreamClient.test.mjs`
+  (probe, automatic pick, a label that lies, another host, a pick in the menu),
+  `backgroundPageQualityControl.test.mjs` (the relay's frames), and `page-quality-menu.e2e.mjs`:
+  the hoster's player rebuilt locally (cross-origin frame, controls that unmount, gear -> row ->
+  list, no Escape, a new `<video>` per file, a lying "1080p"): the 480p file plays through its
+  "1080p", and a pick of 360p in FastStream's menu switches the page and plays its file.
+
 ## Player engines: reasons behind the code
 
 - **`hls2mp4/transmuxer.mjs`** - hls.js reads `chunkMeta.iframe` unconditionally at the top of

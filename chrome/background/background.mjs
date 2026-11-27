@@ -682,6 +682,8 @@ export const MessageSenders = {
   [MessageTypes.REQUEST_MINIPLAYER]: 'own',
   [MessageTypes.REQUEST_PLAYLIST_NAVIGATION]: 'own',
   [MessageTypes.REQUEST_PLAYLIST_POLL]: 'own',
+  [MessageTypes.PAGE_QUALITY_PROBE]: 'own',
+  [MessageTypes.PAGE_QUALITY_SELECT]: 'own',
   [MessageTypes.POPUP_GUARD_ARM]: 'any',
   [MessageTypes.MPV_USER_PLAY]: 'any',
   [MessageTypes.SHORTCUT_CANCELLED]: 'any',
@@ -970,6 +972,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       sendPageMediaHold(tab);
     }
+  } else if (msg.type === MessageTypes.PAGE_QUALITY_PROBE || msg.type === MessageTypes.PAGE_QUALITY_SELECT) {
+    // To the page frame the player's source came from: the one the player is in. What the page loads for a quality
+    // it switches to is no new stream: a frame with a player is not watched (onHeadersReceived).
+    const page = typeof msg.frameId === 'number' ? tab.getFrame(msg.frameId) : null;
+    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || !page || page.isPlayer ||
+        (page !== frame.parent && page !== frame.pageFrame)) {
+      sendResponse(null);
+      return;
+    }
+    const request = msg.type === MessageTypes.PAGE_QUALITY_SELECT ?
+      {type: msg.type, id: msg.id, index: msg.index} :
+      {type: msg.type, url: msg.url, requestedUrl: msg.requestedUrl, playerFrameId: frame.frameId};
+    chrome.tabs.sendMessage(tab.tabId, request, {frameId: page.frameId}, (answer) => {
+      BackgroundUtils.checkMessageError('page_quality');
+      sendResponse(answer ?? null);
+    });
+    return true;
   } else if (msg.type === MessageTypes.REQUEST_FRESH_LINK) {
     // Not in a private window or a container: the background's fetch goes with the normal window's cookies and proxy.
     const store = senderTab.cookieStoreId;
