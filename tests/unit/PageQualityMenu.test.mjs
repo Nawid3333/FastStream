@@ -73,9 +73,10 @@ describe('PageQualityMenu', () => {
     expect(entries.map((entry) => entry.label.length)).toEqual([40, 5]);
   });
 
-  it('plays a switched file only on the played one\'s host, over the web', () => {
+  it('plays a switched file only of the played one\'s origin, over the web', () => {
     expect(playableSwitch('https://h.test/b.mp4', 'https://h.test/a.mp4')).toBe(true);
     expect(playableSwitch('https://cdn.h.test/b.mp4', 'https://h.test/a.mp4')).toBe(false);
+    expect(playableSwitch('http://h.test/b.mp4', 'https://h.test/a.mp4')).toBe(false);
     expect(playableSwitch('blob:https://h.test/1', 'https://h.test/a.mp4')).toBe(false);
     expect(playableSwitch('data:video/mp4,', 'https://h.test/a.mp4')).toBe(false);
     expect(playableSwitch(undefined, 'https://h.test/a.mp4')).toBe(false);

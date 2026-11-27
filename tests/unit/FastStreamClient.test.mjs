@@ -2108,6 +2108,32 @@ describe('FastStreamClient, the qualities only the page player\'s menu offers', 
     expect(client.source.url).toBe(PLAYING);
   });
 
+  it('makes a pick by hand during an automatic switch once that one is done, instead of it', async () => {
+    let autoDone;
+    const {client, asked} = await inPage({
+      probe: {id: 4, choices: CHOICES},
+      select: (message) => (message.index === 3 ?
+        new Promise((resolve) => {
+          autoDone = () => resolve({url: 'https://h.test/v/1080.mp4', width: 1920, height: 1080, changed: true});
+        }) :
+        {url: 'https://h.test/v/480.mp4', width: 854, height: 480, changed: true}),
+    });
+    client.probePageQualities();
+    await settle();
+    expect(asked(MessageTypes.PAGE_QUALITY_SELECT).map((message) => message.index)).toEqual([3]);
+
+    client.setCurrentVideoLevelID('page-quality:1');
+    await settle();
+    autoDone();
+    await settle();
+    await client.sourceChange;
+    await settle();
+
+    expect(asked(MessageTypes.PAGE_QUALITY_SELECT).map((message) => message.index)).toEqual([3, 2]);
+    expect(client.source.url).toBe('https://h.test/v/480.mp4');
+    expect(client.source.qualities[2].url).toBe('https://h.test/v/1080.mp4');
+  });
+
   it('asks once', async () => {
     const {client, asked} = await inPage({probe: null});
     client.probePageQualities();

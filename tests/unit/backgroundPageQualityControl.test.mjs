@@ -44,7 +44,7 @@ describe('a page player\'s menu qualities, asked for by FastStream\'s player in 
 
     expect(answer).toEqual(choices);
     expect(bg.sent('PAGE_QUALITY_PROBE')).toEqual([{tabId: 1, frameId: 0,
-      message: {type: 'PAGE_QUALITY_PROBE', url: FILE, requestedUrl: undefined, playerFrameId: 5}}]);
+      message: {type: 'PAGE_QUALITY_PROBE', url: FILE, playerFrameId: 5}}]);
   });
 
   it('asks no other frame, and nothing for a page\'s script', async () => {

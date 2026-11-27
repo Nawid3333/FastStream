@@ -52,8 +52,9 @@ export function menuQualities(answer, url, width, height) {
 }
 
 /**
- * Whether FastStream plays the file the page switched to: a web address on the played one's host, as the page's
- * own lists (PageQualityPick.listForSource): it gets that request's headers.
+ * Whether FastStream plays the file the page switched to: a web address of the played one's origin (no step down
+ * from https), as the page's own lists keep to its host (PageQualityPick.listForSource): it gets that request's
+ * headers.
  * @param {*} next
  * @param {string} played
  * @return {boolean}
@@ -63,7 +64,7 @@ export function playableSwitch(next, played) {
   try {
     const to = new URL(next);
     const from = new URL(played);
-    return /^https?:$/.test(to.protocol) && to.host === from.host;
+    return /^https?:$/.test(to.protocol) && to.origin === from.origin;
   } catch (e) {
     return false;
   }

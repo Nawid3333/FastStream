@@ -2675,13 +2675,13 @@
   /**
    * The page's video a player plays the stream of: the one playing its address, else the one its takeover
    * replaced, else the only one playing a file.
-   * @param {{url?: string, requestedUrl?: string, playerFrameId?: number}} request
+   * @param {{url?: string, playerFrameId?: number}} request
    * @return {?HTMLVideoElement}
    */
   function qualityVideo(request) {
     const videos = /** @type {HTMLVideoElement[]} */ (querySelectorAllIncludingShadows('video', document.documentElement));
-    const urls = [request.url, request.requestedUrl].filter((url) => typeof url === 'string' && /^https?:/.test(url));
-    const playing = videos.find((video) => urls.includes(video.currentSrc));
+    const playing = typeof request.url === 'string' && /^https?:/.test(request.url) ?
+      videos.find((video) => video.currentSrc === request.url) : null;
     if (playing) return playing;
     const linked = typeof request.playerFrameId === 'number' ? iframeMap.get(request.playerFrameId) : null;
     const replaced = linked?.replacedData?.video;

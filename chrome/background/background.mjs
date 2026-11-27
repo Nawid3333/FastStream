@@ -983,7 +983,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     const request = msg.type === MessageTypes.PAGE_QUALITY_SELECT ?
       {type: msg.type, id: msg.id, index: msg.index} :
-      {type: msg.type, url: msg.url, requestedUrl: msg.requestedUrl, playerFrameId: frame.frameId};
+      {type: msg.type, url: msg.url, playerFrameId: frame.frameId};
     chrome.tabs.sendMessage(tab.tabId, request, {frameId: page.frameId}, (answer) => {
       BackgroundUtils.checkMessageError('page_quality');
       sendResponse(answer ?? null);

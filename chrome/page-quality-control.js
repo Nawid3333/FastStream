@@ -8,7 +8,7 @@ const PageQualityControl = (() => {
    * @typedef {{el: Element, target: HTMLElement, label: string, height: number, auto: boolean, selected: boolean}} Item
    * @typedef {{items: Item[], container: Element, opened: boolean}} Group
    * @typedef {{name: string, tag: string}} Step - A control found again by its name, for a later switch.
-   * @typedef {{video: HTMLVideoElement, path: Step[], labels: string[], items: ?Item[]}} Found
+   * @typedef {{video: HTMLVideoElement, path: Step[], labels: string[], selected: boolean[]}} Found
    */
 
   // Words a quality control or its row is named with, in FastStream's languages and the players' own.
@@ -31,10 +31,16 @@ const PageQualityControl = (() => {
   const CLICKABLE = 'button, [role=button], [role=menuitem], [role=menuitemradio], [role=option], [role=radio], ' +
     '[role=tab], li, label, [tabindex], [aria-haspopup]';
   const SELECTED_CLASS = /(^|[\s_-])(active|selected|current|checked|chosen)($|[\s_-])/i;
+  // A class that changes with a control's state, not part of what it is known by.
+  const STATE_CLASS = /[\w-]*(active|open|opened|expanded|selected|showing|show|visible|hover|focus)[\w-]*/gi;
+  // A quality a control shows as its value ("Quality 1080p", "Quality (Auto)").
+  const SHOWN_VALUE = /\(?\b(auto|\d{3,4} ?[pi]\d{0,3}|[248]k|uhd|qhd|fhd|full hd|hd|sd)\b\)?/gi;
   // A quality list is short.
   const MAX_ITEMS = 12;
   // How far up from the video a player's own controls are looked for.
   const PLAYER_DEPTH = 8;
+  // The most elements a wake moves the mouse over.
+  const MAX_WAKE = 200;
   const STEP_WAIT_MS = 1500;
   const CHANGE_WAIT_MS = 5000;
   const METADATA_WAIT_MS = 3000;
@@ -199,9 +205,10 @@ const PageQualityControl = (() => {
     /** @type {Set<Element>} */
     const targets = new Set([video]);
     let el = parentOf(video);
-    for (let depth = 0; el && depth < PLAYER_DEPTH && el.tagName !== 'HTML'; depth++) {
+    for (let depth = 0; el && depth < PLAYER_DEPTH && el.tagName !== 'HTML' && targets.size < MAX_WAKE; depth++) {
       for (const child of el.children) {
-        if (!isOwn(child) && targets.size < 200) targets.add(child);
+        if (targets.size >= MAX_WAKE) break;
+        if (!isOwn(child)) targets.add(child);
       }
       el = parentOf(el);
     }
@@ -238,8 +245,8 @@ const PageQualityControl = (() => {
    * @return {Group[]}
    */
   function findGroups(root, before = null) {
-    /** @type {Map<Element, Item[]>} */
-    const lists = new Map();
+    /** @type {Item[]} */
+    const candidates = [];
     for (const el of allBelow(root)) {
       if (isOwn(el)) continue;
       const text = ownText(el) || (el.matches('[role=menuitemradio], [role=option], [role=radio]') ?
@@ -247,14 +254,15 @@ const PageQualityControl = (() => {
       const label = qualityLabel(text);
       if (!label) continue;
       const target = clickTarget(el);
-      if (!target) continue;
-      const list = parentOf(target);
+      if (!target || candidates.some((item) => item.target === target)) continue;
+      candidates.push({el, target, label: text.replace(/\s+/g, ' ').trim(), height: label.height, auto: label.auto, selected: false});
+    }
+    /** @type {Map<Element, Item[]>} */
+    const lists = new Map();
+    for (const item of candidates) {
+      const list = listOf(item, candidates);
       if (!list) continue;
-      const items = lists.get(list) || [];
-      if (!items.some((item) => item.target === target)) {
-        items.push({el, target, label: text.replace(/\s+/g, ' ').trim(), height: label.height, auto: label.auto, selected: false});
-      }
-      lists.set(list, items);
+      lists.set(list, [...(lists.get(list) || []), item]);
     }
     /** @type {Group[]} */
     const groups = [];
@@ -277,6 +285,23 @@ const PageQualityControl = (() => {
       groups.push({items, container, opened: !!before && items.some((item) => !before.has(item.target))});
     }
     return groups;
+  }
+
+  /**
+   * The list an entry is in: its control's parent, or the nearest one above it holding another entry (each entry
+   * in a wrapper of its own: <div><button>720p</button></div>).
+   * @param {Item} item
+   * @param {Item[]} candidates
+   * @return {?Element}
+   */
+  function listOf(item, candidates) {
+    let list = parentOf(item.target);
+    for (let depth = 0; list && depth < 3; depth++) {
+      const holder = list;
+      if (candidates.some((other) => other !== item && holder.contains(other.target))) return list;
+      list = parentOf(list);
+    }
+    return parentOf(item.target);
   }
 
   /**
@@ -382,33 +407,53 @@ const PageQualityControl = (() => {
   }
 
   /**
-   * What a control is known by across switches: its first text that is not a quality value ("Source quality",
-   * not "Source quality 360p", which changes with the pick), else its label, else its class.
+   * What a control is known by across switches: its first text without the quality it shows ("Source quality",
+   * not "Source quality 360p", which changes with the pick), else its label, else its class without its state.
    * @param {Element} el
    * @return {string}
    */
   function stableName(el) {
     for (const node of [el, ...el.querySelectorAll('*')].slice(0, 30)) {
-      const text = ownText(node);
-      if (text && text.length <= 40 && !qualityLabel(text)) return text;
+      const text = ownText(node).replace(SHOWN_VALUE, ' ').replace(/\s+/g, ' ').trim();
+      if (text && text.length <= 40) return text;
     }
-    return el.getAttribute('aria-label') || el.getAttribute('title') || keysOf(el).slice(0, 80);
+    return el.getAttribute('aria-label') || el.getAttribute('title') || keysOf(el).replace(STATE_CLASS, ' ').slice(0, 80);
   }
 
   /**
-   * Finds a step's control again: the same tag and name.
-   * @param {Element[]} elements
+   * Finds a step's control again: the same tag and name, in the video's player first (a page with two players).
+   * @param {Element} root
    * @param {Step} step
    * @return {?HTMLElement}
    */
-  function findStep(elements, step) {
-    const el = elements.find((e) => !isOwn(e) && e.tagName === step.tag && stableName(e) === step.name);
+  function findStep(root, step) {
+    const match = (/** @type {Element[]} */ elements) =>
+      elements.find((e) => !isOwn(e) && e.tagName === step.tag && stableName(e) === step.name);
+    const el = match(allBelow(root)) || match(allBelow(document));
     return el ? clickTarget(el) : null;
   }
 
   /** @param {HTMLElement} el @return {Step} */
   function stepOf(el) {
     return {name: stableName(el), tag: el.tagName};
+  }
+
+  /**
+   * Whether a part of a menu shows: a page may close a menu by hiding it. What a takeover hid (an inline
+   * "display: none !important") does not count.
+   * @param {Element} el
+   * @param {Element} root
+   * @return {boolean}
+   */
+  function shown(el, root) {
+    for (let node = /** @type {?Element} */ (el); node && node !== root; node = parentOf(node)) {
+      const style = /** @type {HTMLElement} */ (node).style;
+      if (style?.getPropertyValue('display') === 'none' && style.getPropertyPriority('display') === 'important') continue;
+      if (node.hasAttribute('hidden')) return false;
+      const computed = getComputedStyle(node);
+      if (computed.display === 'none' || (node === el && computed.visibility === 'hidden')) return false;
+    }
+    return true;
   }
 
   /**
@@ -420,47 +465,63 @@ const PageQualityControl = (() => {
   async function locate(video) {
     const root = playerRoot(video);
     const passive = pickGroup(findGroups(root), root);
-    if (passive) {
-      return {video, path: [], labels: passive.items.map((item) => item.label), items: passive.items};
-    }
+    if (passive) return foundOf(video, [], passive);
     wake(video);
-    await sleep(50);
-    for (const opener of openers(root)) {
+    // Controls that leave the page while the mouse rests come back on the next frame, or after a page's own wait.
+    const candidates = await waitFor(() => {
+      const found = openers(root);
+      return found.length ? found : null;
+    }, STEP_WAIT_MS) || [];
+    for (const opener of candidates) {
+      if (!opener.isConnected) continue;
+      const openerStep = stepOf(opener);
       const before = new WeakSet(allBelow(document));
       wake(video);
       press(opener);
       let group = await waitFor(() => pickGroup(findGroups(document, before), root), STEP_WAIT_MS);
       if (group) {
-        /** @type {Found} */
-        const result = {video, path: [stepOf(opener)], labels: group.items.map((item) => item.label), items: null};
+        const result = foundOf(video, [openerStep], group);
         await closeMenus(opener, isOpen(result));
         return result;
       }
       const added = allBelow(document).filter((el) => !before.has(el));
       for (const row of qualityRows(added.length ? added : allBelow(root))) {
+        const rowStep = stepOf(row);
         const beforeRow = new WeakSet(allBelow(document));
         press(row);
         group = await waitFor(() => pickGroup(findGroups(document, beforeRow), root), STEP_WAIT_MS);
         if (group) {
-          /** @type {Found} */
-          const result = {video, path: [stepOf(opener), stepOf(row)], labels: group.items.map((item) => item.label), items: null};
+          const result = foundOf(video, [openerStep, rowStep], group);
           await closeMenus(opener, isOpen(result));
           return result;
         }
         // Back to the start: the next row is tried from a freshly opened menu.
-        await closeMenus(opener, () => !!findStep(allBelow(document), stepOf(row)));
+        await closeMenus(opener, () => {
+          const shownRow = findStep(root, rowStep);
+          return !!shownRow && shown(shownRow, root);
+        });
         wake(video);
         if (!opener.isConnected) break;
         press(opener);
         await sleep(300);
       }
-      await closeMenus(opener, () => added.some((el) => el.isConnected));
+      await closeMenus(opener, () => added.some((el) => el.isConnected && shown(el, root)));
     }
     return null;
   }
 
   /**
-   * The list with a found menu's labels, open in the page.
+   * @param {HTMLVideoElement} video
+   * @param {Step[]} path
+   * @param {Group} group
+   * @return {Found}
+   */
+  function foundOf(video, path, group) {
+    return {video, path, labels: group.items.map((item) => item.label), selected: group.items.map((item) => item.selected)};
+  }
+
+  /**
+   * The list with a found menu's labels in the page, shown or not.
    * @param {Element} root
    * @param {string[]} labels
    * @return {?Group}
@@ -472,19 +533,21 @@ const PageQualityControl = (() => {
   }
 
   /**
-   * Whether a found menu is still open: its opener says so, else its quality row or its list is in the page
-   * (players that build their menus only while open).
+   * Whether a found menu is still open: its opener says so, else its quality row or its list shows (players that
+   * build their menus only while open, or hide them when closed).
    * @param {Found} known
    * @return {() => boolean}
    */
   function isOpen(known) {
     return () => {
-      const elements = allBelow(document);
-      const opener = known.path.length ? findStep(elements, known.path[0]) : null;
+      const root = playerRoot(known.video);
+      const opener = known.path.length ? findStep(root, known.path[0]) : null;
       const expanded = opener?.getAttribute('aria-expanded');
       if (expanded === 'true' || expanded === 'false') return expanded === 'true';
-      if (known.path.length > 1) return !!findStep(elements, known.path[1]) || !!listWith(playerRoot(known.video), known.labels);
-      return !!listWith(playerRoot(known.video), known.labels);
+      const row = known.path.length > 1 ? findStep(root, known.path[1]) : null;
+      if (row && shown(row, root)) return true;
+      const list = listWith(root, known.labels);
+      return !!list && shown(list.container, root);
     };
   }
 
@@ -501,7 +564,7 @@ const PageQualityControl = (() => {
     if (found.path.length === 0) return 'list';
     let start = 0;
     for (let i = found.path.length - 1; i > 0; i--) {
-      if (findStep(allBelow(document), found.path[i])) {
+      if (findStep(root, found.path[i])) {
         start = i;
         break;
       }
@@ -509,7 +572,7 @@ const PageQualityControl = (() => {
     for (let i = start; i < found.path.length; i++) {
       wake(found.video);
       const step = found.path[i];
-      const el = await waitFor(() => findStep(allBelow(document), step), STEP_WAIT_MS);
+      const el = await waitFor(() => findStep(root, step), STEP_WAIT_MS);
       if (!el) return 'step ' + i;
       press(el);
     }
@@ -517,22 +580,30 @@ const PageQualityControl = (() => {
     return group ? group.items : 'list';
   }
 
+  /** @return {HTMLVideoElement[]} The page's videos, in open shadow roots too. */
+  function pageVideos() {
+    return /** @type {HTMLVideoElement[]} */ (allBelow(document).filter((el) => el.tagName === 'VIDEO'));
+  }
+
   /**
-   * The <video> playing in the page now: the same element, or the one the player put in its place.
+   * The <video> playing in the page after a pick: the same element on another file, else one the player put in
+   * its place (new, or on another file than before the pick). Another video of the page is none of them.
    * @param {HTMLVideoElement} video
-   * @param {string} oldUrl
+   * @param {Map<HTMLVideoElement, string>} before - Each video's file before the pick.
    * @return {?HTMLVideoElement}
    */
-  function playingVideo(video, oldUrl) {
-    if (video.isConnected && video.currentSrc && video.currentSrc !== oldUrl) return video;
-    const videos = /** @type {HTMLVideoElement[]} */ (allBelow(document).filter((el) => el.tagName === 'VIDEO'));
-    return videos.find((v) => /^https?:/.test(v.currentSrc) && v.currentSrc !== oldUrl) || null;
+  function playingVideo(video, before) {
+    if (video.isConnected && video.currentSrc && video.currentSrc !== before.get(video)) return video;
+    return pageVideos().find((v) => v !== video && /^https?:/.test(v.currentSrc) &&
+      (!before.has(v) || before.get(v) !== v.currentSrc)) || null;
   }
 
   // One probe or switch at a time in a frame: two would click through the same menus.
   let queue = Promise.resolve();
   /** @type {Map<number, Found>} */
   const found = new Map();
+  // A page that plays many videos (a feed) keeps only the latest menus.
+  const MAX_FOUND = 8;
   let nextId = 1;
   /** @type {WeakMap<HTMLVideoElement, ?number>} */
   const probed = new WeakMap();
@@ -572,6 +643,8 @@ const PageQualityControl = (() => {
       }
       const id = nextId++;
       found.set(id, result);
+      const oldest = found.keys().next().value;
+      if (found.size > MAX_FOUND && oldest !== undefined) found.delete(oldest);
       probed.set(video, id);
       return {id, choices: choicesOf(result)};
     });
@@ -584,7 +657,7 @@ const PageQualityControl = (() => {
   function choicesOf(known) {
     return known.labels.map((label, i) => {
       const parsed = qualityLabel(label);
-      return {label, height: parsed?.height || 0, auto: !!parsed?.auto, selected: !!known.items?.[i]?.selected};
+      return {label, height: parsed?.height || 0, auto: !!parsed?.auto, selected: !!known.selected[i]};
     });
   }
 
@@ -599,8 +672,8 @@ const PageQualityControl = (() => {
       const known = found.get(id);
       const label = known?.labels[index];
       if (!known || !label) return {changed: false, error: 'unknown'};
-      const oldUrl = known.video.currentSrc;
-      const opener = () => known.path.length ? findStep(allBelow(document), known.path[0]) : null;
+      const root = playerRoot(known.video);
+      const opener = () => known.path.length ? findStep(root, known.path[0]) : null;
       /** @type {Item[]|string} */
       let items = 'list';
       try {
@@ -608,11 +681,14 @@ const PageQualityControl = (() => {
       } catch (e) {
         console.warn('Opening the page player\'s quality menu failed', e);
       }
-      const item = typeof items === 'string' ? null : items.find((candidate) => candidate.label === label);
+      // The same label twice ("1080p" and "1080p" at another rate): the one at the same place among them.
+      const nth = known.labels.slice(0, index).filter((other) => other === label).length;
+      const item = typeof items === 'string' ? null : items.filter((candidate) => candidate.label === label)[nth];
       if (!item) {
         await closeMenus(opener(), isOpen(known));
         return {changed: false, error: 'menu: ' + (typeof items === 'string' ? items : 'item')};
       }
+      const before = new Map(pageVideos().map((video) => [video, video.currentSrc]));
       /** @type {?Event} */
       let reloaded = null;
       const onReload = (/** @type {Event} */ e) => {
@@ -621,21 +697,23 @@ const PageQualityControl = (() => {
       known.video.addEventListener('loadedmetadata', onReload);
       press(item.target);
       // Labels may name the same file ("1080p" that is the 480p one): a reload of the same element counts too.
-      const now = await waitFor(() => playingVideo(known.video, oldUrl) || (reloaded ? known.video : null), CHANGE_WAIT_MS);
+      const now = await waitFor(() => playingVideo(known.video, before) || (reloaded ? known.video : null), CHANGE_WAIT_MS);
       known.video.removeEventListener('loadedmetadata', onReload);
       await closeMenus(opener(), isOpen(known));
       if (!now) return {changed: false};
       await waitFor(() => now.readyState >= 1 && now.videoHeight > 0, METADATA_WAIT_MS);
+      const oldUrl = before.get(known.video);
       if (now !== known.video) {
         // The player's new element is the one to switch next time.
         known.video = now;
         probed.set(now, id);
       }
+      known.selected = known.labels.map((_, i) => i === index);
       const url = now.currentSrc;
       if (!/^https?:/.test(url)) return {changed: false, error: 'not a file'};
       return {url, width: now.videoWidth, height: now.videoHeight, changed: url !== oldUrl};
     });
   }
 
-  return {probe, select, qualityLabel, findGroups, openers, qualityRows, wake};
+  return {probe, select, qualityLabel};
 })();

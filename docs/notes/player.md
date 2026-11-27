@@ -415,28 +415,43 @@ mouse moves work on it, also after the takeover shrank the player to 0x0.
   controls: buttons named after quality, then settings (FastStream's languages and the players'
   own), then quality/gear classes, then an unnamed menu button, at most 4; in an opened menu, a
   row that shows a quality as its value first. A list is 2 to 12 entries whose whole text is a
-  quality label, with two heights at least, most of its parent's children; a bare number only in
-  a list that says what it is, and only a height videos have (no years). Open shadow roots count.
-  The steps are kept by name; the menus are closed again (Escape, then the opener when still open).
+  quality label, with two heights at least, most of its parent's children (an entry in a wrapper of
+  its own counts in the list above it); a bare number only in a list that says what it is, and only
+  a height videos have (no years). Open shadow roots count. The steps are kept by name, taken before
+  their click (a class that changes when open is left out, and so is the quality a row shows), and
+  found again in the video's player first. The menus are closed again: Escape, then the opener when
+  it says it is open or its menu still shows (a menu hidden by the page is closed; what a takeover
+  hid with `display: none !important` does not count).
 - **Switching** (`PAGE_QUALITY_SELECT`): the menu opened again from its deepest step still open,
-  the entry clicked, then the page's video (the same element or the one put in its place) waited
-  for until it plays another file or loads again; its address and size are the answer. One probe or
-  switch at a time per frame.
+  the entry clicked (the same label twice: the one at the same place), then the page's video waited
+  for until it plays another file or loads again: the same element, or one that is new or on another
+  file than before the click (another video of the page is none of them); its address and size are
+  the answer. One probe or switch at a time per frame; the latest 8 menus are kept.
 - **The relay**: only from FastStream's player, only to the frame it sits in. The page's new file is
   no new video for the background: a frame with FastStream's player is not watched at all.
 - **The player** (`FastStreamClient.probePageQualities`, `PageQualityMenu.mjs`): asked once per
   source, at its metadata, for a single file from the page (no levels of its own, not live). The
   entries have no address but the playing one (the menu's mark, else the nearest size class: a
   1920x800 film is "1080p"). The quality setting picks as for a page list; the switch goes through
-  the page, and its file plays only on the played file's host (it gets that request's headers),
-  and, picked automatically, only when its real size gets closer to the setting. MPV gets a list
-  only when every entry has its file.
+  the page, and its file plays only from the played file's origin (it gets that request's headers;
+  no step down from https), and, picked automatically, only when its real size (else its label's,
+  for a file slow to load) gets closer to the setting. A pick by hand says that the page switches,
+  and when it did not; made during another switch, it is made once that one is done, instead of
+  it. MPV gets a list only when every entry has its file.
 - **Tests:** `PageQualityMenu.test.mjs` (labels, entries, the host rule), `FastStreamClient.test.mjs`
   (probe, automatic pick, a label that lies, another host, a pick in the menu),
   `backgroundPageQualityControl.test.mjs` (the relay's frames), and `page-quality-menu.e2e.mjs`:
   the hoster's player rebuilt locally (cross-origin frame, controls that unmount, gear -> row ->
-  list, no Escape, a new `<video>` per file, a lying "1080p"): the 480p file plays through its
-  "1080p", and a pick of 360p in FastStream's menu switches the page and plays its file.
+  list of entries each in a wrapper, no Escape, a new `<video>` per file, a lying "1080p", a teaser
+  video playing beside it): the 480p file plays through its "1080p", and a pick of 360p in
+  FastStream's menu switches the page and plays its file. Live on cineby (2026-11-27): the "1080p"
+  (854x480) played within the first seconds; 360p picked by hand played in about 1 s.
+- **Reviewed** by DeepSeek V4.1 Flash (2026-11-27): 15 of its 22 points led to the fixes above, 3
+  found nothing wrong (the relay's frame checks, labels written as text, no work at injection). Not
+  taken: a video that is a direct child of `<body>` has no player around it to search (its controls
+  would be the whole page's); `javascript:` links stay clickable (the page runs its own script
+  anyway); a list found in the page keeps no opener (none was needed to find it); the page walks
+  while waiting run only during a probe or a switch, a few seconds.
 
 ## Player engines: reasons behind the code
 

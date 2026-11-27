@@ -158,8 +158,10 @@ export class FastStreamClient extends EventEmitter {
     this.version = EnvUtils.getVersion();
     /** @type {?{tabId: number, frameId: number}} */
     this.page = null;
-    // A switch of the page player's quality waiting for the page (switchPageQuality): one at a time.
+    // A switch of the page player's quality waiting for the page (switchPageQuality): one at a time, and the
+    // index of a pick by hand made meanwhile, -1 for none.
     this.pageQualitySwitching = false;
+    this.pageQualityQueued = -1;
 
     /** @type {ClientOptions} */
     this.options = {
@@ -3074,13 +3076,18 @@ export class FastStreamClient extends EventEmitter {
   async switchPageQuality(index, auto) {
     const source = this.source;
     const entry = source?.qualities?.[index];
-    if (!source || !entry?.control || this.pageQualitySwitching) return;
-    this.pageQualitySwitching = true;
+    if (!source || !entry?.control) return;
     // The page takes a moment (its menu opens, its file loads): said for a pick by hand.
     if (!auto) {
       this.interfaceController.setStatusMessage(StatusTypes.QUALITY,
           Localize.getMessage('player_page_quality_switching', [entry.label]), 'info', 10000);
     }
+    if (this.pageQualitySwitching) {
+      // A pick by hand while another switch runs: made once that one is done.
+      if (!auto) this.pageQualityQueued = index;
+      return;
+    }
+    this.pageQualitySwitching = true;
     /** @type {*} */
     let answer = null;
     try {
@@ -3089,20 +3096,31 @@ export class FastStreamClient extends EventEmitter {
     } finally {
       this.pageQualitySwitching = false;
     }
+    const queued = this.pageQualityQueued ?? -1;
+    this.pageQualityQueued = -1;
     if (this.source !== source) return;
-    if (!answer || !playableSwitch(answer.url, source.url)) {
+    const switched = !!answer && playableSwitch(answer.url, source.url);
+    if (switched) entry.url = answer.url;
+    if (queued >= 0 && queued !== index) {
+      this.playPageQuality(queued);
+      return;
+    }
+    const byHand = !auto || queued === index;
+    if (!switched) {
       console.warn('The page\'s player did not switch to ' + entry.label, answer?.error || '');
-      if (!auto) {
+      if (byHand) {
         this.interfaceController.setStatusMessage(StatusTypes.QUALITY,
             Localize.getMessage('player_page_quality_failed', [entry.label]), 'warning', 5000);
       }
       return;
     }
-    if (!auto) this.interfaceController.setStatusMessage(StatusTypes.QUALITY, null);
-    entry.url = answer.url;
-    const now = sizeClass(this.videoWidth, this.videoHeight);
-    const next = sizeClass(answer.width, answer.height);
-    if (auto && !closerTo(desiredHeight(this.options.defaultQuality), now, next)) return;
+    if (byHand) {
+      this.interfaceController.setStatusMessage(StatusTypes.QUALITY, null);
+    } else {
+      // Without the page's size (a file slow to load), its label's.
+      const next = answer.height > 0 ? sizeClass(answer.width, answer.height) : entry.height;
+      if (!closerTo(desiredHeight(this.options.defaultQuality), sizeClass(this.videoWidth, this.videoHeight), next)) return;
+    }
     this.playPageQuality(index);
   }
 

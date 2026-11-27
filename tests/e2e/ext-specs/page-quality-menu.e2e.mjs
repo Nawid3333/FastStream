@@ -5,7 +5,8 @@
 // one picked is turned into a file; controls that leave the page when the mouse rests; a gear,
 // then a "Quality" row, then the list, each built only on its click; Escape closes nothing; a new
 // <video> for each file; and a "1080p" that is the 480p file. Here the page makes a link on the
-// click, as that one decrypts it.
+// click, as that one decrypts it; each entry is a button in a wrapper of its own, and a small
+// teaser video plays beside the player.
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -52,6 +53,7 @@ function embedPage() {
   <div id="player" style="position:relative;width:640px;height:360px">
     <div class="screen" style="width:100%;height:100%"></div>
   </div>
+  <video id="teaser" muted autoplay loop width="160" height="90" src="/media/240.mp4?key=teaser"></video>
   <script>
     const QUALITIES = [['Auto', '240'], ['240p', '240'], ['360p', '360'], ['1080p', '480']];
     let current = 1;
@@ -77,11 +79,10 @@ function embedPage() {
     }
     function item(label, selected, onClick) {
       const el = document.createElement('div');
-      el.tabIndex = 0;
-      el.className = 'item';
-      el.innerHTML = '<span></span>' + (selected ? '<svg class="check" width="10" height="10"></svg>' : '');
-      el.firstChild.textContent = label;
-      el.addEventListener('click', onClick);
+      el.className = 'option';
+      el.innerHTML = '<button type="button"><span></span>' + (selected ? '<svg class="check" width="10" height="10"></svg>' : '') + '</button>';
+      el.querySelector('span').textContent = label;
+      el.firstChild.addEventListener('click', onClick);
       return el;
     }
     function showList() {
@@ -257,7 +258,8 @@ describe('A page player that makes a file only of the quality picked in its menu
     await browser.switchFrame(null);
     await browser.switchFrame(await browser.$('#hoster'));
     const page = await browser.execute(() => {
-      const videos = Array.from(document.querySelectorAll('#player video'));
+      // By its class: the takeover gave the box's id to FastStream's frame.
+      const videos = Array.from(document.querySelectorAll('.screen video'));
       return {picked: window.picked, videos: videos.length, paused: videos.every((v) => v.paused)};
     });
     expect(page).toEqual({picked: '360p', videos: 1, paused: true});
