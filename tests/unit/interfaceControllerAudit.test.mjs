@@ -65,10 +65,13 @@ describe('InterfaceController.reset', () => {
       setStatusMessage: vi.fn(), resetPreviewVideo: noop, progressBar: {reset: noop}, saveManager: {reset: noop},
       stopProgressLoop: noop, state: {}, updatePlayPauseButton: noop, showControlBar: noop, updateToolVisibility: noop,
       fineTimeControls: {reset: noop}, playbackRateChanger: {reset: noop}, loopControls: {reset: noop}, timeUpdated: noop,
+      bufferKept: {hide: vi.fn()},
     });
     self.reset();
     const cleared = self.setStatusMessage.mock.calls.filter((call) => call[1] === null).map((call) => call[0]);
     expect(cleared).toEqual(expect.arrayContaining(['resumed', 'wait', 'subtitles-hint']));
+    // And the reused buffer's notice of the last video.
+    expect(self.bufferKept.hide).toHaveBeenCalled();
   });
 });
 
