@@ -1045,9 +1045,7 @@ async function settingsToExport() {
 
 exportButton.addEventListener('click', async () => {
   const blob = new Blob([JSON.stringify(await settingsToExport(), null, 2)], {type: 'application/json'});
-  const url = URL.createObjectURL(blob);
-  Utils.downloadURL(url, 'faststream-options.json', true);
-  URL.revokeObjectURL(url);
+  await Utils.downloadBlob(blob, 'faststream-options.json');
 });
 
 // The store tells listeners about this page's own saves too: no redraw for those.
