@@ -3,7 +3,7 @@ import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {EmitterCancel, EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
-import {createFile} from '../../modules/mp4box/mp4box.all.mjs';
+import {DataStream, Endianness, createFile} from '../../modules/mp4box/mp4box.all.mjs';
 import {startsLikeMp4} from '../../utils/ContainerSniff.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
@@ -113,6 +113,10 @@ export default class MP4Player extends EventEmitter {
     this.videoTracks = [];
     /** @type {Array<PlayedTrack>} */
     this.audioTracks = [];
+    /** @type {?VideoDecoderConfig} The video track's, for the seek preview's pictures (previewKeyframes). */
+    this.previewDecoderConfig = null;
+    /** @type {TrakBox|undefined} The track previewDecoderConfig is for. */
+    this.previewDecoderTrak = undefined;
 
 
     this.currentVideoTrack = 0;
@@ -179,6 +183,36 @@ export default class MP4Player extends EventEmitter {
       /** @type {MediaSource} */ (this.mediaSource).removeSourceBuffer(this.audioSourceBuffer.sourceBuffer);
       this.audioSourceBuffer = null;
     }
+  }
+
+  /**
+   * The played video track's keyframes by time, for the seek preview's pictures (PreviewThumbnailer), with the
+   * decoder config WebCodecs takes for them; the file's parts are partSize bytes each.
+   * @return {?{config: VideoDecoderConfig, keyframes: Sample[], partSize: number}} None before the metadata.
+   */
+  previewKeyframes() {
+    const played = this.videoTracks[parseInt(/** @type {any} */ (this.currentVideoTrack))];
+    const track = this.metaData ? this.playedVideoTrack() : undefined;
+    if (!played?.trak || !track) return null;
+    let config = this.previewDecoderConfig;
+    if (!config || this.previewDecoderTrak !== played.trak) {
+      /** @type {*} */
+      const entry = played.trak.mdia.minf.stbl.stsd.entries[0];
+      const box = entry?.avcC ?? entry?.hvcC ?? entry?.vpcC ?? entry?.av1C;
+      /** @type {Uint8Array|undefined} */
+      let description;
+      if (box) {
+        const stream = new DataStream();
+        stream.endianness = Endianness.BIG_ENDIAN;
+        box.write(stream);
+        // The box's contents, without its own size and type.
+        description = new Uint8Array(stream.buffer, 8);
+      }
+      config = {codec: track.codec, codedWidth: track.video?.width, codedHeight: track.video?.height, description};
+      this.previewDecoderConfig = config;
+      this.previewDecoderTrak = played.trak;
+    }
+    return {config, keyframes: played.sortedSamples, partSize: FRAGMENT_SIZE};
   }
 
   /**

@@ -3177,6 +3177,51 @@ describe('FastStreamClient, the seek preview shown', () => {
     }
   });
 
+  /**
+   * Pictures of buffered keyframes at the given places (PreviewThumbnailer), each shown for its own place only.
+   * @param {Object} client
+   * @param {number[]} times
+   */
+  function withPictures(client, times) {
+    vi.spyOn(client, 'showPreviewThumbnail').mockImplementation(() => {});
+    client.previewThumbnailer = {
+      point: vi.fn(),
+      hide: vi.fn(),
+      near: (time) => {
+        const nearest = times.reduce((a, b) => Math.abs(b - time) < Math.abs(a - time) ? b : a, Infinity);
+        return Math.abs(nearest - time) * 10 <= 30 ? {time: nearest} : null;
+      },
+    };
+  }
+
+  it('shows a buffered keyframe\'s picture at a far place at once, and the exact frame once it is there', () => {
+    const {client, video} = previewOn9();
+    withPictures(client, [8, 118]);
+    client.seekPreview(120);
+    expect(client.previewThumbnailer.point).toHaveBeenCalledWith(120);
+    expect(client.showPreviewThumbnail).toHaveBeenCalledWith({time: 118});
+    expect(client.hidePreview).not.toHaveBeenCalled();
+    video.seeking = false;
+    client.previewPlayer.emit(DefaultPlayerEvents.SEEKED);
+    expect(client.showPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no picture of another place: none within 30 px leaves the preview empty', () => {
+    const {client} = previewOn9();
+    withPictures(client, [8, 100]);
+    client.seekPreview(120);
+    expect(client.showPreviewThumbnail).not.toHaveBeenCalled();
+    expect(client.hidePreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the preview\'s own frame where it is nearer to the pointer than any picture', () => {
+    const {client} = previewOn9();
+    withPictures(client, [7]);
+    client.seekPreview(9.5);
+    expect(client.showPreview).toHaveBeenCalledTimes(1);
+    expect(client.showPreviewThumbnail).not.toHaveBeenCalled();
+  });
+
   it('takes every other place for far when the bar cannot be measured', () => {
     const client = makeClient({previewEnabled: true});
     Object.defineProperty(client, 'duration', {get: () => Infinity, configurable: true});

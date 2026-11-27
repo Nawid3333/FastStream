@@ -51,6 +51,7 @@ import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 import {VideoLevel} from './players/Levels.mjs';
 import {WebStorage} from './utils/WebStorage.mjs';
 import {PreviewSeeks, SeekLostMs} from './ui/PreviewSeeks.mjs';
+import {PreviewThumbnailer} from './ui/PreviewThumbnailer.mjs';
 import {closerTo, menuQualities, playableSwitch, sizeClass} from './utils/PageQualityMenu.mjs';
 import {desiredHeight, pickQuality} from './utils/PageQualityPick.mjs';
 
@@ -266,6 +267,8 @@ export class FastStreamClient extends EventEmitter {
     this.syncedAudioPlayer = null;
     this.previewPlayer = null;
     this.previewSeeks = new PreviewSeeks();
+    /** @type {?PreviewThumbnailer} */
+    this.previewThumbnailer = null;
     this.artworkTaken = false;
     /** @type {?number} */
     this.artworkAt = null;
@@ -507,6 +510,7 @@ export class FastStreamClient extends EventEmitter {
         this.previewPlayer = null;
         this.interfaceController.resetPreviewVideo();
       }
+      this.stopPreviewThumbnails();
     }
 
     this.options.defaultQuality = options.defaultQuality;
@@ -551,6 +555,11 @@ export class FastStreamClient extends EventEmitter {
       // The box of that shape (fluidplayer.css .fixed-aspect-ratio).
       video.style.setProperty('--video-aspect-ratio', aspect.aspectRatio);
       video.classList.toggle('fixed-aspect-ratio', !!aspect.aspectRatio);
+    }
+    const thumbnail = this.previewThumbnailer?.canvas;
+    if (thumbnail) {
+      thumbnail.style.transform = transformStr;
+      thumbnail.style.objectFit = aspect.objectFit;
     }
   }
 
@@ -606,6 +615,7 @@ export class FastStreamClient extends EventEmitter {
     } else {
       this.armPreviewOverdue();
     }
+    this.previewThumbnailer?.point(time);
     this.updatePreview();
   }
 
@@ -651,6 +661,7 @@ export class FastStreamClient extends EventEmitter {
   hidePreview() {
     if (this.previewPlayer) {
       this.previewPlayer.getVideo().style.opacity = /** @type {any} */ (0);
+      this.previewThumbnailer?.hide();
       clearTimeout(this.previewPlayerLoadingTimeout);
       this.previewPlayerLoadingTimeout = setTimeout(() => {
         // previewPlayer can go null (resetPlayer, destroy) while this debounce is pending.
@@ -664,6 +675,17 @@ export class FastStreamClient extends EventEmitter {
   showPreview() {
     if (this.previewPlayer) {
       this.previewPlayer.getVideo().style.opacity = /** @type {any} */ (1);
+      this.previewThumbnailer?.hide();
+      DOMElements.seekPreviewVideo.classList.remove('loading');
+      clearTimeout(this.previewPlayerLoadingTimeout);
+    }
+  }
+
+  /** @param {import('./ui/PreviewThumbnails.mjs').Thumbnail} thumbnail - A keyframe's picture, over the video. */
+  showPreviewThumbnail(thumbnail) {
+    if (this.previewPlayer && this.previewThumbnailer) {
+      this.previewThumbnailer.show(thumbnail);
+      this.previewPlayer.getVideo().style.opacity = /** @type {any} */ (0);
       DOMElements.seekPreviewVideo.classList.remove('loading');
       clearTimeout(this.previewPlayerLoadingTimeout);
     }
@@ -671,13 +693,35 @@ export class FastStreamClient extends EventEmitter {
 
   updatePreview() {
     if (!this.previewPlayer) return;
+    const seeks = this.previewSeeks;
     // The frame on screen is the pointer's place or near it (PreviewSeeks); an MP4 preview can hold a place it has
     // not reached, and its frame is then the last place's.
-    if (this.previewPlayer.getVideo().readyState > 0 && this.previewSeeks.fits((a, b) => this.previewPxApart(a, b))) {
+    const fits = this.previewPlayer.getVideo().readyState > 0 && seeks.fits((a, b) => this.previewPxApart(a, b));
+    // A buffered keyframe's picture near the place, until the preview's own frame is nearer.
+    const thumbnail = seeks.pointer === null ? null : this.previewThumbnailer?.near(seeks.pointer) ?? null;
+    if (thumbnail && seeks.pointer !== null && !(fits &&
+        Math.abs(/** @type {number} */ (seeks.onScreen) - seeks.pointer) <= Math.abs(thumbnail.time - seeks.pointer))) {
+      this.showPreviewThumbnail(thumbnail);
+    } else if (fits) {
       this.showPreview();
     } else {
       this.hidePreview();
     }
+  }
+
+  /** Pictures of the buffered keyframes for the seek preview, where WebCodecs makes them (PreviewThumbnailer). */
+  startPreviewThumbnails() {
+    const source = this.player?.getSource();
+    if (this.previewThumbnailer && this.previewThumbnailer.source === source) return;
+    this.stopPreviewThumbnails();
+    if (!source || !PreviewThumbnailer.supported()) return;
+    this.previewThumbnailer = new PreviewThumbnailer(this, DOMElements.seekPreviewVideo);
+    this.previewThumbnailer.wake();
+  }
+
+  stopPreviewThumbnails() {
+    this.previewThumbnailer?.destroy();
+    this.previewThumbnailer = null;
   }
 
   updateQualityLevels() {
@@ -982,6 +1026,7 @@ export class FastStreamClient extends EventEmitter {
     this.previewPlayer = previewPlayer;
     this.previewSeeks.reset();
     this.interfaceController.addPreviewVideo(previewPlayer.getVideo());
+    this.startPreviewThumbnails();
     this.updateVideoTransform();
   }
 
@@ -2361,6 +2406,7 @@ export class FastStreamClient extends EventEmitter {
       }
       this.previewPlayer = null;
     }
+    this.stopPreviewThumbnails();
     // A preview build still running is the old video's.
     this.previewPlayerSetup = null;
     /** @type {number[]} */
@@ -2668,6 +2714,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.FRAGMENT_UPDATE, () => {
       this.interfaceController.updateFragmentsLoaded();
+      this.previewThumbnailer?.wake();
     });
   }
 
@@ -2685,6 +2732,7 @@ export class FastStreamClient extends EventEmitter {
 
     context.on(DefaultPlayerEvents.FRAGMENT_UPDATE, (/** @type {Fragment} */ fragment) => {
       this.interfaceController.updateFragmentsLoaded();
+      this.previewThumbnailer?.wake();
     });
 
     context.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
