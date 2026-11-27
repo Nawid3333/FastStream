@@ -32,8 +32,8 @@ describe('the page player\'s menu, asked for', () => {
         .toEqual({...MENU, width: 640, height: 360});
   });
 
-  it('is null when the page\'s player has none', async () => {
+  it('says so when the page\'s player has none', async () => {
     const p = page(null);
-    expect(await p.send({type: 'PAGE_QUALITY_PROBE', url: 'https://hoster.example/v/1_360p.mp4'})).toBeNull();
+    expect(await p.send({type: 'PAGE_QUALITY_PROBE', url: 'https://hoster.example/v/1_360p.mp4'})).toEqual({none: true});
   });
 });

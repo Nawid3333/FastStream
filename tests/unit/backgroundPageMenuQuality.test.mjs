@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {loadBackground} from './backgroundHarness.mjs';
 
@@ -221,6 +221,25 @@ describe('the shortcut\'s MPV and a page that switched its menu\'s quality for t
   });
 });
 
+describe('a page switch whose listener fails', () => {
+  it('lets the plays that waited for it go on', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    bg = await loadBackground({tabs: [{id: 1, url: HOSTER}], onTabMessage: hosterPage()});
+    // The background's own copy of the module.
+    const {onPageMenuFile, pageMenuSwitching, startMenuChoice} = await caps();
+    const tab = {tabId: 1};
+    const frame = {isPlayer: false, tab, frameId: 0, documentKey: 'page-1', url: HOSTER};
+    const choice = startMenuChoice(frame, {url: file('360p'), mode: 'direct'}, Infinity);
+    onPageMenuFile(choice, () => {
+      throw new Error('listener');
+    });
+    await bg.wait(100);
+    expect(bg.sent('PAGE_QUALITY_SELECT')).toHaveLength(1);
+    expect(pageMenuSwitching(tab)).toBeNull();
+    vi.restoreAllMocks();
+  });
+});
+
 describe('FastStream\'s player and qualities only the page player\'s menu knows', () => {
   const PLAYER_IN_PAGE = 'moz-extension://bg-test/player/index.html?opener=page-1';
   // The menu's entries as the player gets them: the files known with their url, the others switched to in the page.
@@ -293,6 +312,72 @@ describe('FastStream\'s player and qualities only the page player\'s menu knows'
     expect(sources.map((s) => s.url)).toEqual([file('360p')]);
     expect(sources[0].qualities).toBeUndefined();
     expect(waited).toBeLessThan(50);
+  });
+
+  it('starts the next file of a hoster whose page had no menu at once, and waits again once one is found', async () => {
+    let menu = {none: true};
+    let sourcesAt = 0;
+    const answers = hosterPage({menu: () => (typeof menu === 'function' ? menu() : menu)});
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://hoster.test/']},
+      tabs: [1, 2, 3].map((id) => ({id, url: `https://hoster.test/embed/${id}/`})),
+      onTabMessage: (sent) => {
+        if (sent.message.type === 'SOURCES') sourcesAt = Date.now();
+        return answers(sent);
+      },
+    });
+    /**
+     * Episode n in tab n: its 360p file detected, then FastStream's player asks for sources.
+     * @param {number} n
+     * @return {Promise<{sources: Array<Object>, waited: number}>}
+     */
+    const episode = async (n) => {
+      const page = `https://hoster.test/embed/${n}/`;
+      await bg.navigated(n, page);
+      await bg.frameAdded(n, 0, page, `page-${n}`);
+      await bg.request({tabId: n, url: file(`${n}-360p`), type: 'media'}, MP4);
+      await bg.message({type: 'PLAYER_LOADED', url: `moz-extension://bg-test/player/index.html?opener=page-${n}`,
+        parentFrameId: 0}, {tabId: n, frameId: 5});
+      const asked = Date.now();
+      await bg.message({type: 'REQUEST_SOURCES'}, {tabId: n, frameId: 5});
+      await bg.wait(8000);
+      const sent = bg.sent('SOURCES').filter((m) => m.tabId === n && m.frameId === 5);
+      expect(sent).toHaveLength(1);
+      return {sources: sent[0].message.sources, waited: sourcesAt - asked};
+    };
+    const late = () => new Promise((resolve) => setTimeout(() => resolve(MENU), 500));
+
+    await episode(1);
+    // Its menu is found only after the player started: on the page's file, the page left as it is.
+    menu = late;
+    const second = await episode(2);
+    expect(second.waited).toBeLessThan(50);
+    expect(second.sources.map((s) => s.url)).toEqual([file('2-360p')]);
+    expect(bg.sent('PAGE_QUALITY_SELECT')).toEqual([]);
+    // Found once: the hoster's next file waits for its menu again.
+    const third = await episode(3);
+    expect(third.waited).toBeGreaterThanOrEqual(450);
+    expect(third.sources.map((s) => s.url)).toEqual([file('1080p')]);
+    expect(bg.sent('PAGE_QUALITY_PROBE')).toHaveLength(3);
+  });
+
+  it('gives the player the file the page switched to as the page\'s own once its first file is gone', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: HOSTER}], onTabMessage: hosterPage()});
+    // The background's own copy of the module.
+    const {startMenuChoice, withMenuQualities} = await caps();
+    const frame = {isPlayer: false, frameId: 0, documentKey: 'page-1', url: HOSTER};
+    const tab = {tabId: 1, getFrame: (id) => (id === 0 ? frame : null)};
+    frame.tab = tab;
+    const choice = startMenuChoice(frame, {url: file('360p'), mode: 'direct'}, Infinity);
+    await bg.wait(100);
+    expect((await choice.result)?.url).toBe(file('1080p'));
+    const source = (url) => ({url, mode: 'direct', frameId: 0});
+    // Beside the file it was switched from: that one's, no source of its own.
+    const both = await withMenuQualities(tab, [source(file('360p')), source(file('1080p'))]);
+    expect(both.map((s) => [s.url, !!s.qualities])).toEqual([[file('1080p'), true]]);
+    // Alone (the list cleared, FastStream off and on again while the page played it): the page's file.
+    const alone = await withMenuQualities(tab, [source(file('1080p'))]);
+    expect(alone.map((s) => s.url)).toEqual([file('1080p')]);
   });
 
   it('starts on the page\'s file within the cap when the page never answers', async () => {

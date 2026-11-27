@@ -22,6 +22,8 @@ export const MenuSwitchCapMs = 4000;
 export const MenuSwitchNoteMs = 10000;
 // Files of one page whose menu is asked for: a page loads a few (an ad, the film), not dozens.
 const MaxChoicesPerPage = 4;
+// Hosters remembered as having no menu (NoMenu).
+const MaxNoMenu = 100;
 
 /**
  * @typedef {Object} MenuResult
@@ -33,7 +35,10 @@ const MaxChoicesPerPage = 4;
  * @typedef {Object} MenuChoice
  * @property {string} url - The page's file it was asked for.
  * @property {?string} document - The frame's page then.
+ * @property {?string} origin - The frame's page's origin: the hoster whose player's menu it asks.
  * @property {number} started
+ * @property {number} probeCapMs - How long a start waits for the menu: none for a hoster whose page had none.
+ * @property {boolean} gaveUp - Something started on the page's file without the menu's answer: the page stays as it is.
  * @property {?number} answeredAt - When the page's menu answered.
  * @property {Promise<?PageQuality[]>} entries - The menu's entries; null without a menu.
  * @property {Promise<?MenuResult>} result - Null without a menu.
@@ -46,6 +51,38 @@ const Choices = new WeakMap();
 
 /** @type {WeakMap<TabHolder, Promise<void>>} */
 const Switching = new WeakMap();
+
+// The hosters whose page's player last had no quality menu: their next file starts at once, the menu still asked
+// meanwhile (found, the hoster is waited for again; a start already made switches through the player's own probe).
+// In memory only.
+/** @type {Set<string>} */
+const NoMenu = new Set();
+
+/**
+ * @param {FrameHolder} frame
+ * @return {?string}
+ */
+function originOf(frame) {
+  try {
+    const url = new URL(frame.url || '');
+    return /^https?:$/.test(url.protocol) ? url.origin : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * @param {?string} origin
+ * @param {*} answer - The probe's: null when it found no video to ask about (no word on the menu).
+ * @param {?PageQuality[]} entries
+ */
+function noteMenu(origin, answer, entries) {
+  if (!origin || !answer) return;
+  NoMenu.delete(origin);
+  if (entries) return;
+  NoMenu.add(origin);
+  if (NoMenu.size > MaxNoMenu) NoMenu.delete(/** @type {string} */ (NoMenu.values().next().value));
+}
 
 /**
  * @param {string} mode
@@ -136,9 +173,11 @@ export function startMenuChoice(frame, source, wanted) {
   }
   /** @type {(entries: ?PageQuality[]) => void} */
   let gotEntries = () => {};
+  const origin = originOf(frame);
   /** @type {MenuChoice} */
   const choice = {
-    url: source.url, document: frame.documentKey ?? null, started: Date.now(), answeredAt: null,
+    url: source.url, document: frame.documentKey ?? null, origin, started: Date.now(),
+    probeCapMs: origin && NoMenu.has(origin) ? 0 : MenuProbeCapMs, gaveUp: false, answeredAt: null,
     entries: new Promise((resolve) => {
       gotEntries = resolve;
     }),
@@ -186,6 +225,7 @@ async function makeChoice(choice, frame, requested, wanted, gotEntries) {
   const width = Number(answer?.width) || 0;
   const height = Number(answer?.height) || 0;
   const entries = menuQualities(answer, choice.url, width, height);
+  noteMenu(choice.origin, answer, entries);
   gotEntries(entries);
   if (!entries) return null;
   const kept = {url: choice.url, qualities: entries};
@@ -194,7 +234,7 @@ async function makeChoice(choice, frame, requested, wanted, gotEntries) {
   const now = sizeClass(width, height) || playing?.height || 0;
   if (!pick || pick === playing || !pick.control || !closerTo(wanted, now, pick.height)) return kept;
   // Found after its cap: what plays started on the page's file already, and its player's own probe may switch.
-  if (choice.answeredAt - choice.started > MenuProbeCapMs) return kept;
+  if (choice.gaveUp || choice.answeredAt - choice.started > MenuProbeCapMs) return kept;
   const own = /** @type {string[]} */ ([choice.url, requested].filter(Boolean));
   const select = askPage(tab.tabId, {type: MessageTypes.PAGE_QUALITY_SELECT, id: pick.control.id,
     index: pick.control.index}, frame.frameId).then((switched) => {
@@ -202,11 +242,19 @@ async function makeChoice(choice, frame, requested, wanted, gotEntries) {
       switched.url : null;
     if (next) {
       choice.pageFile = next;
-      for (const listener of choice.listeners) listener(next);
+      for (const listener of choice.listeners) {
+        try {
+          listener(next);
+        } catch (e) {
+          console.warn('Telling the file the page switched to failed', e);
+        }
+      }
     }
     return next ? {url: next, width: Number(switched.width) || 0, height: Number(switched.height) || 0} : null;
   });
-  const note = within(select, MenuSwitchNoteMs).then(() => {
+  // Settled whatever the switch does: a play waiting for it is sent then.
+  /** @type {Promise<void>} */
+  const note = within(select, MenuSwitchNoteMs).catch(() => null).then(() => {
     if (Switching.get(tab) === note) Switching.delete(tab);
   });
   Switching.set(tab, note);
@@ -231,15 +279,19 @@ export function onPageMenuFile(choice, listener) {
 }
 
 /**
- * The choice as far as its caps allow: nothing once the menu did not answer within MenuProbeCapMs of the start, the
- * page's own file once its switch did not within MenuSwitchCapMs of the menu's answer.
+ * The choice as far as its caps allow: nothing once the menu did not answer within MenuProbeCapMs of the start (at
+ * once for a hoster whose page had no menu), the page's own file once its switch did not within MenuSwitchCapMs of the
+ * menu's answer.
  * @param {?MenuChoice} choice
  * @return {Promise<?MenuResult>}
  */
 export async function awaitMenuChoice(choice) {
   if (!choice) return null;
-  const entries = await within(choice.entries, choice.started + MenuProbeCapMs - Date.now());
-  if (!entries) return null;
+  const entries = await within(choice.entries, choice.started + choice.probeCapMs - Date.now());
+  if (!entries) {
+    choice.gaveUp = true;
+    return null;
+  }
   const answeredAt = choice.answeredAt ?? Date.now();
   return await within(choice.result, answeredAt + MenuSwitchCapMs - Date.now()) || {url: choice.url, qualities: entries};
 }
@@ -247,7 +299,8 @@ export async function awaitMenuChoice(choice) {
 /**
  * Sources for FastStream's player, each a file whose menu was asked for at its detection: the file switched to, with
  * the menu's entries as its qualities (the player's quality menu lists them, and a pick switches through the page).
- * The file the page switched to is no source of its own.
+ * The file the page switched to is no source of its own beside the file it was switched from; alone (the list cleared
+ * since), it is the page's file.
  * @param {TabHolder} tab
  * @param {Array<{url: string, requestedUrl?: string, mode: string, frameId: number, qualities?: ?Array<Object>}>} sources
  * @return {Promise<typeof sources>}
@@ -259,6 +312,14 @@ export async function withMenuQualities(tab, sources) {
     const choice = choicesOf(frame).find((known) => known.url === source.url);
     return awaitMenuChoice(choice || null);
   }));
+  const given = new Set(sources.flatMap((source) => [source.url, source.requestedUrl || '']));
+  /**
+   * @param {FrameHolder} frame
+   * @param {string|undefined} url
+   * @return {boolean} Whether url is the file the page switched to from one of the batch.
+   */
+  const switchedFromGiven = (frame, url) => !!url &&
+    choicesOf(frame).some((choice) => choice.pageFile === url && given.has(choice.url));
   const switched = new Set();
   sources.forEach((source, i) => {
     const result = chosen[i];
@@ -273,7 +334,6 @@ export async function withMenuQualities(tab, sources) {
   return sources.filter((source) => {
     const frame = tab.getFrame(source.frameId);
     return source.qualities || !frame ||
-      !(switched.has(source.url) || isPageMenuFile(frame, source.url) ||
-        (!!source.requestedUrl && isPageMenuFile(frame, source.requestedUrl)));
+      !(switched.has(source.url) || switchedFromGiven(frame, source.url) || switchedFromGiven(frame, source.requestedUrl));
   });
 }

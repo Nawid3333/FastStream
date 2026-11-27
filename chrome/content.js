@@ -166,9 +166,9 @@
         sendResponse(null);
         return;
       }
-      // With the size it plays: the menu may mark no entry as the one in use (PageMenuQuality.mjs).
-      PageQualityControl.probe(video).then((answer) => sendResponse(answer &&
-        {...answer, width: video.videoWidth, height: video.videoHeight}), () => sendResponse(null));
+      // With the size it plays: the menu may mark no entry as the one in use. None found says so (PageMenuQuality.mjs).
+      PageQualityControl.probe(video).then((answer) => sendResponse(answer ?
+        {...answer, width: video.videoWidth, height: video.videoHeight} : {none: true}), () => sendResponse(null));
       return true;
     } else if (request.type === MessageTypes.PAGE_QUALITY_SELECT) {
       PageQualityControl.select(request.id, request.index).then(sendResponse, () => sendResponse({changed: false, error: 'failed'}));

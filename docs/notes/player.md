@@ -482,14 +482,26 @@ mouse moves work on it, also after the takeover shrank the player to 0x0.
   `qualities` (the played file and the switched one with their address, the others with
   `control`), so it lists them, does not probe again, and a pick by hand switches through the page
   (`source.pageFrameId` is the page frame, as before). The switched file, should the page's request
-  for it come before the player's frame is there, is no source of its own. The probe's answer
-  carries the page video's `width`/`height` (content.js) for a menu that marks no entry.
+  for it come before the player's frame is there, is no source of its own beside the file it was
+  switched from; alone (the list cleared, or FastStream off and on while the page played it), it is
+  the page's file. The probe's answer carries the page video's `width`/`height` (content.js) for a
+  menu that marks no entry, and says `{none: true}` when it found the video but no menu (null still
+  means no video to ask about).
   What it costs the start, counted in the stand-in (`backgroundPageMenuQuality.test.mjs`): nothing
   once the menu answered (no menu, or already at the setting) before the player asks; otherwise the
   rest of the probe, at most 2 s from detection, which the player's own wait before it asks
   (`replaceDelay`, 500 ms, then the player's page loading) partly covers. page-quality-control.js
   answers "no menu" after its 1.5 s wait for controls when a page shows none, so a page without a
-  menu can wait up to that 1.5 s less what has passed; not measured live.
+  menu can wait up to that 1.5 s less what has passed; not measured live. A hoster (the frame's
+  origin) whose page answered "no menu" is remembered (`NoMenu`, in memory, 100 at most): its next
+  file starts at once, its menu still asked meanwhile. A menu found then switches nothing (the
+  player's own probe at metadata does, as before) and the hoster is waited for again from its next
+  file on. So an episode list on one hoster pays the wait once.
+- **Plays during a switch** (DeepSeek review, 2026-11-27): a play the page reports in the tab while
+  a switch is still out waits for it (`pageMenuSwitching`, 10 s at most), any video of the tab: the
+  file the page loads is unknown until the switch answers, so it cannot be told apart from another
+  video's. The wait always ends: a listener that throws is caught, and the wait settles whatever
+  the switch does.
 - **Tests:** `PageQualityMenu.test.mjs` (labels, entries, the host rule), `FastStreamClient.test.mjs`
   (probe, automatic pick, a label that lies, another host, a pick in the menu),
   `backgroundPageQualityControl.test.mjs` (the relay's frames), `backgroundPageMenuQuality.test.mjs`
