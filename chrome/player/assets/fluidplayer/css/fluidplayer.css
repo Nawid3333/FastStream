@@ -901,6 +901,14 @@ body {
     height: 100px;
 }
 
+.fluid_controls_progress_container .seek_preview .seek_preview_video .seek_preview_thumbnail {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+}
+
 .progress_loaded_container {
     position: absolute;
     overflow: hidden;

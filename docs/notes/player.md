@@ -2020,6 +2020,39 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   233 -> 277 ms, as the seek running when the pointer stops ends first. Waiting only for a seek
   near the pointer (any farther seek at once) cancelled most seeks of a sweep again (13 frames,
   the preview shown 15 % of it). `previewSeeks.test.mjs`, `FastStreamClient.test.mjs`.
+- **The seek preview shows a buffered place's keyframe at once** (`PreviewThumbnailer`, `PreviewThumbnails`,
+  2026-11-27; the owner: a frame with near-zero delay over buffered video). The preview player needs about 90 ms
+  for a new place even with its segment in the store: the segment goes through MSE, the element seeks and decodes
+  from the keyframe to the place. With WebCodecs in headless Firefox 161 (1080p H.264, 4 s segments): a stored
+  segment reads in 0.4 ms, Mediabunny demuxes its first keyframe in 1-4 ms, the keyframe decodes in 10-25 ms and
+  scales to the box in 7 ms; decoding a whole 96-frame segment to reach an exact frame took ~370 ms, slower than
+  the preview player, so the exact frame stays its job. In idle time, one at a time and 100 ms apart, the first
+  keyframe of each downloaded segment (HLS TS and fMP4, DASH fMP4 and WebM: demuxed by Mediabunny with the level's
+  init segment in front) or each downloaded keyframe of a progressive MP4 (its bytes from `MP4Player`'s sample
+  table, `previewKeyframes`) is decoded by one `VideoDecoder` into an `ImageBitmap` the size of the box (178x100 at
+  a pixel ratio of 1, 71 KB). The pointer's place goes first (when no picture is as near); then the keyframe
+  farthest from every picture, until pictures are 8 px apart on the bar: a long video gets one picture per 8 px,
+  not one per segment. At most 16 MB of pictures (4 MB with "Disk only"); over that the most crowded one goes. The
+  decoder closes after 2 s with nothing to do; the pictures go with the source. A picture shows only within 30 px
+  of the pointer (`PreviewSeeks`' rule) and while the preview's own frame is not nearer; the preview player still
+  seeks, and its exact frame replaces the picture. No WebCodecs (Firefox for Android has no `VideoDecoder`), a
+  codec the decoder refuses (`isConfigSupported`), a direct video, or three failures in a row: the preview as
+  before.
+  Measured on the 2-minute stream of the entry above (12 jumps a run and a 3-second sweep, 3 runs each, old ->
+  new): a jump to a buffered place shows a frame after 89 -> 4 ms (median; p90 203 -> 6), its exact frame after 89
+  -> 91.5 ms as before. The sweep shows 16-22 -> 28-37 different frames, something on screen 91 -> 100 % of it;
+  after it the last place's picture in 6 ms, and its exact frame when the element's last seek ends, as before
+  (273-448 -> 287-916 ms over 9 runs each; 423-448 -> 396-473 run back to back, and the traces show the same last
+  seek in both; all pictures were built before the sweep). A place not downloaded yet (150 ms a segment): a frame
+  after 267 -> 205 ms, the exact frame after 267 -> 274 ms (p90 380 -> 397): the keyframe decodes as the segment
+  arrives, beside the preview's own append. No frame of another place in 72 jumps (one of 2 ms at a frame's edge in
+  another series of 36, the old code had one of 1 ms). HLS fMP4, DASH fMP4 and WebM, and the progressive MP4: 30
+  pictures each, a picture 1-8 ms after a jump, no wrong frame. 30 pictures: 2.1 MB, built in 3.5 s. Main playback
+  of a 10-minute stream for 25 s with a sweep, 3 runs: no dropped frame in either (682-685 frames), Firefox CPU
+  23.5-25.9 -> 25.3-28.0 s (about 1.8 s more, the 150 pictures built in the first 10 s).
+  Not done: frames between keyframes. A short video with keyframes more than 60 px apart on the bar has places
+  with no picture within 30 px; those wait for the preview player as before.
+  `previewThumbnails.test.mjs`, `FastStreamClient.test.mjs`.
 - **A status message the bar cuts short shows whole above it** (`StatusManager.updateFullText`, the owner,
   2026-11-22: "make sure that the message is always readable"). The status line is one line between the
   left and right buttons: in a player inside a page (640 px) the disk warning showed about a quarter of its
