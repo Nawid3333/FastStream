@@ -600,16 +600,26 @@ export class FastStreamClient extends EventEmitter {
     if (next !== null) {
       this.seekPreviewTo(next);
     } else {
-      // A seek that never ends (its part does not load) holds the pointer's place back no longer than this.
-      clearTimeout(this.previewOverdueTimer);
-      this.previewOverdueTimer = setTimeout(() => {
-        const overdue = this.previewPlayer ? this.previewSeeks.overdue(performance.now()) : null;
-        if (overdue === null) return;
-        this.seekPreviewTo(overdue);
-        this.updatePreview();
-      }, SeekLostMs);
+      this.armPreviewOverdue();
     }
     this.updatePreview();
+  }
+
+  /** A seek that never ends (its part does not load) holds the pointer's place back no longer than SeekLostMs. */
+  armPreviewOverdue() {
+    clearTimeout(this.previewOverdueTimer);
+    const seeks = this.previewSeeks;
+    this.previewOverdueTimer = setTimeout(() => {
+      if (!this.previewPlayer) return;
+      const overdue = seeks.overdue(performance.now());
+      if (overdue !== null) {
+        this.seekPreviewTo(overdue);
+        this.updatePreview();
+      } else if (seeks.running !== null && seeks.pending !== null) {
+        // The timer came a little early.
+        this.armPreviewOverdue();
+      }
+    }, Math.max(0, seeks.runningSince + SeekLostMs - performance.now()));
   }
 
   /**

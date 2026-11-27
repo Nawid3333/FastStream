@@ -2957,6 +2957,22 @@ describe('FastStreamClient, the seek preview shown', () => {
     }
   });
 
+  it('counts the second from the seek\'s start, not from the pointer\'s last move', () => {
+    vi.useFakeTimers();
+    try {
+      const {client} = previewOn9();
+      client.seekPreview(10);
+      vi.advanceTimersByTime(SeekLostMs - 100);
+      client.seekPreview(10.5);
+      vi.advanceTimersByTime(99);
+      expect(client.previewPlayer.currentTime).toBe(10);
+      vi.advanceTimersByTime(1);
+      expect(client.previewPlayer.currentTime).toBe(10.5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('takes every other place for far when the bar cannot be measured', () => {
     const client = makeClient({previewEnabled: true});
     Object.defineProperty(client, 'duration', {get: () => Infinity, configurable: true});
