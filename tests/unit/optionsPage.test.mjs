@@ -291,6 +291,14 @@ describe('importing a settings file', () => {
     expect(keybinds.Fullscreen).toBe('KeyG');
   });
 
+  it('puts the download and storage values on their steps, whatever version the file names', async () => {
+    // Imports run the migration always: a hand-edited file could bring back "0 ahead", which stopped the video.
+    await importFile({storageVersion: 1, sizesVersion: 1, downloadAll: false, bufferAhead: 0, maxSpeed: 0, maxVideoSize: 3e9,
+      ramBudget: 20e9, bufferToDisk: true, bufferBehind: 7});
+    expect(optionWrites().at(-1).value).toMatchObject({bufferAhead: 30, maxSpeed: 250000, maxVideoSize: 2e9,
+      ramBudget: 1e9, bufferToDisk: true, bufferBehind: 20});
+  });
+
   it('holds the numbers to what their fields take, and a menu to its choices', async () => {
     // A seek step of -5 seeked forward on the left arrow, a mini player of 50 was 50 times
     // the player, and a value no menu has showed as a blank menu.

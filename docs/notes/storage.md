@@ -550,6 +550,9 @@ explicit "No limit" instead of 0 or an empty field; a marker on what differs fro
   there is one, else the largest), also on an import and from a cloud copy. Once (`storageVersion`):
   run on every load, it also turned the small RAM budgets the e2e specs save with the disk on
   (`many-tabs`, `reload-keeps-buffer`: 60 MB, 2 MB) into 1 GB, and nothing reached the disk.
+  An import runs it always, whatever version the file names: a file comes from outside, and a
+  hand-edited one could bring back "0 ahead". It also does what `holdImportedNumbers` did for these
+  five values.
 - **No RAM question.** `computerMemory` (options and welcome page) and `RamGuard` are gone: with
   the disk on, more RAM only saves SSD writes (the bench above), so the amount is automatic
   (`AutomaticRamBudget`, 1 GB) and an amount set before becomes it. Only RAM only, where RAM is all

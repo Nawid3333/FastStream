@@ -1038,7 +1038,9 @@ function applyImportedSettings(newOptionsObj) {
   /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
   holdToFields(newOptions);
   holdImportedNumbers(newOptions);
-  migrateStorage(newOptions, newOptionsObj);
+  // Always, whatever storageVersion the file names: it comes from outside, and only saved settings keep what was
+  // saved since the migration.
+  migrateStorage(newOptions, null);
   const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
   const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
   loadOptions(newOptions);
