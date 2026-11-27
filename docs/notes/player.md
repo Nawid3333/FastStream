@@ -1919,7 +1919,7 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   nearly invisible at first on a dark video. The rule stays for transitions added later and
   for the libraries' styles. The tools that closed a second after their last use (precise
   seek, the silence skipper, the subtitle syncer) close at once.
-- **The seek preview shows no frame of another place** (`PreviewSeeks`, 2026-11-28; the owner:
+- **The seek preview shows no frame of another place** (`PreviewSeeks`, 2026-11-27; the owner:
   "show the wrong frame", after a quick move from one place to another). Every pointer move set
   the preview's time, and `updatePreview` showed the preview while the place was buffered, also
   while its element was still seeking there: the old place's frame showed at the new one until
