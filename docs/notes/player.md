@@ -414,8 +414,9 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
   360p through `setCurrentVideoLevelID('page-quality:<i>')`. Covered: Plyr (`<source size>`),
   Video.js 8 with @silvermine/videojs-quality-selector, Artplayer, xgplayer (`definition`),
   MediaElement with mediaelement-plugins' quality feature, OvenPlayer, OpenPlayerJS (`title` and
-  its levels control), Vidstack (sized sources); DPlayer's page (its docs' `const dp`) waits in
-  the spec's `MENU_ONLY` for the menu reader. The libraries are the releases
+  its levels control), Vidstack (sized sources), and DPlayer through its menu
+  (page-quality-control.js: its docs' `const dp` is on no window, and its menu names no files).
+  The libraries are the releases
   `live-specs/player-libraries.json` pins, from the npm registry (`tests/e2e/npmPackages.mjs`,
   integrity-checked, in memory; no Actions cache: `pnpm install` needs the registry anyway), so
   `toolchain-updates.yml`'s rolling update PR runs this spec on every new release, and one that
@@ -444,14 +445,16 @@ mouse moves work on it, also after the takeover shrank the player to 0x0.
   its own counts in the list above it); a bare number only in a list that says what it is, and only
   a height videos have (no years). Open shadow roots count. The steps are kept by name, taken before
   their click (a class that changes when open is left out, and so is the quality a row shows), and
-  found again in the video's player first. The menus are closed again: Escape, then the opener when
+  found again in the video's player first, outside it never in another video's player. The menu's
+  own mark of the entry in use counts on the entry, what it holds, and its wrappers. The menus are closed again: Escape, then the opener when
   it says it is open or its menu still shows (a menu hidden by the page is closed; what a takeover
   hid with `display: none !important` does not count).
 - **Switching** (`PAGE_QUALITY_SELECT`): the menu opened again from its deepest step still open,
   the entry clicked (the same label twice: the one at the same place), then the page's video waited
-  for until it plays another file or loads again: the same element, or one that is new or on another
-  file than before the click (another video of the page is none of them); its address and size are
-  the answer. One probe or switch at a time per frame; the latest 8 menus are kept.
+  for until it plays another file or loads again: the same element, a new one, or one of this player
+  on another file than before the click (a teaser or a feed beside it is none of them); its address
+  and size are the answer. One probe or switch at a time per frame; the latest 8 menus are kept, and
+  a probe that found none is made again when asked again.
 - **The relay**: only from FastStream's player, only to the frame it sits in. The page's new file is
   no new video for the background: a frame with FastStream's player is not watched at all.
 - **The player** (`FastStreamClient.probePageQualities`, `PageQualityMenu.mjs`): asked once per
@@ -461,8 +464,8 @@ mouse moves work on it, also after the takeover shrank the player to 0x0.
   the page, and its file plays only from the played file's origin (it gets that request's headers;
   no step down from https), and, picked automatically, only when its real size (else its label's,
   for a file slow to load) gets closer to the setting. A pick by hand says that the page switches,
-  and when it did not; made during another switch, it is made once that one is done, instead of
-  it. MPV gets a list only when every entry has its file.
+  and when it did not; any pick made during a switch (of the same source) is made once that one
+  is done, instead of what it brings. MPV gets a list only when every entry has its file.
 - **Tests:** `PageQualityMenu.test.mjs` (labels, entries, the host rule), `FastStreamClient.test.mjs`
   (probe, automatic pick, a label that lies, another host, a pick in the menu),
   `backgroundPageQualityControl.test.mjs` (the relay's frames), and `page-quality-menu.e2e.mjs`:
@@ -471,12 +474,14 @@ mouse moves work on it, also after the takeover shrank the player to 0x0.
   video playing beside it): the 480p file plays through its "1080p", and a pick of 360p in
   FastStream's menu switches the page and plays its file. Live on cineby (2026-11-27): the "1080p"
   (854x480) played within the first seconds; 360p picked by hand played in about 1 s.
-- **Reviewed** by DeepSeek V4.1 Flash (2026-11-27): 15 of its 22 points led to the fixes above, 3
-  found nothing wrong (the relay's frame checks, labels written as text, no work at injection). Not
+- **Reviewed** by DeepSeek V4.1 Flash (2026-11-27), twice: 15 of the first review's 22 points and 13
+  of the second's led to the fixes above; the first's 3 others found nothing wrong (the relay's frame checks, labels written as text, no work at injection). Not
   taken: a video that is a direct child of `<body>` has no player around it to search (its controls
   would be the whole page's); `javascript:` links stay clickable (the page runs its own script
   anyway); a list found in the page keeps no opener (none was needed to find it); the page walks
-  while waiting run only during a probe or a switch, a few seconds.
+  while waiting run only during a probe or a switch, a few seconds; a hidden list is clicked as it
+  is (the second review wanted it opened first: Plyr, Video.js, DPlayer and others keep theirs hidden
+  in the page, and a script's click reaches it; the library suite passes so).
 
 ## Player engines: reasons behind the code
 

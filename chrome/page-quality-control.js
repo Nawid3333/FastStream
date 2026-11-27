@@ -221,10 +221,14 @@ const PageQualityControl = (() => {
 
   /**
    * @param {Element} item
+   * @param {Element} list - Its list: the wrappers between them count (<li class="selected"><button>).
    * @return {boolean} Whether the menu marks it as the one in use.
    */
-  function isSelected(item) {
-    for (const el of [item, ...item.querySelectorAll('*')].slice(0, 20)) {
+  function isSelected(item, list) {
+    /** @type {Element[]} */
+    const wrappers = [];
+    for (let el = parentOf(item); el && el !== list && wrappers.length < 4; el = parentOf(el)) wrappers.push(el);
+    for (const el of [item, ...item.querySelectorAll('*')].slice(0, 20).concat(wrappers)) {
       // A check icon in the entry (each list keeps it in one only: more than one counts as none).
       if (el.tagName.toLowerCase() === 'svg' && /(^|[\s_-])check($|[\s_-])/i.test(el.getAttribute('class') || '')) return true;
       if (el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-selected') === 'true') return true;
@@ -278,7 +282,7 @@ const PageQualityControl = (() => {
       // Most of the list is quality entries, not a panel that happens to show two numbers.
       const siblings = [...container.children].filter((child) => !isOwn(child));
       if (items.length * 2 < siblings.length) continue;
-      for (const item of items) item.selected = isSelected(item.target);
+      for (const item of items) item.selected = isSelected(item.target, container);
       if (items.filter((item) => item.selected).length > 1) {
         for (const item of items) item.selected = false;
       }
@@ -296,7 +300,7 @@ const PageQualityControl = (() => {
    */
   function listOf(item, candidates) {
     let list = parentOf(item.target);
-    for (let depth = 0; list && depth < 3; depth++) {
+    for (let depth = 0; list && depth < 5; depth++) {
       const holder = list;
       if (candidates.some((other) => other !== item && holder.contains(other.target))) return list;
       list = parentOf(list);
@@ -415,7 +419,7 @@ const PageQualityControl = (() => {
   function stableName(el) {
     for (const node of [el, ...el.querySelectorAll('*')].slice(0, 30)) {
       const text = ownText(node).replace(SHOWN_VALUE, ' ').replace(/\s+/g, ' ').trim();
-      if (text && text.length <= 40) return text;
+      if (text && text.length <= 40 && !qualityLabel(text)) return text;
     }
     return el.getAttribute('aria-label') || el.getAttribute('title') || keysOf(el).replace(STATE_CLASS, ' ').slice(0, 80);
   }
@@ -429,8 +433,22 @@ const PageQualityControl = (() => {
   function findStep(root, step) {
     const match = (/** @type {Element[]} */ elements) =>
       elements.find((e) => !isOwn(e) && e.tagName === step.tag && stableName(e) === step.name);
-    const el = match(allBelow(root)) || match(allBelow(document));
+    let el = match(allBelow(root));
+    if (!el) {
+      const others = otherPlayers(root);
+      el = match(allBelow(document).filter((e) => !others.some((other) => other.contains(e))));
+    }
     return el ? clickTarget(el) : null;
+  }
+
+  /**
+   * The players of the page's other videos: a control or list in one of them is none of this player's (a menu
+   * outside its player is one it put in the page's body).
+   * @param {Element} root
+   * @return {Element[]}
+   */
+  function otherPlayers(root) {
+    return pageVideos().map(playerRoot).filter((other) => other !== root && !other.contains(root) && !root.contains(other));
   }
 
   /** @param {HTMLElement} el @return {Step} */
@@ -529,7 +547,8 @@ const PageQualityControl = (() => {
   function listWith(root, labels) {
     const groups = findGroups(document).filter((group) =>
       labels.every((label) => group.items.some((item) => item.label === label)));
-    return pickGroup(groups, root) || groups[0] || null;
+    const others = otherPlayers(root);
+    return pickGroup(groups, root) || groups.find((group) => !others.some((other) => other.contains(group.container))) || null;
   }
 
   /**
@@ -590,12 +609,15 @@ const PageQualityControl = (() => {
    * its place (new, or on another file than before the pick). Another video of the page is none of them.
    * @param {HTMLVideoElement} video
    * @param {Map<HTMLVideoElement, string>} before - Each video's file before the pick.
+   * @param {Element} root - The video's player.
    * @return {?HTMLVideoElement}
    */
-  function playingVideo(video, before) {
-    if (video.isConnected && video.currentSrc && video.currentSrc !== before.get(video)) return video;
+  function playingVideo(video, before, root) {
+    if (video.isConnected && before.has(video) && video.currentSrc && video.currentSrc !== before.get(video)) return video;
+    // A new one anywhere (the player may have built itself anew), one on another file only in this player: a
+    // teaser or a feed beside it changes its file too.
     return pageVideos().find((v) => v !== video && /^https?:/.test(v.currentSrc) &&
-      (!before.has(v) || before.get(v) !== v.currentSrc)) || null;
+      (!before.has(v) || (before.get(v) !== v.currentSrc && root.isConnected && root.contains(v)))) || null;
   }
 
   // One probe or switch at a time in a frame: two would click through the same menus.
@@ -605,7 +627,7 @@ const PageQualityControl = (() => {
   // A page that plays many videos (a feed) keeps only the latest menus.
   const MAX_FOUND = 8;
   let nextId = 1;
-  /** @type {WeakMap<HTMLVideoElement, ?number>} */
+  /** @type {WeakMap<HTMLVideoElement, number>} */
   const probed = new WeakMap();
 
   /**
@@ -626,27 +648,23 @@ const PageQualityControl = (() => {
    */
   function probe(video) {
     return serial(async () => {
-      if (probed.has(video)) {
-        const id = probed.get(video);
-        const known = typeof id === 'number' ? found.get(id) : null;
-        return known && typeof id === 'number' ? {id, choices: choicesOf(known)} : null;
-      }
+      const id = probed.get(video);
+      const known = typeof id === 'number' ? found.get(id) : null;
+      if (known && typeof id === 'number') return {id, choices: choicesOf(known)};
       let result = null;
       try {
         result = await locate(video);
       } catch (e) {
         console.warn('Reading the page player\'s quality menu failed', e);
       }
-      if (!result) {
-        probed.set(video, null);
-        return null;
-      }
-      const id = nextId++;
-      found.set(id, result);
+      // None now may be one later (controls not there yet): asked again, the menu is looked for again.
+      if (!result) return null;
+      const next = nextId++;
+      found.set(next, result);
       const oldest = found.keys().next().value;
       if (found.size > MAX_FOUND && oldest !== undefined) found.delete(oldest);
-      probed.set(video, id);
-      return {id, choices: choicesOf(result)};
+      probed.set(video, next);
+      return {id: next, choices: choicesOf(result)};
     });
   }
 
@@ -697,7 +715,7 @@ const PageQualityControl = (() => {
       known.video.addEventListener('loadedmetadata', onReload);
       press(item.target);
       // Labels may name the same file ("1080p" that is the 480p one): a reload of the same element counts too.
-      const now = await waitFor(() => playingVideo(known.video, before) || (reloaded ? known.video : null), CHANGE_WAIT_MS);
+      const now = await waitFor(() => playingVideo(known.video, before, root) || (reloaded ? known.video : null), CHANGE_WAIT_MS);
       known.video.removeEventListener('loadedmetadata', onReload);
       await closeMenus(opener(), isOpen(known));
       if (!now) return {changed: false};
@@ -705,6 +723,7 @@ const PageQualityControl = (() => {
       const oldUrl = before.get(known.video);
       if (now !== known.video) {
         // The player's new element is the one to switch next time.
+        probed.delete(known.video);
         known.video = now;
         probed.set(now, id);
       }

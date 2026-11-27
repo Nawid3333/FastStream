@@ -181,12 +181,6 @@ const LIBRARIES = {
   },
 };
 
-// The libraries whose files only the page's own menu leads to: FastStream's pass waits for the menu reader
-// (page-quality-control.js). Each with why page-qualities.js cannot read their list.
-const MENU_ONLY = {
-  dplayer: 'its instance is in a const (its docs\' const dp), never on the window, and its menu names no files',
-};
-
 const ONLY = (process.env.QUALITY_PLAYERS || '').split(',').map((only) => only.trim()).filter(Boolean);
 const NAMES = Object.keys(LIBRARIES).filter((name) => !ONLY.length || ONLY.includes(name));
 
@@ -394,8 +388,7 @@ describe('Player libraries\' qualities as files of their own', function() {
     });
 
     for (const name of NAMES) {
-      const waits = Object.hasOwn(MENU_ONLY, name);
-      (waits ? it.skip : it)(waits ? `${name}: waits for the menu reader, ${MENU_ONLY[name]}` : name, async function() {
+      it(name, async function() {
         await openPage(name);
         await enterPlayer();
         const best = await waitPlaying(HEIGHTS[HEIGHTS.length - 1], name);

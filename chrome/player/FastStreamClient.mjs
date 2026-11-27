@@ -159,9 +159,10 @@ export class FastStreamClient extends EventEmitter {
     /** @type {?{tabId: number, frameId: number}} */
     this.page = null;
     // A switch of the page player's quality waiting for the page (switchPageQuality): one at a time, and the
-    // index of a pick by hand made meanwhile, -1 for none.
+    // pick made meanwhile.
     this.pageQualitySwitching = false;
-    this.pageQualityQueued = -1;
+    /** @type {?{source: VideoSource, index: number}} */
+    this.pageQualityQueued = null;
 
     /** @type {ClientOptions} */
     this.options = {
@@ -3023,7 +3024,17 @@ export class FastStreamClient extends EventEmitter {
   playPageQuality(index) {
     const source = this.source;
     const entry = source?.qualities?.[index];
-    if (!source || !entry || index === this.playingPageQuality()) return;
+    if (!source || !entry) return;
+    // A pick while the page switches its player: made once that switch is done, instead of what it brings.
+    if (this.pageQualitySwitching) {
+      this.pageQualityQueued = {source, index};
+      if (!entry.url) {
+        this.interfaceController.setStatusMessage(StatusTypes.QUALITY,
+            Localize.getMessage('player_page_quality_switching', [entry.label]), 'info', 10000);
+      }
+      return;
+    }
+    if (index === this.playingPageQuality()) return;
     if (!entry.url) {
       this.switchPageQuality(index, false).catch((e) => console.warn('The page\'s player did not switch', e));
       return;
@@ -3076,16 +3087,11 @@ export class FastStreamClient extends EventEmitter {
   async switchPageQuality(index, auto) {
     const source = this.source;
     const entry = source?.qualities?.[index];
-    if (!source || !entry?.control) return;
+    if (!source || !entry?.control || this.pageQualitySwitching) return;
     // The page takes a moment (its menu opens, its file loads): said for a pick by hand.
     if (!auto) {
       this.interfaceController.setStatusMessage(StatusTypes.QUALITY,
           Localize.getMessage('player_page_quality_switching', [entry.label]), 'info', 10000);
-    }
-    if (this.pageQualitySwitching) {
-      // A pick by hand while another switch runs: made once that one is done.
-      if (!auto) this.pageQualityQueued = index;
-      return;
     }
     this.pageQualitySwitching = true;
     /** @type {*} */
@@ -3096,16 +3102,17 @@ export class FastStreamClient extends EventEmitter {
     } finally {
       this.pageQualitySwitching = false;
     }
-    const queued = this.pageQualityQueued ?? -1;
-    this.pageQualityQueued = -1;
-    if (this.source !== source) return;
-    const switched = !!answer && playableSwitch(answer.url, source.url);
+    const queued = this.pageQualityQueued;
+    this.pageQualityQueued = null;
+    const switched = this.source === source && !!answer && playableSwitch(answer.url, source.url);
     if (switched) entry.url = answer.url;
-    if (queued >= 0 && queued !== index) {
-      this.playPageQuality(queued);
+    if (queued && queued.source === this.source && (queued.source !== source || queued.index !== index)) {
+      this.interfaceController.setStatusMessage(StatusTypes.QUALITY, null);
+      this.playPageQuality(queued.index);
       return;
     }
-    const byHand = !auto || queued === index;
+    if (this.source !== source) return;
+    const byHand = !auto || !!queued;
     if (!switched) {
       console.warn('The page\'s player did not switch to ' + entry.label, answer?.error || '');
       if (byHand) {
