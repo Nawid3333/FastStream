@@ -26,7 +26,6 @@
     PAGE_TYPING: 'PAGE_TYPING',
     FRAME_REMOVED: 'FRAME_REMOVED',
     PAUSE_MEDIA: 'PAUSE_MEDIA',
-    POPUP_GUARD_ARM: 'POPUP_GUARD_ARM',
     MPV_USER_PLAY: 'MPV_USER_PLAY',
     MPV_REPORT_PLAYING: 'MPV_REPORT_PLAYING',
     LAST_PRESS: 'LAST_PRESS',
@@ -2623,20 +2622,6 @@
   PageListeners.add(window, 'resize', () => {
     updateReplacedPlayersSoon();
     resizeMiniPlayers();
-  });
-
-  // Arms the background's popup guard: ad scripts open a popup from this blur.
-  PageListeners.add(window, 'blur', () => {
-    // Shadow roots too: a player in a web component's root has its host as activeElement.
-    const active = OverlayGuard.focused();
-    if (!active) return;
-    let isOurIframe = false;
-    iframeMap.forEach((iframeObj) => {
-      if (iframeObj.iframe === active) isOurIframe = true;
-    });
-    if (isOurIframe) {
-      notifyBackground({type: MessageTypes.POPUP_GUARD_ARM});
-    }
   });
 
   /**

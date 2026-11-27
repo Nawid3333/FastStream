@@ -22,7 +22,6 @@ export const DefaultOptions = {
   // Apart from the player's autoplayNext; also switched by mpv's autoplay button.
   mpvAutoplayNext: true,
   downloadAll: true,
-  blockPopupsWhilePlaying: true,
   previewEnabled: true,
   // Among versions of the chosen resolution, prefer hardware-decoded, smooth, efficient ones.
   decodingAwareQuality: true,

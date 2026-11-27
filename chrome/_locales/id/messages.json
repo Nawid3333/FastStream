@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "Seluruh video, sehingga setiap bagian bisa langsung diputar; atau waktu tetap di depan posisi pemutaran."
     },
-    "options_general_blockpopups": {
-        "message": "Blokir popup yang dibuka tepat setelah mengklik pemutar"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Banyak situs membuka tab iklan saat diklik: FastStream menutup tab yang dibuka halaman tepat setelah mengklik pemutar."
-    },
     "options_general_previewenabled": {
         "message": "Tampilkan pratinjau di garis waktu"
     },

@@ -439,31 +439,13 @@ describe('messages only FastStream\'s own pages send', () => {
 });
 
 describe('the permissions tab the player\'s VPN button opens', () => {
-  it('is not closed as a popup by the same click', async () => {
-    // The permissions tab the button opens is not closed as the page's pop-up.
-    bg = await loadBackground({options: {blockPopupsWhilePlaying: true}, tabs: [{id: 1, url: PAGE}]});
+  it('opens next to the player\'s tab', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await bg.navigated(1, PAGE);
-    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0, url: PAGE});
-    await bg.message({type: 'VPN_OPEN_PERMISSION'},
-        {tab: {id: 1, index: 0, url: PAGE}, frameId: 3, url: 'moz-extension://bg-test/player/index.html'});
-    const perms = bg.createdTabs[0];
-    expect(String(perms.url)).toContain('perms.html#proxy');
-    for (const listener of bg.chrome.tabs.onCreated.listeners) {
-      listener({id: 200, index: 1, windowId: 1, openerTabId: 1, url: perms.url});
-    }
-    await bg.wait(10);
-    expect(bg.removedTabs).toEqual([]);
-  });
-
-  it('leaves the guard closing a popup that page opens on a click', async () => {
-    bg = await loadBackground({options: {blockPopupsWhilePlaying: true}, tabs: [{id: 1, url: PAGE}]});
-    await bg.navigated(1, PAGE);
-    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0, url: PAGE});
-    for (const listener of bg.chrome.tabs.onCreated.listeners) {
-      listener({id: 201, index: 1, windowId: 1, openerTabId: 1, url: 'https://ads.test/'});
-    }
-    await bg.wait(10);
-    expect(bg.removedTabs).toEqual([201]);
+    expect(await bg.message({type: 'VPN_OPEN_PERMISSION'},
+        {tab: {id: 1, index: 0, url: PAGE}, frameId: 3, url: 'moz-extension://bg-test/player/index.html'})).toBe(true);
+    expect(bg.createdTabs).toEqual([expect.objectContaining({openerTabId: 1, index: 1})]);
+    expect(String(bg.createdTabs[0].url)).toContain('perms.html#proxy');
   });
 });
 
@@ -477,7 +459,7 @@ describe('a web page a player in a page opens', () => {
     for (const url of ['https://www.opensubtitles.com/en/subtitles/x', 'http://example.test/report?e=1']) {
       expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url}, from()), url).toBe(true);
     }
-    // With no opener: the popup guard, armed by the click into the player, leaves it alone.
+    // With no opener: the new tab takes no MPV mode from the page's tab.
     expect(bg.createdTabs).toEqual([
       {id: 1000, url: 'https://www.opensubtitles.com/en/subtitles/x'}, {id: 1001, url: 'http://example.test/report?e=1'}]);
   });

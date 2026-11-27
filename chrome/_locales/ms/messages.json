@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "Seluruh video, supaya setiap bahagian dimainkan serta-merta; atau jangka masa tetap di hadapan kedudukan main balik."
     },
-    "options_general_blockpopups": {
-        "message": "Sekat popup sejurus selepas mengklik pemain"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Banyak laman membuka tab iklan apabila diklik: FastStream menutup tab yang dibuka oleh halaman sejurus selepas mengklik pemain."
-    },
     "options_general_previewenabled": {
         "message": "Gambar pratonton pada garis masa"
     },

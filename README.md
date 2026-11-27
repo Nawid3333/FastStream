@@ -74,6 +74,8 @@ FastStream installs in your normal Firefox (version 153 or newer). You do not ne
 
 You do not need the other files on the release page. The `firefox-github-*.zip` is an unsigned build for developers: a normal Firefox loads it only as a temporary add-on, which is gone after a restart and never updates.
 
+**Recommended: [uBlock Origin](https://addons.mozilla.org/firefox/addon/ublock-origin/).** Many video sites open ad tabs or pop-ups when you click on the video. FastStream does not block them: that is an ad blocker's job, and uBlock Origin does it well (in Firefox for Android too).
+
 ### Firefox for Android
 
 The same signed `.xpi` installs in Firefox for Android (version 153 or newer). Firefox for Android installs an add-on file only from a menu that is hidden at first:

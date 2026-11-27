@@ -267,8 +267,6 @@ export class TabHolder {
     /** @type {boolean} */
     this.mpvTurnedOff = false;
     this.url = '';
-    // Set by content.js when focus moves into a player iframe (ad sites hook that click for popups); not reset().
-    this.popupGuardArmedUntil = 0;
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     this.urlStartTimer = undefined;
 

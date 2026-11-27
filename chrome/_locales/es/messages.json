@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "El vídeo entero, para que cualquier punto se reproduzca al momento; o un tiempo fijo por delante del punto de reproducción."
     },
-    "options_general_blockpopups": {
-        "message": "Bloquear los popups justo después de hacer clic en el reproductor"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Muchos sitios abren una pestaña de anuncios al hacer clic: FastStream cierra la pestaña que la página abre justo después de hacer clic en el reproductor."
-    },
     "options_general_previewenabled": {
         "message": "Imágenes de vista previa en la línea de tiempo"
     },

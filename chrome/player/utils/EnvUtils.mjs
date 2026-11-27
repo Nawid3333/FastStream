@@ -13,7 +13,7 @@ export class EnvUtils {
   }
 
   /**
-   * Opens a tab with no opener, which the background's popup guard leaves alone. A framed
+   * Opens a tab with no opener: it takes no MPV mode from the player's tab. A framed
    * player has no chrome.tabs and asks the background.
    * @param {string} url
    */

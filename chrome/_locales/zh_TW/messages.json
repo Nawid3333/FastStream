@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "載入整部影片，任何位置都能立即播放；或只載入播放位置之後的一段固定時間。"
     },
-    "options_general_blockpopups": {
-        "message": "封鎖點擊播放器後立即開啟的彈出視窗"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "許多網站會在點擊時開啟廣告分頁：FastStream 會關閉在點擊播放器後立即開啟的分頁。"
-    },
     "options_general_previewenabled": {
         "message": "在時間軸上顯示預覽圖"
     },

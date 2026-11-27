@@ -614,15 +614,6 @@ describe('a tab a tab in MPV opens', () => {
     expect(bg.toMpv()).toEqual([]);
   });
 
-  it('inherits with the pop-up guard switched off too, which then closes nothing', async () => {
-    bg = await loadBackground({options: {mpvMode: true, blockPopupsWhilePlaying: false}, tabs: [{id: 1, url: PAGE}]});
-    await bg.command('toggle_mpv', 1);
-    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0});
-    await bg.opened({id: 2, openerTabId: 1});
-    expect(bg.removedTabs).toEqual([]);
-    expect(bg.session['tabState:2']).toMatchObject({isOn: true, isMpv: true, mpvOnPlay: true});
-  });
-
   it('leaves it alone when the opener has the in-page player on, or was turned off from MPV', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
       tabs: [{id: 1, url: 'https://other.test/watch/1'}, {id: 3, url: PAGE}]});
@@ -637,15 +628,6 @@ describe('a tab a tab in MPV opens', () => {
     await bg.opened({id: 4, openerTabId: 3});
     expect(bg.session['tabState:2']?.isMpv).not.toBe(true);
     expect(bg.session['tabState:4']?.isMpv).not.toBe(true);
-  });
-
-  it('gives nothing to a pop-up the guard closes', async () => {
-    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
-    await bg.command('toggle_mpv', 1);
-    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0});
-    await bg.opened({id: 2, openerTabId: 1});
-    expect(bg.removedTabs).toEqual([2]);
-    expect(bg.session['tabState:2']?.isMpv).not.toBe(true);
   });
 
   it('leaves a tab alone whose opener is not in MPV, or that names none', async () => {

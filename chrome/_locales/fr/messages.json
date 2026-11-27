@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "Toute la vidéo, pour que chaque endroit se lise tout de suite ; ou un temps fixe d'avance sur la lecture."
     },
-    "options_general_blockpopups": {
-        "message": "Bloquer les popups juste après un clic sur le lecteur"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Beaucoup de sites ouvrent un onglet publicitaire au clic : FastStream ferme l'onglet que la page ouvre juste après un clic sur le lecteur."
-    },
     "options_general_previewenabled": {
         "message": "Aperçus sur la barre temporelle"
     },

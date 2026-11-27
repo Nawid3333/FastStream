@@ -90,11 +90,6 @@ let LastManualMpvTime = 0;
 /** @type {?Promise<MpvHandOff>} */
 let LastManualMpvAnswer = null;
 
-// Short: a popup script reacting to the click's blur fires within tens of ms; a deliberate new tab takes longer.
-const PopupGuardArmMs = 700;
-// Re-armed this long after a close: a popup script often chains two or three tabs.
-const PopupGuardChainMs = 400;
-
 // Events can come before the options are read (install, reload): on empty options MPV mode and the lists read as off.
 /** @type {?Promise<*>} */
 let OptionsLoadPromise = null;
@@ -478,7 +473,7 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
   VpnMirror.forgetTab(tabid);
 });
 
-// Closes a tab opened right after a click on a player iframe: ad scripts open one from the top window's blur.
+// A tab a page opens takes its opener's MPV mode (inheritMpv).
 chrome.tabs.onCreated.addListener(async (newTab) => {
   await ensureOptions();
 
@@ -487,15 +482,6 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
 
   const openerTab = Tabs.getTab(openerTabId);
   if (!openerTab) return;
-
-  if (Options.blockPopupsWhilePlaying && openerTab.popupGuardArmedUntil > Date.now()) {
-    if (Logging) console.log('[PopupGuard] Closing tab opened right after a click on the player', openerTabId, newTab.id, newTab.url);
-    // The popup may have closed itself meanwhile (popunder chains do): nothing to do then.
-    chrome.tabs.remove(/** @type {number} */ (newTab.id)).catch(() => {});
-
-    openerTab.popupGuardArmedUntil = Date.now() + PopupGuardChainMs;
-    return;
-  }
 
   inheritMpv(openerTab, /** @type {number} */ (newTab.id));
 });
@@ -684,7 +670,6 @@ export const MessageSenders = {
   [MessageTypes.REQUEST_PLAYLIST_POLL]: 'own',
   [MessageTypes.PAGE_QUALITY_PROBE]: 'own',
   [MessageTypes.PAGE_QUALITY_SELECT]: 'own',
-  [MessageTypes.POPUP_GUARD_ARM]: 'any',
   [MessageTypes.MPV_USER_PLAY]: 'any',
   [MessageTypes.SHORTCUT_CANCELLED]: 'any',
   [MessageTypes.FRAME_ADDED]: 'any',
@@ -722,15 +707,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (sender.tab?.id !== undefined) {
       create.openerTabId = sender.tab.id;
       create.index = sender.tab.index + 1;
-      // The click into the player's iframe armed the popup guard, which closed this tab: it is no page's popup.
-      const opener = Tabs.getTab(sender.tab.id);
-      if (opener) opener.popupGuardArmedUntil = 0;
     }
     chrome.tabs.create(create).catch((e) => console.error('Opening the permissions page failed', e));
     sendResponse(true);
     return;
   } else if (msg.type === MessageTypes.OPEN_EXTERNAL_URL) {
-    // A player framed in a page has no chrome.tabs. Web pages only: tabs.create opens extension pages too. No opener, for the popup guard.
+    // A player framed in a page has no chrome.tabs. Web pages only: tabs.create opens extension pages too. No opener: the tab takes no MPV mode from the page's (inheritMpv).
     let url = null;
     try {
       url = new URL(String(msg.url));
@@ -822,11 +804,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // Never rejects (the catch above answers); the player may have gone meanwhile.
     LastManualMpvAnswer.then(sendResponse).catch((e) => console.error(e));
     return true;
-  } else if (msg.type === MessageTypes.POPUP_GUARD_ARM) {
-    if (sender.tab) {
-      Tabs.getTabOrCreate(/** @type {number} */ (sender.tab.id)).popupGuardArmedUntil = Date.now() + PopupGuardArmMs;
-    }
-    return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
     const play = () => onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null,
         typeof msg.page === 'string' ? msg.page : '');

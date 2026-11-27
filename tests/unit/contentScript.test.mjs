@@ -440,34 +440,6 @@ describe('the redirect to the player', () => {
   });
 });
 
-// A click on the player moves the focus into its iframe and blurs the page: the moment a
-// site's own blur handler opens a pop-up. The background's guard is armed then.
-describe('the pop-up guard', () => {
-  const armed = (page) => page.sent.filter((message) => message.type === 'POPUP_GUARD_ARM').length;
-
-  it('is armed when the focus goes into the player, in a shadow root too', async () => {
-    const {page, iframe} = await pageWithPlayer();
-    page.document.activeElement = iframe;
-    page.dispatchWindow('blur');
-    expect(armed(page)).toBe(1);
-    // A player in a web component's root: the document's active element is the host.
-    const [host] = addElements(page, 1);
-    const root = closedShadowRoot(page, host);
-    root.activeElement = iframe;
-    page.document.activeElement = host;
-    page.dispatchWindow('blur');
-    expect(armed(page)).toBe(2);
-  });
-
-  it('is not armed when something else of the page has the focus', async () => {
-    const {page} = await pageWithPlayer();
-    const [other] = addElements(page, 1);
-    page.document.activeElement = other;
-    page.dispatchWindow('blur');
-    expect(armed(page)).toBe(0);
-  });
-});
-
 // Windowed fullscreen hides every other element: linear on a 50,000-element page, and never the
 // <head>'s.
 describe('windowed fullscreen', () => {

@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "Das ganze Video, dann spielt jede Stelle sofort; oder eine feste Zeit vor der Wiedergabeposition."
     },
-    "options_general_blockpopups": {
-        "message": "Pop-ups direkt nach einem Klick auf den Player blockieren"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Viele Seiten öffnen beim Klick einen Werbe-Tab: FastStream schließt einen Tab, den die Seite direkt nach einem Klick auf den Player öffnet."
-    },
     "options_general_previewenabled": {
         "message": "Vorschaubilder auf der Zeitleiste"
     },

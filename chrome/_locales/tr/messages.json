@@ -935,12 +935,6 @@
     "options_storage_ahead_desc": {
         "message": "Videonun tamamı yüklenir, böylece her nokta anında oynatılabilir; ya da oynatma yerinden sabit bir süre önden yüklenir."
     },
-    "options_general_blockpopups": {
-        "message": "Oynatıcıya tıkladıktan hemen sonra açılır pencereleri engelle"
-    },
-    "options_general_blockpopups_desc": {
-        "message": "Birçok site bir tıklamada reklam sekmesi açar: FastStream, sayfanın oynatıcıya tıklandıktan hemen sonra açtığı sekmeyi kapatır."
-    },
     "options_general_previewenabled": {
         "message": "Zaman çizelgesinde önizleme göster"
     },
