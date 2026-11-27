@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "다운로드한 비디오를 담는 Firefox의 저장 공간을 열 수 없어서, FastStream은 대신 비디오를 메모리(RAM)에 유지합니다. 긴 비디오는 다 들어가지 않을 수 있습니다. Firefox를 다시 시작하거나 디스크 공간을 확보하면 대개 해결됩니다."
     },
+    "player_disk_full": {
+        "message": "디스크가 가득 차서 FastStream은 이 비디오의 나머지 부분을 메모리(RAM)에만 유지합니다. 비디오는 계속 재생되며, RAM에 들어갈 만큼 미리 불러옵니다. 디스크 공간이 다시 생기면 다음 비디오부터는 다시 디스크에 저장됩니다."
+    },
     "player_vpn_allow": {
         "message": "Firefox VPN으로 재생"
     },

@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "Firefox's storage for downloaded video could not be opened, so FastStream keeps video in memory (RAM) instead, and a long video may not fit. Restarting Firefox, or freeing disk space, usually fixes this."
     },
+    "player_disk_full": {
+        "message": "The disk is full, so FastStream keeps the rest of this video in RAM only. It still plays, and loads as far ahead as fits in RAM. Once there is free disk space again, the next video is kept on the disk again."
+    },
     "player_vpn_allow": {
         "message": "Play through Firefox VPN"
     },

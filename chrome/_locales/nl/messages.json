@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "De opslag voor gedownloade video in Firefox kon niet worden geopend, dus FastStream bewaart de video in het geheugen (RAM); een lange video past daar mogelijk niet in. Firefox opnieuw starten of schijfruimte vrijmaken, lost dit meestal op."
     },
+    "player_disk_full": {
+        "message": "De schijf is vol, dus FastStream bewaart de rest van deze video alleen in het geheugen (RAM). Het afspelen gaat gewoon door en de video wordt vooruitgeladen voor zover het in de RAM past. Zodra er weer vrije schijfruimte is, wordt de volgende video weer op de schijf bewaard."
+    },
     "player_vpn_allow": {
         "message": "Afspelen via Firefox VPN"
     },

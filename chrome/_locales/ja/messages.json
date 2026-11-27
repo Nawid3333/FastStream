@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "動画の保存に使う Firefox のファイルストレージを開けられなかったため、FastStream は代わりに動画をメモリ（RAM）に保存します。長い動画は収まらない場合があります。Firefox を再起動するか、ディスクの空き容量を増やすと、通常は解決します。"
     },
+    "player_disk_full": {
+        "message": "ディスクがいっぱいのため、FastStream はこの動画の残りをメモリ（RAM）にだけ保存します。動画は引き続き再生され、RAM に収まる範囲で先読みされます。ディスクに再び空き容量ができたら、次の動画からはまたディスクに保存されます。"
+    },
     "player_vpn_allow": {
         "message": "Firefox VPN で再生"
     },

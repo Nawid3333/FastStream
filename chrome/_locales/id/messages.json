@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "Penyimpanan Firefox untuk video yang diunduh tidak dapat dibuka, jadi FastStream menyimpan video di memori (RAM) sebagai gantinya, dan video yang panjang mungkin tidak muat. Memulai ulang Firefox, atau membebaskan ruang disk, biasanya memperbaikinya."
     },
+    "player_disk_full": {
+        "message": "Disk penuh, jadi FastStream menyimpan sisa video ini hanya di memori (RAM). Video tetap diputar, dan dimuat lebih awal sebanyak yang muat di RAM. Begitu ada lagi ruang kosong di disk, video berikutnya kembali disimpan di disk."
+    },
     "player_vpn_allow": {
         "message": "Putar melalui Firefox VPN"
     },

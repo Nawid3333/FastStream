@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "Firefox konnte seinen Speicher für heruntergeladene Videos nicht öffnen, daher speichert FastStream Videos stattdessen im Arbeitsspeicher (RAM), und ein langes Video passt möglicherweise nicht hinein. Ein Neustart von Firefox oder das Freigeben von Speicherplatz behebt dies normalerweise."
     },
+    "player_disk_full": {
+        "message": "Die Festplatte ist voll, daher behält FastStream den Rest dieses Videos nur im Arbeitsspeicher. Es spielt weiter und lädt so weit voraus, wie in den Arbeitsspeicher passt. Ist wieder Platz auf der Festplatte frei, kommt das nächste Video wieder auf die Festplatte."
+    },
     "player_vpn_allow": {
         "message": "Über Firefox VPN abspielen"
     },

@@ -8279,6 +8279,24 @@
     "zh_CN": "Firefox 用来存放已下载视频的存储空间无法打开，因此 FastStream 改为将视频保存在内存（RAM）中，较长的视频可能会放不下。重启 Firefox 或清理磁盘空间通常可以解决此问题。",
     "zh_TW": "Firefox 用來儲存已下載影片的儲存空間無法開啟，因此 FastStream 改用記憶體（RAM）保存影片，影片太長時可能放不下。重新啟動 Firefox 或釋放磁碟空間通常就能解決。"
   },
+  "player_disk_full": {
+    "en": "The disk is full, so FastStream keeps the rest of this video in RAM only. It still plays, and loads as far ahead as fits in RAM. Once there is free disk space again, the next video is kept on the disk again.",
+    "de": "Die Festplatte ist voll, daher behält FastStream den Rest dieses Videos nur im Arbeitsspeicher. Es spielt weiter und lädt so weit voraus, wie in den Arbeitsspeicher passt. Ist wieder Platz auf der Festplatte frei, kommt das nächste Video wieder auf die Festplatte.",
+    "es": "El disco está lleno, así que FastStream guarda el resto de este video solo en la memoria (RAM). El video sigue reproduciéndose y se va cargando por adelantado hasta donde quepa en la RAM. Cuando vuelva a haber espacio libre en el disco, el siguiente video se guardará de nuevo en el disco.",
+    "fr": "Le disque est plein, donc FastStream conserve le reste de cette vidéo uniquement en mémoire (RAM). La lecture continue, et la vidéo se charge par avance dans la limite de ce que peut contenir la RAM. Dès qu'il y a de nouveau de l'espace disque libre, la prochaine vidéo est à nouveau conservée sur le disque.",
+    "id": "Disk penuh, jadi FastStream menyimpan sisa video ini hanya di memori (RAM). Video tetap diputar, dan dimuat lebih awal sebanyak yang muat di RAM. Begitu ada lagi ruang kosong di disk, video berikutnya kembali disimpan di disk.",
+    "it": "Il disco è pieno, quindi FastStream tiene il resto di questo video solo in memoria (RAM). Il video continua a essere riprodotto e viene caricato in anticipo finché c'è spazio nella RAM. Quando ci sarà di nuovo spazio libero su disco, il prossimo video verrà di nuovo salvato sul disco.",
+    "ja": "ディスクがいっぱいのため、FastStream はこの動画の残りをメモリ（RAM）にだけ保存します。動画は引き続き再生され、RAM に収まる範囲で先読みされます。ディスクに再び空き容量ができたら、次の動画からはまたディスクに保存されます。",
+    "ko": "디스크가 가득 차서 FastStream은 이 비디오의 나머지 부분을 메모리(RAM)에만 유지합니다. 비디오는 계속 재생되며, RAM에 들어갈 만큼 미리 불러옵니다. 디스크 공간이 다시 생기면 다음 비디오부터는 다시 디스크에 저장됩니다.",
+    "ms": "Cakera penuh, jadi FastStream menyimpan baki video ini dalam memori (RAM) sahaja. Video masih dimainkan, dan dimuat lebih awal sebanyak yang muat dalam RAM. Begitu ada ruang kosong dalam cakera semula, video seterusnya kembali disimpan dalam cakera.",
+    "nl": "De schijf is vol, dus FastStream bewaart de rest van deze video alleen in het geheugen (RAM). Het afspelen gaat gewoon door en de video wordt vooruitgeladen voor zover het in de RAM past. Zodra er weer vrije schijfruimte is, wordt de volgende video weer op de schijf bewaard.",
+    "pl": "Dysk jest pełny, więc FastStream przechowuje resztę tego wideo tylko w pamięci (RAM). Odtwarzanie trwa, a wideo ładuje się z wyprzedzeniem, na ile mieści się w RAM. Gdy na dysku znowu będzie wolne miejsce, następne wideo znów będzie przechowywane na dysku.",
+    "pt_BR": "O disco está cheio, então o FastStream mantém o restante deste vídeo somente na memória (RAM). O vídeo continua a ser reproduzido e é carregado com antecedência até onde couber na RAM. Assim que houver espaço livre em disco novamente, o próximo vídeo volta a ser mantido no disco.",
+    "ru": "Диск заполнен, поэтому FastStream хранит остаток этого видео только в памяти (ОЗУ). Видео продолжает воспроизводиться и подгружается наперёд настолько, насколько помещается в ОЗУ. Когда на диске снова появится свободное место, следующее видео снова будет храниться на диске.",
+    "tr": "Disk dolu, bu yüzden FastStream bu videonun kalanını yalnızca bellekte (RAM) tutar. Video yine de oynar ve RAM'e sığdığı kadar ileriye yüklenir. Diskte yeniden boş yer olduğunda, bir sonraki video tekrar diske kaydedilir.",
+    "zh_CN": "磁盘已满，因此 FastStream 仅将此视频的剩余部分保存在内存（RAM）中。视频仍会继续播放，并在内存装得下的范围内尽量提前加载。等磁盘重新有可用空间后，下一个视频就会重新保存在磁盘上。",
+    "zh_TW": "磁碟已滿，因此 FastStream 僅將此影片的剩餘部分儲存在記憶體（RAM）中。影片仍會繼續播放，並在記憶體裝得下的範圍內盡量預先載入。等磁碟重新有可用空間後，下一部影片就會重新儲存到磁碟上。"
+  },
   "player_vpn_allow": {
     "en": "Play through Firefox VPN",
     "de": "Über Firefox VPN abspielen",

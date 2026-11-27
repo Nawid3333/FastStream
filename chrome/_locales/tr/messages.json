@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "İndirilen video için Firefox'un depolama alanı açılamadı, bu yüzden FastStream videoyu bunun yerine bellekte (RAM) tutar; uzun bir video sığmayabilir. Firefox'u yeniden başlatmak veya diskte yer açmak genellikle bu sorunu çözer."
     },
+    "player_disk_full": {
+        "message": "Disk dolu, bu yüzden FastStream bu videonun kalanını yalnızca bellekte (RAM) tutar. Video yine de oynar ve RAM'e sığdığı kadar ileriye yüklenir. Diskte yeniden boş yer olduğunda, bir sonraki video tekrar diske kaydedilir."
+    },
     "player_vpn_allow": {
         "message": "Firefox VPN üzerinden oynat"
     },

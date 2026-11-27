@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "Nie udało się otworzyć magazynu przeglądarki Firefox dla pobranego wideo, więc FastStream zamiast tego przechowuje wideo w pamięci (RAM), a długie wideo może się w niej nie zmieścić. Zazwyczaj pomaga ponowne uruchomienie przeglądarki Firefox albo zwolnienie miejsca na dysku."
     },
+    "player_disk_full": {
+        "message": "Dysk jest pełny, więc FastStream przechowuje resztę tego wideo tylko w pamięci (RAM). Odtwarzanie trwa, a wideo ładuje się z wyprzedzeniem, na ile mieści się w RAM. Gdy na dysku znowu będzie wolne miejsce, następne wideo znów będzie przechowywane na dysku."
+    },
     "player_vpn_allow": {
         "message": "Odtwarzaj przez Firefox VPN"
     },

@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "Firefox 用來儲存已下載影片的儲存空間無法開啟，因此 FastStream 改用記憶體（RAM）保存影片，影片太長時可能放不下。重新啟動 Firefox 或釋放磁碟空間通常就能解決。"
     },
+    "player_disk_full": {
+        "message": "磁碟已滿，因此 FastStream 僅將此影片的剩餘部分儲存在記憶體（RAM）中。影片仍會繼續播放，並在記憶體裝得下的範圍內盡量預先載入。等磁碟重新有可用空間後，下一部影片就會重新儲存到磁碟上。"
+    },
     "player_vpn_allow": {
         "message": "透過 Firefox VPN 播放"
     },

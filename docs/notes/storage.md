@@ -565,6 +565,40 @@ explicit "No limit" instead of 0 or an empty field; a marker on what differs fro
   GitHub report): used twice, both times by the owner. `forgetRemovedSettings` removes its
   `siteProblems` key on the update.
 
+## A full disk (2026-11-27)
+
+Firefox's quota is no measure of free space: persisted, it is half the drive whatever is on it, so a nearly full
+drive looks roomy. When the drive is full, OPFS writes fail with `UnknownError` ("Unknown failure"), the first ones
+part-way (`opfs-worker`: "wrote 31049 of 334640 bytes"); not with `QuotaExceededError`.
+
+**Measured** in WSL (Ubuntu 26.04, Firefox 160.0.1, headless): the profile on a 3 GB tmpfs, the page persisted
+(quota 1.61 GB), the tmpfs then filled to 50 MB free; a 30-minute HLS stream (1,000 segments, ~525 MB) loaded whole with a
+64 MB RAM budget and the disk on, played for two minutes, with a seek back to the start after 72 s.
+
+| Two minutes | Before: each write tried | After: RAM only after the first failure |
+|---|---|---|
+| Failed writes | 23,162 | 1 |
+| Segments downloaded again | 22,523 (~12 GB) | 91 (mostly the seek back) |
+| RAM held, at most | 217 MB (3.4 x the budget) | 48 MB |
+| Message | none | one, 2.3 s after the disk filled |
+| Playback waits / seek back | none / 4.1 s | none / 4.0 s |
+
+Before, a fragment whose write failed was let go of as one that could not be stored, downloaded again, and failed again:
+the "downloaded" figure climbed to 82 % and fell back to 23 % every three seconds, for good, without a word. On a real
+line that is the whole connection, for the whole video.
+
+- **`FSBlob.writeFailed`**: the first write that fails with its backend working (OPFS, the Cache API or IndexedDB; a
+  Cache API write that kept nothing too) sets `diskFull` and `diskGone`. Nothing more is written for this video; what
+  is on the disk stays readable. The player then works as with "RAM only" (`keepsNothingOnDisk`, `canSpill`): the
+  time ahead capped to its RAM share, and fragments outside the window let go of, their files deleted, which gave the
+  full disk back 16 MB in the measurement.
+- **One message a video** (`player_disk_full`), none of the "not loaded whole" ones beside it (`roomWarning`).
+- **The next video tries the disk again** (`FSBlob.clear`): this one's files go, and space may have been freed.
+- **A write `clear()` cut short** (its files deleted under it) says nothing of the disk: the generation the save began
+  with (`offloadBlob`) must still be the store's.
+- Tests: `opfsStorage.test.mjs` ("writes nothing more for this video once a write fails", "a write that clear() cut
+  short"), `FastStreamClient.test.mjs` ("when the disk is full").
+
 ## What goes to the disk, measured
 
 Three player tabs, a 241 MB HLS video each, from a local server, in a test profile; the

@@ -1379,6 +1379,9 @@
     "player_outofstorage": {
         "message": "Não foi possível abrir o armazenamento do Firefox para o vídeo baixado, então o FastStream mantém o vídeo na memória (RAM), e um vídeo longo pode não caber. Reiniciar o Firefox, ou liberar espaço em disco, geralmente resolve isso."
     },
+    "player_disk_full": {
+        "message": "O disco está cheio, então o FastStream mantém o restante deste vídeo somente na memória (RAM). O vídeo continua a ser reproduzido e é carregado com antecedência até onde couber na RAM. Assim que houver espaço livre em disco novamente, o próximo vídeo volta a ser mantido no disco."
+    },
     "player_vpn_allow": {
         "message": "Reproduzir via Firefox VPN"
     },

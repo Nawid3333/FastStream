@@ -751,10 +751,18 @@ export class FastStreamClient extends EventEmitter {
       const audioLevel = this.getAudioLevels().get(/** @type {string} */ (audioLevelID));
       bitrate += Utils.measuredBitrate(audioFragments) ?? audioLevel?.bitrate ?? 0;
     }
-    // With nothing on disk (a private window, "RAM only", or no disk backend: FSBlob.diskGone),
+    // With nothing on disk (a private window, "RAM only", no disk backend or a full disk: FSBlob.diskGone),
     // what is kept must fit in this player's RAM share below MemoryBudget.LOW, or it is fetched again and again.
-    const diskGone = this.downloadManager?.blobStore?.diskGone === true;
-    if (diskGone && !this.diskGoneSaid) {
+    const blobStore = this.downloadManager?.blobStore;
+    const diskGone = blobStore?.diskGone === true;
+    if (diskGone && blobStore?.diskFull === true) {
+      // Once per video: the next one tries the disk again (FSBlob.clear).
+      if (this.diskFullSaidFor !== this.source) {
+        /** @type {*} The video it was said for. */
+        this.diskFullSaidFor = this.source;
+        this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_disk_full'), 'warning', 10000);
+      }
+    } else if (diskGone && !this.diskGoneSaid) {
       this.diskGoneSaid = true;
       this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_outofstorage'), 'warning', 10000);
     }
@@ -830,7 +838,7 @@ export class FastStreamClient extends EventEmitter {
    * @param {{capped: boolean, incognito: boolean, diskGone: boolean, ramShare: number, room: number,
    *   ahead: number, size: number}} why - ramShare and room (what the video may fill) in bits, ahead in seconds,
    *   size in bytes.
-   * @return {?string} Null for no disk backend (player_outofstorage said it).
+   * @return {?string} Null for no disk backend or a full disk (player_outofstorage, player_disk_full said it).
    */
   roomWarning({capped, incognito, diskGone, ramShare, room, ahead, size}) {
     // Nothing kept ahead (a RAM share too small for a second of it): "plays normally" would not hold.

@@ -62,6 +62,9 @@ export class FSBlob {
     // sat in a catch around activateNextBackend() that nothing reached: that absorbs each
     // backend's failure itself.
     this.diskGone = false;
+    // A write failed with the backend working: the disk full, or Firefox's quota used up (writeFailed). diskGone with
+    // it until the next video (clear).
+    this.diskFull = false;
 
     this.activateNextBackend();
 
@@ -170,9 +173,10 @@ export class FSBlob {
   /**
    * @param {string} identifier
    * @param {Blob} blob
+   * @param {number} generation - this.generation when the save began (offloadBlob).
    * @return {Promise<boolean>} Whether the blob reached the backend.
    */
-  async saveBlobInOPFSAsync(identifier, blob) {
+  async saveBlobInOPFSAsync(identifier, blob, generation) {
     // Setup is already settled and the backend re-checked by offloadBlob().
     try {
       await /** @type {OPFSManager} */ (this.opfsManager).setFile(identifier, blob);
@@ -187,20 +191,35 @@ export class FSBlob {
         this.activateNextBackend();
         return this.offloadBlob(identifier, blob);
       }
-      // A single write failing (e.g. quota exceeded mid-session) doesn't
-      // mean OPFS is broken for everything else - leave opfsManager in
-      // place and just keep this one blob in memory instead.
-      console.warn('OPFS write failed for this blob, keeping it in memory', e);
+      this.writeFailed(e, generation, identifier, blob);
       return false;
     }
   }
 
   /**
+   * A write failed with its backend still working: the disk is full (Firefox answers "Unknown failure", or writes
+   * part of the file), or Firefox's quota is used up. Nothing more is written for this video, or each fragment is let
+   * go of, downloaded again and fails again (docs/notes/storage.md, "A full disk"); what is on the disk stays readable.
+   * @param {*} e
+   * @param {number} generation - this.generation when the write began.
+   * @param {string} identifier
+   * @param {Blob} blob - What was written: a write that clear() cut short, or whose blob was let go of or saved again
+   *   meanwhile (its file deleted under it), says nothing of the disk.
+   */
+  writeFailed(e, generation, identifier, blob) {
+    if (generation !== this.generation || this.blobStore.get(identifier) !== blob) return;
+    if (!this.diskGone) console.warn('A write to the disk failed: the rest of this video stays in RAM', e);
+    this.diskFull = true;
+    this.diskGone = true;
+  }
+
+  /**
    * @param {string} identifier
    * @param {Blob} blob
+   * @param {number} generation - this.generation when the save began (offloadBlob).
    * @return {Promise<boolean>} Whether the blob reached the backend.
    */
-  async saveBlobInIndexedDBAsync(identifier, blob) {
+  async saveBlobInIndexedDBAsync(identifier, blob, generation) {
     try {
       // Store file
       await /** @type {IndexedDBManager} */ (this.indexedDBManager).setFile(identifier, blob);
@@ -213,11 +232,7 @@ export class FSBlob {
       // The Blob just stored, read back from the database.
       return this.replaceIfStill(identifier, blob, /** @type {Blob} */ (file));
     } catch (e) {
-      // A single write failing (e.g. quota exceeded mid-session) doesn't
-      // mean IndexedDB is broken for everything else - leave
-      // indexedDBManager in place and just keep this one blob in memory
-      // instead, same as the OPFS/Cache backends already do.
-      console.warn('IndexedDB write failed for this blob, keeping it in memory', e);
+      this.writeFailed(e, generation, identifier, blob);
       return false;
     }
   }
@@ -225,9 +240,10 @@ export class FSBlob {
   /**
    * @param {string} identifier
    * @param {Blob} blob
+   * @param {number} generation - this.generation when the save began (offloadBlob).
    * @return {Promise<boolean>} Whether the blob reached the backend.
    */
-  async saveBlobUsingCache(identifier, blob) {
+  async saveBlobUsingCache(identifier, blob, generation) {
     const identifierURL = this.getIdentifierURL(identifier);
     // One cache for the put and the check: clear() replaces this.cache meanwhile.
     const cache = /** @type {Cache} */ (this.cache);
@@ -245,16 +261,13 @@ export class FSBlob {
         // pressure, or some other Cache API surprise) - leave the original
         // in-memory blob in blobStore alone rather than overwrite it with
         // a marker for nothing and silently lose the data.
-        console.warn('Cache write could not be verified for this blob, keeping it in memory');
+        this.writeFailed(new Error('The Cache API kept nothing of a write'), generation, identifier, blob);
         return false;
       }
 
       return this.replaceIfStill(identifier, blob, IN_CACHE);
     } catch (e) {
-      // A single write failing (e.g. quota exceeded mid-session) doesn't
-      // mean the Cache API is broken for everything else - leave this.cache
-      // in place and just keep this one blob in memory instead.
-      console.warn('Cache write failed for this blob, keeping it in memory', e);
+      this.writeFailed(e, generation, identifier, blob);
       return false;
     }
   }
@@ -326,14 +339,14 @@ export class FSBlob {
    */
   async offloadBlob(identifier, blob) {
     const generation = this.generation;
-    if (!await this.ready()) return false;
+    if (this.diskFull || !await this.ready()) return false;
     let handled = false;
     if (this.opfsManager) {
-      handled = await this.saveBlobInOPFSAsync(identifier, blob);
+      handled = await this.saveBlobInOPFSAsync(identifier, blob, generation);
     } else if (this.cache) {
-      handled = await this.saveBlobUsingCache(identifier, blob);
+      handled = await this.saveBlobUsingCache(identifier, blob, generation);
     } else if (this.indexedDBManager) {
-      handled = await this.saveBlobInIndexedDBAsync(identifier, blob);
+      handled = await this.saveBlobInIndexedDBAsync(identifier, blob, generation);
     }
     if (generation !== this.generation) {
       // clear() ran meanwhile: what the backend answered was not put back (replaceIfStill),
@@ -562,7 +575,19 @@ export class FSBlob {
     this.inRam.clear();
     // Offloads still running belong to what was cleared (offloadBlob).
     this.generation++;
+    await this.clearBackend();
+    // The next video tries the disk again: this one's files are gone now, and others may have freed space meanwhile.
+    // Only after they are gone, or a write let in before could be deleted under it. ready() says again whether a
+    // backend is left at all.
+    if (this.diskFull) {
+      this.diskFull = false;
+      this.diskGone = false;
+      await this.ready();
+    }
+  }
 
+  /** Deletes what the backend holds; never rejects. */
+  async clearBackend() {
     if (!await this.ready()) return;
 
     try {
