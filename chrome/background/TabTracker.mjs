@@ -295,7 +295,8 @@ export class TabHolder {
     // The last stream a play sent keeps a player calling play() twice from opening a second window.
     /** @type {number} */
     this.mpvPlayPendingUntil = 0;
-    /** @type {?{url: string, time: number}} */
+    // also: the files the page's menu switched to for it (PageMenuQuality.mjs).
+    /** @type {?{url: string, time: number, also?: string[]}} */
     this.mpvLastPlaySend = null;
     // A stream plainly another length is not its stream.
     /** @type {?import('./background.mjs').PlayedVideo} */

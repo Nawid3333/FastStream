@@ -2,12 +2,14 @@
 // The listeners are registered by background.mjs: at its top level the event page wakes for them.
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
+import {desiredHeight} from '../player/utils/PageQualityPick.mjs';
 import {SHORT_S} from '../player/utils/StreamPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 import {hlsPackage} from './MpvHlsPackage.mjs';
 import {MaxTitleChars, WindowAskMs, WindowQuestions, answerOffer, endOffer, offerStream, offerText,
   readWindow} from './MpvOffer.mjs';
+import {awaitMenuChoice, menuChoiceFor, onPageMenuFile, pageMenuSwitching} from './PageMenuQuality.mjs';
 import {MAX_TRACKS} from './MpvSubtitles.mjs';
 import {isMpvContentType, streamTitle} from './MpvTarget.mjs';
 import {MpvWindows} from './MpvWindows.mjs';
@@ -1251,9 +1253,21 @@ export function setMpvDecoder(tab, decoder) {
 const PlaySendsUnanswered = new WeakSet();
 
 /**
+ * Whether a play is of the video last sent: its file, or the one the page's menu switched it to for the send.
+ * @param {?{url: string, also?: string[]}} last
+ * @param {{url: string, requestedUrl?: string}} source
+ * @return {boolean}
+ */
+function isLastSend(last, source) {
+  if (!last) return false;
+  const files = [last.url, ...(Array.isArray(last.also) ? last.also : [])];
+  return files.includes(source.url) || (!!source.requestedUrl && files.includes(source.requestedUrl));
+}
+
+/**
  * The same video within MpvPlayRepeatMs is the player repeating itself. No tab for openStream: its dedupe would swallow a later deliberate play.
  * @param {TabHolder} tab
- * @param {{url: string, headers: *}} source
+ * @param {{url: string, headers: *, requestedUrl?: string}} source
  * @param {?{time?: number, duration?: ?number}} [video]
  * @param {string} [pageUrl] - The page mpv names and resumes it by; a YouTube video's own address.
  */
@@ -1262,10 +1276,16 @@ export function sendPlayedToMpv(tab, source, video = null, pageUrl = tab.url) {
   if (!isTabOpen(tab)) {
     return;
   }
+  // The page's menu switching for a send: the file it plays then may be that send's (isLastSend).
+  const switching = pageMenuSwitching(tab);
+  if (switching) {
+    switching.then(() => sendPlayedToMpv(tab, source, video, pageUrl)).catch((e) => console.error(e));
+    return;
+  }
   const now = Date.now();
   const last = tab.mpvLastPlaySend;
   // Also while unanswered: mpv may ask for up to 19 s (MpvOffer.mjs).
-  if (last && last.url === source.url && (now - last.time < MpvPlayRepeatMs || PlaySendsUnanswered.has(last))) {
+  if (last && isLastSend(last, source) && (now - last.time < MpvPlayRepeatMs || PlaySendsUnanswered.has(last))) {
     // Unanswered yet: its answer pauses the page if mpv has it, and a failure leaves it playing.
     if (!PlaySendsUnanswered.has(last)) {
       pauseTabMedia(tab.tabId);
@@ -1273,6 +1293,7 @@ export function sendPlayedToMpv(tab, source, video = null, pageUrl = tab.url) {
     return;
   }
 
+  /** @type {{url: string, time: number, also?: string[]}} */
   const sent = {url: source.url, time: now};
   tab.mpvLastPlaySend = sent;
   PlaySendsUnanswered.add(sent);
@@ -1284,7 +1305,10 @@ export function sendPlayedToMpv(tab, source, video = null, pageUrl = tab.url) {
   const startTime = Number.isFinite(video?.duration) && typeof time === 'number' && time > 5 ? time : undefined;
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, pageUrl), pageUrl, title,
-        {startTime, wanted})).then((result) => {
+        {startTime, wanted, onPageSwitch: (/** @type {string} */ file) => {
+          sent.also = [...(sent.also || []), file];
+          if (tab.mpvLastPlaySend === sent) Tabs.saveTabState(tab);
+        }})).then((result) => {
     PlaySendsUnanswered.delete(sent);
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
     if ('dropped' in result && tab.mpvLastPlaySend === sent && isTabOpen(tab)) {
@@ -1351,6 +1375,11 @@ export function openMpvWithSources(tab) {
  */
 export async function openInMpv(tabId, url, ...rest) {
   const given = rest.slice();
+  // Qualities only the page player's menu knows: the choice made at the file's detection, else asked now, beside the
+  // waits below.
+  const menu = tabId !== undefined && tabId >= 0 && !(rest[5] && 'qualities' in rest[5]) ?
+    menuChoiceFor(Tabs.getTab(tabId), url, desiredHeight(Options.defaultQuality)) : null;
+  if (menu && typeof rest[5]?.onPageSwitch === 'function') onPageMenuFile(menu, rest[5].onPageSwitch);
   let incognito;
   if (tabId !== undefined && tabId >= 0) {
     try {
@@ -1379,6 +1408,13 @@ export async function openInMpv(tabId, url, ...rest) {
       if (Logging && choice.url !== url) console.log('[MPV] the page\'s best quality instead:', choice.url);
       url = choice.url;
       rest[5] = {...(rest[5] || {}), qualities: choice.list};
+    } else if (menu) {
+      // No list goes to mpv: the menu's entries have no files.
+      const switched = await awaitMenuChoice(menu);
+      if (switched && switched.url !== url) {
+        if (Logging) console.log('[MPV] the page player\'s menu quality instead:', switched.url);
+        url = switched.url;
+      }
     }
   }
   // An HLS stream: its master's quality for the setting, and the list; not for the player's button.
@@ -1463,11 +1499,12 @@ export async function openInMpv(tabId, url, ...rest) {
   const wanted = rest[5]?.wanted;
   const episode = rest[5]?.episode === true;
   const whileAsked = rest[5]?.whileAsked;
-  if (rest[5] && ('wanted' in rest[5] || 'episode' in rest[5] || 'whileAsked' in rest[5])) {
+  if (rest[5] && ('wanted' in rest[5] || 'episode' in rest[5] || 'whileAsked' in rest[5] || 'onPageSwitch' in rest[5])) {
     rest[5] = {...rest[5]};
     delete rest[5].wanted;
     delete rest[5].episode;
     delete rest[5].whileAsked;
+    delete rest[5].onPageSwitch;
   }
   // The waits above take seconds on a slow CDN.
   if (wanted && !wanted()) {

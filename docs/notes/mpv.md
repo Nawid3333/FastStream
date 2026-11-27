@@ -843,6 +843,25 @@ the list over the pipe, which has no such cap. Host 14 also cuts the title betwe
 characters (whole as read: a flag is one), as the extension now cuts the title and the
 subtitle labels it sends.
 
+**Qualities only the page player's menu knows, at the hand-off.** A hoster whose files exist only
+once its own menu picks one (docs/notes/player.md, "Qualities only the page player's menu knows")
+sent mpv the page's default, often the lowest, whatever the quality setting said. `openInMpv` now
+asks the page's menu at once, beside its other waits (`menuChoiceFor`, PageMenuQuality.mjs: the
+choice a FastStream start already made for the file, else made now), and uses it only when the
+page lists no files (`pageQualityChoice` found none): the page switches to the setting's quality
+and mpv gets the file it loads then. Not for the player's mpv button (it names `qualities`: what
+the player plays stays). The caps: the menu's answer within 2 s of the hand-off's start (a page
+without a menu adds at most that to it, less what the other waits take anyway), the switch within
+4 s of that answer; past either, the page's own file goes. mpv gets no list: the menu's other
+entries have no files, so mpv's own Quality menu cannot offer them (it would need the page to
+switch, which only the page can). The page plays the switched file after its switch, and in the
+shortcut's MPV that play comes within the user's press and is reported: `sendPlayedToMpv` waits
+for a switch still running in the tab (`pageMenuSwitching`), and the send's record
+(`mpvLastPlaySend.also`) knows the switched file, so it counts as the same send. The allowlist's
+MPV sends nothing twice by its latch (`mpvAutoOpened`), and the window's watch follows the URL
+sent. Tested in `backgroundPageMenuQuality.test.mjs` with the background's real listeners and a
+stand-in page (each part red without its change); not tried live.
+
 Host 14 also tells an end that mpv does not mark (his report, 2026-10-13: MPV autoplay did not
 start after skipping to the end; he had to go back and play the last seconds). A skip past
 the end of an HLS stream with discontinuities stopped the pinned mpv at the end, paused by
