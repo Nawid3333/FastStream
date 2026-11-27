@@ -410,6 +410,21 @@ describe('Options page download and storage pickers', function() {
     expect(await checkedMode()).toBe('ramdisk');
   });
 
+  it('puts the seek step back with the keyboard section\'s reset, as the keys', async function() {
+    const changed = () => browser.execute(() =>
+      document.querySelector('[data-keys="seekStepSize"]').classList.contains('changed'));
+    await (await browser.$('#seekstepsize')).click();
+    await browser.keys(['Control', 'a', 'Control']);
+    await browser.keys(['9']);
+    await browser.keys(['Tab']);
+    await savedAs('seekStepSize', 9);
+    expect(await changed()).toBe(true);
+    await browser.execute(() => document.getElementById('resetdefault').click());
+    await savedAs('seekStepSize', 5);
+    expect(await browser.execute(() => document.getElementById('seekstepsize').value)).toBe('5');
+    expect(await changed()).toBe(false);
+  });
+
   // A number field has no caret position: putting it back threw.
   it('saves a number field its handler corrects, without an error', async function() {
     await browser.execute(() => {

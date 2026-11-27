@@ -956,6 +956,9 @@ optionsResetButton.addEventListener('click', () => {
 
 /** @type {HTMLElement} */ (document.getElementById('resetdefault')).addEventListener('click', () => {
   Options.keybinds = structuredClone(DefaultKeybinds);
+  // The seek step is this section's too.
+  Options.seekStepSize = DefaultOptions.seekStepSize;
+  seekStepSize.value = /** @type {any} */ (Options.seekStepSize);
   renderKeybinds();
   optionChanged();
 });
