@@ -171,6 +171,13 @@ What that fix put in place, and the invariants to keep:
   (`<a download>`) reads the blob at once: 40 of 40 survived a revoke right after it.
   `ext-specs/download-blob-lifetime.e2e.mjs`; found through download-names' CI flake, whose
   test page closed with its blob before Firefox read it.
+- **A link click saves nothing in a player inside a web page** (2026-11-28, #868). Firefox
+  partitions a framed extension page's `blob:` URLs by the site around it, and refuses a link
+  click on one ("Cannot access blob URL ... with a different partition key"): "Export Settings To
+  File" in such a player's settings did nothing, while the options tab and about:addons saved.
+  The export now saves through `Utils.downloadBlob` (the background's downloads API), which reads
+  those URLs; the link click came from upstream's #402 fix, made while the URL was still revoked
+  before the background had it. `ext-specs/settings-export.e2e.mjs`.
 - **A saved video's copy on disk goes once its download is over** (2026-11-13, a review).
   Closing a save's blob store ended its OPFS worker and kept the session's folder on purpose
   (a finished file may still be downloading), and only `prune()` in a later worker deleted
