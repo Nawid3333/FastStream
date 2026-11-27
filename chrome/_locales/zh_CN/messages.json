@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "适用于播放器和 MPV。设为 0 时，下一集立即开始。"
     },
-    "options_mpv_autoplaynext": {
-        "message": "在 mpv 中自动播放下一集 (mpv 中的自动播放按钮也可以切换)"
-    },
     "mpv_autoplay_title": {
         "message": "自动播放"
     },

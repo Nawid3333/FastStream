@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "Dalam pemain dan dalam MPV. 0: episod seterusnya bermula serta-merta."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Mainkan episod seterusnya secara automatik dalam mpv (butang main automatik dalam mpv juga menukarnya)"
-    },
     "mpv_autoplay_title": {
         "message": "Main automatik"
     },

@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "W odtwarzaczu i w MPV. 0: następny odcinek zaczyna się od razu."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Automatyczne odtwarzanie następnego odcinka w mpv (przycisk autoplay w mpv również to zmienia)"
-    },
     "mpv_autoplay_title": {
         "message": "Autoodtwarzanie"
     },

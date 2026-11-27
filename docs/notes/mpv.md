@@ -1246,7 +1246,8 @@ gone one closed).
   the wait ends, so the tab's next video is an ordinary hand-off. A watch that ended otherwise (the helper went, a
   refusal) leaves mpv perhaps playing: the episode still goes to that window, and the helper answers `closed` if it
   is gone. The window on the helper's pipe keeps the old way: its episode still opens a new mpv there.
-- The autoplay setting is one: a change in the options or by a window's key shows in every window's switch.
+- The autoplay setting is one, switched only in mpv (the options page has no checkbox for it since 2026-11-27):
+  a change by a window's key shows in every window's switch.
 
 **Tests.** `backgroundMpvThin.test.mjs` ("several mpv windows"), `MpvBackend.test.mjs` (the window in play
 only for a helper with `windows`), `MpvRelayWatch.test.mjs` (a watch per window).

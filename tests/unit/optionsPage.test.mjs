@@ -224,7 +224,7 @@ describe('the options page\'s controls', () => {
 
   it('gives every field a label', () => {
     const fields = doc.querySelectorAll('input, textarea').filter((field) => field.getAttribute('type') !== 'file');
-    expect(fields.length).toBeGreaterThan(30);
+    expect(fields.length).toBeGreaterThanOrEqual(30);
     const unlabelled = fields.filter((field) => !field.dataset.i18nLabel && !field.getAttribute('aria-label'));
     expect(unlabelled.map((field) => field.id || field.className)).toEqual([]);
   });

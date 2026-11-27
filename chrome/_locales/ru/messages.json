@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "В плеере и в MPV. 0: следующая серия запускается сразу."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Автоматический запуск следующей серии в mpv (кнопка автозапуска в mpv также переключает этот режим)"
-    },
     "mpv_autoplay_title": {
         "message": "Автозапуск"
     },

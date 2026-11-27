@@ -40,7 +40,6 @@ const mpvPathInput = /** @type {HTMLInputElement} */ (document.getElementById('m
 const mpvFullscreenToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvfullscreen'));
 const mpvPausePageToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvpausepage'));
 const mpvSingleInstanceToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvsingleinstance'));
-const mpvAutoplayNextToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvautoplaynext'));
 const mpvTestButton = /** @type {HTMLButtonElement} */ (document.getElementById('mpvtest'));
 const mpvTestResult = /** @type {HTMLElement} */ (document.getElementById('mpvtestresult'));
 const autoSub = /** @type {HTMLInputElement} */ (document.getElementById('autosub'));
@@ -173,7 +172,6 @@ if (!EnvUtils.isExtension()) {
   mpvFullscreenToggle.disabled = true;
   mpvPausePageToggle.disabled = true;
   mpvSingleInstanceToggle.disabled = true;
-  mpvAutoplayNextToggle.disabled = true;
   mpvTestButton.disabled = true;
   /** @type {HTMLInputElement} */ (miniSize).disabled = true;
   autoplayCountdown.disabled = true;
@@ -195,7 +193,6 @@ async function loadOptions(newOptions) {
   mpvFullscreenToggle.checked = !!Options.mpvFullscreen;
   mpvPausePageToggle.checked = !!Options.mpvPausePage;
   mpvSingleInstanceToggle.checked = !!Options.mpvSingleInstance;
-  mpvAutoplayNextToggle.checked = !!Options.mpvAutoplayNext;
   previewEnabled.checked = !!Options.previewEnabled;
   decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
   lowerOnDroppedFrames.checked = Options.lowerOnDroppedFrames !== false;
@@ -594,11 +591,6 @@ mpvPausePageToggle.addEventListener('change', () => {
 
 mpvSingleInstanceToggle.addEventListener('change', () => {
   Options.mpvSingleInstance = mpvSingleInstanceToggle.checked;
-  optionChanged();
-});
-
-mpvAutoplayNextToggle.addEventListener('change', () => {
-  Options.mpvAutoplayNext = mpvAutoplayNextToggle.checked;
   optionChanged();
 });
 

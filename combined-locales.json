@@ -8513,24 +8513,6 @@
     "zh_CN": "适用于播放器和 MPV。设为 0 时，下一集立即开始。",
     "zh_TW": "適用於播放器與 MPV。0：下一集立即開始播放。"
   },
-  "options_mpv_autoplaynext": {
-    "en": "Autoplay next episode in mpv (the autoplay button in mpv switches it too)",
-    "de": "Nächste Episode in mpv automatisch abspielen (der Autoplay-Schalter in mpv schaltet dies ebenfalls um)",
-    "es": "Reproducir automáticamente el siguiente episodio en mpv (el botón de reproducción automática en mpv también lo cambia)",
-    "fr": "Lecture automatique du prochain épisode dans mpv (le bouton de lecture auto dans mpv le change aussi)",
-    "id": "Putar otomatis episode berikutnya di mpv (tombol putar otomatis di mpv juga mengubahnya)",
-    "it": "Riproduci automaticamente il prossimo episodio in mpv (anche il pulsante autoplay in mpv lo attiva/disattiva)",
-    "ja": "mpvで次エピソードを自動再生する (mpv内の自動再生ボタンでも切り替え可能)",
-    "ko": "mpv에서 다음 에피소드 자동 재생 (mpv의 자동 재생 버튼으로도 전환 가능)",
-    "ms": "Mainkan episod seterusnya secara automatik dalam mpv (butang main automatik dalam mpv juga menukarnya)",
-    "nl": "Volgende aflevering automatisch afspelen in mpv (de autoplay-knop in mpv schakelt dit ook om)",
-    "pl": "Automatyczne odtwarzanie następnego odcinka w mpv (przycisk autoplay w mpv również to zmienia)",
-    "pt_BR": "Reproduzir automaticamente o próximo episódio no mpv (o botão de reprodução automática no mpv também alterna isso)",
-    "ru": "Автоматический запуск следующей серии в mpv (кнопка автозапуска в mpv также переключает этот режим)",
-    "tr": "mpv'de sonraki bölümü otomatik oynat (mpv'deki otomatik oynatma düğmesi de bunu değiştirir)",
-    "zh_CN": "在 mpv 中自动播放下一集 (mpv 中的自动播放按钮也可以切换)",
-    "zh_TW": "在 mpv 中自動播放下一集 (mpv 中的自動播放按鈕也可以切換)"
-  },
   "mpv_autoplay_title": {
     "en": "Autoplay",
     "de": "Autoplay",
