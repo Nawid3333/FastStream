@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "プレーヤーと MPV の両方で表示されます。0: 次エピソードがすぐに始まります。"
     },
-    "options_mpv_autoplaynext": {
-        "message": "mpvで次エピソードを自動再生する (mpv内の自動再生ボタンでも切り替え可能)"
-    },
     "mpv_autoplay_title": {
         "message": "自動再生"
     },

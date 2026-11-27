@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "In de speler en in MPV. 0: de volgende aflevering begint meteen."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Volgende aflevering automatisch afspelen in mpv (de autoplay-knop in mpv schakelt dit ook om)"
-    },
     "mpv_autoplay_title": {
         "message": "Autoplay"
     },

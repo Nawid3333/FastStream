@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "En el reproductor y en MPV. 0: el siguiente episodio empieza enseguida."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Reproducir automáticamente el siguiente episodio en mpv (el botón de reproducción automática en mpv también lo cambia)"
-    },
     "mpv_autoplay_title": {
         "message": "Reproducción automática"
     },

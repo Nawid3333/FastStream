@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "In the player and in MPV. 0: the next episode starts at once."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Autoplay next episode in mpv (the autoplay button in mpv switches it too)"
-    },
     "mpv_autoplay_title": {
         "message": "Autoplay"
     },

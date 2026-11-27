@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "플레이어와 MPV에서 작동합니다. 0이면 다음 에피소드가 즉시 시작됩니다."
     },
-    "options_mpv_autoplaynext": {
-        "message": "mpv에서 다음 에피소드 자동 재생 (mpv의 자동 재생 버튼으로도 전환 가능)"
-    },
     "mpv_autoplay_title": {
         "message": "자동 재생"
     },

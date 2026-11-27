@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "Nel player e in MPV. 0: il prossimo episodio parte subito."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Riproduci automaticamente il prossimo episodio in mpv (anche il pulsante autoplay in mpv lo attiva/disattiva)"
-    },
     "mpv_autoplay_title": {
         "message": "Autoplay"
     },

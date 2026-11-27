@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "Dans le lecteur et dans MPV. 0 : le prochain épisode démarre immédiatement."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Lecture automatique du prochain épisode dans mpv (le bouton de lecture auto dans mpv le change aussi)"
-    },
     "mpv_autoplay_title": {
         "message": "Lecture automatique"
     },

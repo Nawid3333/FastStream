@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "Di pemutar dan di MPV. 0: episode berikutnya langsung dimulai."
     },
-    "options_mpv_autoplaynext": {
-        "message": "Putar otomatis episode berikutnya di mpv (tombol putar otomatis di mpv juga mengubahnya)"
-    },
     "mpv_autoplay_title": {
         "message": "Putar otomatis"
     },

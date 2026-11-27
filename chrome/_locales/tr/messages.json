@@ -1418,9 +1418,6 @@
     "options_general_autoplay_countdown_desc": {
         "message": "Oynatıcıda ve MPV'de. 0: sonraki bölüm hemen başlar."
     },
-    "options_mpv_autoplaynext": {
-        "message": "mpv'de sonraki bölümü otomatik oynat (mpv'deki otomatik oynatma düğmesi de bunu değiştirir)"
-    },
     "mpv_autoplay_title": {
         "message": "Otomatik oynatma"
     },
