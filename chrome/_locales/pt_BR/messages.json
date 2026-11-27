@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Baixar o vídeo novamente"
     },
-    "player_buffer_reused": {
-        "message": "Reutilizando $1 já baixados. Clique aqui para baixar tudo novamente."
+    "player_buffer_kept": {
+        "message": "$1 reaproveitados"
+    },
+    "player_buffer_kept_title": {
+        "message": "Este vídeo já tinha sido baixado em parte (antes de recarregar, ou numa aba fechada e aberta de novo). Essa parte é reproduzida do armazenamento em vez de ser baixada outra vez."
+    },
+    "player_buffer_kept_again": {
+        "message": "Baixar de novo"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "Descartar os $1 reaproveitados e baixar o vídeo inteiro de novo. Só é necessário se o vídeo for reproduzido com erros."
     },
     "player_pip_label": {
         "message": "Imagem em imagem (PiP)"

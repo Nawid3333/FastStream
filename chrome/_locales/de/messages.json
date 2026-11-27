@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Video neu herunterladen"
     },
-    "player_buffer_reused": {
-        "message": "$1, die schon heruntergeladen waren, werden weiterverwendet. Hier klicken, um alles neu herunterzuladen."
+    "player_buffer_kept": {
+        "message": "$1 wiederverwendet"
+    },
+    "player_buffer_kept_title": {
+        "message": "Dieses Video war schon teilweise heruntergeladen (vor einem Neuladen oder in einem geschlossenen und wieder geöffneten Tab). Dieser Teil spielt aus dem Speicher, statt neu heruntergeladen zu werden."
+    },
+    "player_buffer_kept_again": {
+        "message": "Neu herunterladen"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "Die wiederverwendeten $1 verwerfen und das ganze Video neu herunterladen. Nur nötig, wenn das Video fehlerhaft abspielt."
     },
     "player_pip_label": {
         "message": "Bild-in-Bild"

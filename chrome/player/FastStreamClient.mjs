@@ -94,8 +94,6 @@ const PreviewsFailedInBuild = new WeakSet();
 const NextAnswerMs = 5000;
 const AutoNextRetryMs = 2000;
 const AutoNextTries = 5;
-// How long the notice of a buffer taken back shows, with its click to download the video again.
-const ReusedNoticeMs = 10000;
 
 /** @typedef {import('./options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
 /** @typedef {import('./VideoSource.mjs').VideoSource} VideoSource */
@@ -2293,9 +2291,7 @@ export class FastStreamClient extends EventEmitter {
     const record = this.bufferTakenBack = {taken, of: handOff.entries.length};
     if (bytes > 0) {
       // A reload to mend a load that went wrong keeps what it downloaded: one click starts over without it.
-      this.interfaceController.setStatusMessage(StatusTypes.REUSED,
-          Localize.getMessage('player_buffer_reused', [StringUtils.formatSize(bytes)]), 'info', ReusedNoticeMs,
-          () => this.source === source && this.downloadAgain());
+      this.interfaceController.showBufferKept(bytes, () => this.source === source && this.downloadAgain());
     }
     onDisk.then((fromDisk) => {
       record.taken += fromDisk;
@@ -2314,7 +2310,7 @@ export class FastStreamClient extends EventEmitter {
     if (!source || !this.player || !/^https?:/i.test(source.url) || this.fallbacks.request !== this.sourceRequests) {
       return false;
     }
-    this.interfaceController.setStatusMessage(StatusTypes.REUSED, null);
+    this.interfaceController.hideBufferKept();
     const again = source.copy();
     const time = Math.floor(this.currentTime);
     if (time >= 1 && !this.isLive()) {

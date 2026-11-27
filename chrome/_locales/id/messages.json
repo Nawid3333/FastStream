@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Unduh ulang video"
     },
-    "player_buffer_reused": {
-        "message": "Memakai ulang $1 yang sudah diunduh. Klik di sini untuk mengunduh semuanya lagi."
+    "player_buffer_kept": {
+        "message": "$1 dipakai ulang"
+    },
+    "player_buffer_kept_title": {
+        "message": "Video ini sudah sebagian diunduh sebelumnya (sebelum dimuat ulang, atau di tab yang ditutup lalu dibuka lagi). Bagian itu diputar dari penyimpanan, tidak diunduh lagi."
+    },
+    "player_buffer_kept_again": {
+        "message": "Unduh ulang"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "Buang $1 yang dipakai ulang dan unduh ulang seluruh video. Hanya perlu jika video tidak diputar dengan benar."
     },
     "player_pip_label": {
         "message": "Gambar dalam gambar"

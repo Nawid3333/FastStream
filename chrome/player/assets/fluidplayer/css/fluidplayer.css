@@ -1095,6 +1095,56 @@ body {
     cursor: pointer;
 }
 
+/* BufferKeptNotice.mjs: in the bar's free space, centred, as quiet as its other text; the status line keeps its room. */
+.fluid_controls_bottom_container.buffer_kept_shown .fluid_controls_left {
+    flex: 0 1 auto;
+}
+
+.buffer_kept {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 30px;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.buffer_kept_text {
+    flex: none;
+}
+
+.buffer_kept.no_text .buffer_kept_text,
+.buffer_kept.no_label .buffer_kept_again_text {
+    display: none;
+}
+
+.buffer_kept_again {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 6px;
+    border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.buffer_kept_again svg {
+    width: 14px;
+    height: 14px;
+}
+
+.buffer_kept_again:hover,
+.buffer_kept_again:focus-visible {
+    border-color: color-mix(in srgb, currentColor 85%, transparent);
+}
+
 .reset_failed:focus,
 .reset_failed:hover {
     outline: 1px solid var(--status-error-color);

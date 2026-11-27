@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Videoyu yeniden indir"
     },
-    "player_buffer_reused": {
-        "message": "Önceden indirilen $1 yeniden kullanılıyor. Hepsini yeniden indirmek için buraya tıklayın."
+    "player_buffer_kept": {
+        "message": "$1 yeniden kullanıldı"
+    },
+    "player_buffer_kept_title": {
+        "message": "Bu video daha önce kısmen indirilmişti (yeniden yüklemeden önce ya da kapatılıp yeniden açılan bir sekmede). O kısım yeniden indirilmek yerine depolamadan oynatılır."
+    },
+    "player_buffer_kept_again": {
+        "message": "Yeniden indir"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "Yeniden kullanılan $1 verisini at ve videonun tamamını yeniden indir. Yalnızca video hatalı oynatılıyorsa gerekir."
     },
     "player_pip_label": {
         "message": "Resim içinde resim"

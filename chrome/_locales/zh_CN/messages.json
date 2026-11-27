@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "重新下载视频"
     },
-    "player_buffer_reused": {
-        "message": "正在重用已下载的 $1。点击此处重新下载全部内容。"
+    "player_buffer_kept": {
+        "message": "已复用 $1"
+    },
+    "player_buffer_kept_title": {
+        "message": "此视频之前已部分下载（在重新加载之前，或在关闭后重新打开的标签页中）。这部分从存储中播放，而不会重新下载。"
+    },
+    "player_buffer_kept_again": {
+        "message": "重新下载"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "丢弃已复用的 $1，并重新下载整个视频。仅在视频播放出错时才需要。"
     },
     "player_pip_label": {
         "message": "画中画"

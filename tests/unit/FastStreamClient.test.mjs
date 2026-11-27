@@ -29,7 +29,7 @@ vi.mock('../../chrome/player/utils/Utils.mjs', () => ({Utils: {mergeOptions: (a)
 vi.mock('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs', () => ({AudioAnalyzer: class {}}));
 vi.mock('../../chrome/player/modules/analyzer/PreviewFrameExtractor.mjs', () => ({PreviewFrameExtractor: class {}}));
 vi.mock('../../chrome/player/ui/StatusManager.mjs', () => ({StatusTypes: {INFO: 'info', REQINTERACTION: 'reqinteraction', QUALITY: 'quality',
-  RESUMED: 'resumed', REUSED: 'reused'}}));
+  RESUMED: 'resumed'}}));
 vi.mock('../../chrome/player/utils/InterfaceUtils.mjs', () => ({InterfaceUtils: {}}));
 vi.mock('../../chrome/player/ui/audio/VirtualAudioNode.mjs', () => ({VirtualAudioNode: class {}}));
 vi.mock('../../chrome/player/players/SyncedAudioPlayer.mjs', () => ({
@@ -192,6 +192,8 @@ function makeClient(options = {}) {
       saveManager: null,
       reset: vi.fn(),
       setStatusMessage: vi.fn(),
+      showBufferKept: vi.fn(),
+      hideBufferKept: vi.fn(),
       addVideo: vi.fn(),
       updateToolVisibility: vi.fn(),
       failedToLoad: vi.fn(),
@@ -3716,7 +3718,7 @@ describe('FastStreamClient, downloading the video again', () => {
     second.emit(DefaultPlayerEvents.LOADEDMETADATA);
     await settle();
     expect(second.seeks).toContain(42);
-    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('reused', null);
+    expect(client.interfaceController.hideBufferKept).toHaveBeenCalled();
   });
 
   it('does not replace a source that is on its way in', async () => {
@@ -3752,15 +3754,16 @@ describe('FastStreamClient, a buffer taken back', () => {
     return client;
   }
 
-  it('says how much it reuses, and a click on it downloads the video again', async () => {
+  it('says how much it reuses apart from the status line, and its button downloads the video again', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const client = clientTaking({taken: 1, bytes: 1.4e9});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));
 
-    const call = client.interfaceController.setStatusMessage.mock.calls.find(([key]) => key === 'reused');
-    expect(call.slice(0, 4)).toEqual(['reused', 'player_buffer_reused', 'info', 10000]);
+    const call = client.interfaceController.showBufferKept.mock.calls[0];
+    expect(call[0]).toBe(1.4e9);
+    expect(client.interfaceController.setStatusMessage.mock.calls.some(([key]) => key === 'reused')).toBe(false);
     client.downloadAgain = vi.fn();
-    call[4]();
+    call[1]();
     expect(client.downloadAgain).toHaveBeenCalledTimes(1);
   });
 
@@ -3768,16 +3771,16 @@ describe('FastStreamClient, a buffer taken back', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const client = clientTaking({taken: 1, bytes: 1.4e9});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));
-    const call = client.interfaceController.setStatusMessage.mock.calls.find(([key]) => key === 'reused');
+    const call = client.interfaceController.showBufferKept.mock.calls[0];
     client.source = makeSource('https://cdn.example/other.m3u8');
     client.downloadAgain = vi.fn();
-    call[4]();
+    call[1]();
     expect(client.downloadAgain).not.toHaveBeenCalled();
   });
 
   it('says nothing when none of it was taken (another link)', async () => {
     const client = clientTaking({taken: 0, bytes: 0});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));
-    expect(client.interfaceController.setStatusMessage.mock.calls.some(([key]) => key === 'reused')).toBe(false);
+    expect(client.interfaceController.showBufferKept).not.toHaveBeenCalled();
   });
 });
