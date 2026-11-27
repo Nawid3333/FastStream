@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Muat turun semula video"
     },
-    "player_buffer_reused": {
-        "message": "Menggunakan semula $1 yang sudah dimuat turun. Klik di sini untuk memuat turun semuanya semula."
+    "player_buffer_kept": {
+        "message": "$1 diguna semula"
+    },
+    "player_buffer_kept_title": {
+        "message": "Video ini sudah dimuat turun sebahagiannya sebelum ini (sebelum muat semula, atau dalam tab yang ditutup lalu dibuka semula). Bahagian itu dimainkan dari storan dan tidak dimuat turun lagi."
+    },
+    "player_buffer_kept_again": {
+        "message": "Muat turun semula"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "Buang $1 yang diguna semula dan muat turun semula seluruh video. Hanya perlu jika video tidak dimainkan dengan betul."
     },
     "player_pip_label": {
         "message": "Gambar dalam gambar"

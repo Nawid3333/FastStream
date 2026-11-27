@@ -737,13 +737,23 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   no longer downloads everything again. (FreshLink gives no link in a private window or a
   container tab since 2026-11-13: "Storage in a private window".)
 - **Downloading the video again** (the owner, 2026-11-22): a reload to mend a load that went wrong
-  keeps what it downloaded, broken parts too. A buffer taken back says so for 10 s, with its size
-  (`player_buffer_reused`, status level `REUSED`; `DownloadManager.adopt` counts the bytes of RAM
-  and disk); a click on it, or the more menu's button (`redownload`, any stream from the network),
-  runs `FastStreamClient.downloadAgain`: the same source again at the current second, quality and
-  audio track kept, playing if it played, without `keepStorage`, so the reset deletes everything
-  downloaded, in RAM and on the disk. `FastStreamClient.test.mjs` ("downloading the video again",
-  "a buffer taken back").
+  keeps what it downloaded, broken parts too. A buffer taken back says so for 15 s, with its size
+  (`DownloadManager.adopt` counts the bytes of RAM and disk); its button, or the more menu's
+  (`redownload`, any stream from the network), runs `FastStreamClient.downloadAgain`: the same
+  source again at the current second, quality and audio track kept, playing if it played, without
+  `keepStorage`, so the reset deletes everything downloaded, in RAM and on the disk.
+  `FastStreamClient.test.mjs` ("downloading the video again", "a buffer taken back").
+- **How it says so** (`ui/BufferKeptNotice.mjs`, the owner, 2026-11-27): until then a status message,
+  "Reusing 1.4 GB that was already downloaded. Click here to download it all again.", in the place
+  where a failed load's errors show: long, and a click there looked like the way to mend anything. Now
+  it is apart from the status line, in the middle of the bar's free space: "Reused 1.4 GB" and a
+  quiet "↻ Download again" button, each explained by its title, in the bar's own colours with no
+  animation (nothing that draws a click from someone who does not know what it does). It stays while
+  the pointer or the focus is on it. It takes only the room the status line leaves (`flex: 1 1 0`
+  beside a left part that no longer grows): when the room shrinks (a narrow player, a long error),
+  the size goes first, then the button's word, then the button (`fit`, on a `ResizeObserver`); the
+  more menu's button is always there. Looked at in the web build at 1280, 760, 700, 600 and 520 px
+  wide, with an error and with the download line. `BufferKeptNotice.test.mjs`.
 
 ## Players in many tabs
 

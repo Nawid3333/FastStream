@@ -64,6 +64,10 @@ export const DOMElements = {
   statusMessages: /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.mainplayer .status_message')),
   statusFullText: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .status_full_text')),
   resetFailed: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .reset_failed')),
+  bufferKept: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .buffer_kept')),
+  bufferKeptText: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .buffer_kept_text')),
+  bufferKeptAgain: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .buffer_kept_again')),
+  bufferKeptAgainText: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .buffer_kept_again_text')),
 
   vpnButton: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .vpn_button')),
   nextVideoBannerButton: /** @type {HTMLElement} */ (document.querySelector('.mainplayer .next_video_button')),

@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Pobierz wideo ponownie"
     },
-    "player_buffer_reused": {
-        "message": "Używane są ponownie już pobrane dane ($1). Kliknij tutaj, aby pobrać wszystko od nowa."
+    "player_buffer_kept": {
+        "message": "Ponownie użyto $1"
+    },
+    "player_buffer_kept_title": {
+        "message": "Ten film był już częściowo pobrany (przed przeładowaniem lub w karcie zamkniętej i otwartej ponownie). Ta część jest odtwarzana z pamięci zamiast pobierania jej od nowa."
+    },
+    "player_buffer_kept_again": {
+        "message": "Pobierz ponownie"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "Odrzuć ponownie użyte $1 i pobierz cały film od nowa. Potrzebne tylko wtedy, gdy film odtwarza się nieprawidłowo."
     },
     "player_pip_label": {
         "message": "Obraz w obrazie"

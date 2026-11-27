@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Video opnieuw downloaden"
     },
-    "player_buffer_reused": {
-        "message": "$1 die al gedownload was, wordt hergebruikt. Klik hier om alles opnieuw te downloaden."
+    "player_buffer_kept": {
+        "message": "$1 hergebruikt"
+    },
+    "player_buffer_kept_title": {
+        "message": "Deze video was al deels gedownload (vóór het herladen, of in een tabblad dat gesloten en opnieuw geopend is). Dat deel speelt af vanuit de opslag in plaats van opnieuw gedownload te worden."
+    },
+    "player_buffer_kept_again": {
+        "message": "Opnieuw downloaden"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "De hergebruikte $1 weggooien en de hele video opnieuw downloaden. Alleen nodig als de video verkeerd afspeelt."
     },
     "player_pip_label": {
         "message": "Beeld-in-beeld"

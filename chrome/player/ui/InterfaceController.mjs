@@ -34,6 +34,7 @@ import {SubtitlesManager} from './subtitles/SubtitlesManager.mjs';
 import {ToolManager} from './ToolManager.mjs';
 import {VolumeControls} from './VolumeControls.mjs';
 import {WaitNotice} from './WaitNotice.mjs';
+import {BufferKeptNotice} from './BufferKeptNotice.mjs';
 import {WebStorage} from '../utils/WebStorage.mjs';
 
 let MiniplayerCooldown = Date.now() + 500;
@@ -158,6 +159,7 @@ export class InterfaceController {
 
     this.statusManager = new StatusManager();
     this.waitNotice = new WaitNotice(this.client);
+    this.bufferKept = new BufferKeptNotice();
     this.optionsWindow = new OptionsWindow();
 
     this.setupDOM();
@@ -218,6 +220,18 @@ export class InterfaceController {
     this.statusManager.setStatusMessage(key, message, type, expiry, onClick);
   }
 
+  /**
+   * @param {number} bytes - What the player took back of an earlier player's downloads.
+   * @param {() => void} onAgain - Downloads the video again.
+   */
+  showBufferKept(bytes, onAgain) {
+    this.bufferKept.show(bytes, onAgain);
+  }
+
+  hideBufferKept() {
+    this.bufferKept.hide();
+  }
+
   tick() {
     if (this.client.player) {
       this.updateFragmentsLoaded();
@@ -259,7 +273,7 @@ export class InterfaceController {
     this.setStatusMessage('download', null, 'success');
     // Its notices are not the next one's ("Resumed at 0:30" over a video that starts at 0).
     this.setStatusMessage(StatusTypes.RESUMED, null, 'info');
-    this.setStatusMessage(StatusTypes.REUSED, null, 'info');
+    this.bufferKept.hide();
     this.setStatusMessage(StatusTypes.WAIT, null, 'info');
     this.setStatusMessage(StatusTypes.SUBTITLES_HINT, null, 'info');
     // And its "all buffered" was the next one's: one buffered from the start never said so.

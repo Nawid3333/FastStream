@@ -9,7 +9,6 @@ export const StatusTypes = {
   SUBTITLES_HINT: 'subtitles-hint',
   RESUMED: 'resumed',
   // A buffer an earlier player of the video handed over, taken back (FastStreamClient.takeBackBuffer): one click starts over.
-  REUSED: 'reused',
   REQINTERACTION: 'reqinteraction',
   INFO: 'info',
   ERROR: 'error',
@@ -85,7 +84,6 @@ export class StatusManager {
     this.registerStatusLevel(StatusTypes.WAIT);
     this.registerStatusLevel(StatusTypes.SUBTITLES_HINT);
     this.registerStatusLevel(StatusTypes.RESUMED);
-    this.registerStatusLevel(StatusTypes.REUSED);
     this.registerStatusLevel(StatusTypes.REQINTERACTION);
     this.registerStatusLevel(StatusTypes.INFO);
     this.registerStatusLevel(StatusTypes.ERROR);

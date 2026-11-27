@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "Download the video again"
     },
-    "player_buffer_reused": {
-        "message": "Reusing $1 that was already downloaded. Click here to download it all again."
+    "player_buffer_kept": {
+        "message": "Reused $1"
+    },
+    "player_buffer_kept_title": {
+        "message": "This video was partly downloaded before (before a reload, or in a tab closed and opened again). That part plays from storage instead of being downloaded again."
+    },
+    "player_buffer_kept_again": {
+        "message": "Download again"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "Discard the reused $1 and download the whole video again. Only needed if the video plays wrong."
     },
     "player_pip_label": {
         "message": "Picture-in-picture"

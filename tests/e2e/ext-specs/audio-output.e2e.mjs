@@ -183,7 +183,7 @@ describe('The audio output', function() {
           .some((el) => el.style.display !== 'none' && el.textContent === again.replace('$1', label));
     }, again), {timeout: 15000, interval: 250, timeoutMsg: 'the next video did not say how to get the device back'});
     expect((await outputState()).playing).toBe(null);
-    // This one, by its words: the same video again also says it reuses what it downloaded, clickable too (REUSED).
+    // This one, by its words.
     const saying = await browser.execute((again) => again.replace('$1', window.fastStream.audioOutputDevice.choice?.label),
         again);
     const messages = await browser.$$('.mainplayer .status_message.clickable');

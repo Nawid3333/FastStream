@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "動画を再ダウンロード"
     },
-    "player_buffer_reused": {
-        "message": "ダウンロード済みの $1 を再利用しています。すべてを再ダウンロードするにはここをクリックしてください。"
+    "player_buffer_kept": {
+        "message": "$1 を再利用"
+    },
+    "player_buffer_kept_title": {
+        "message": "この動画は以前に一部ダウンロード済みです（再読み込みの前、または閉じて開き直したタブで）。その部分は再ダウンロードせず、保存済みのデータから再生されます。"
+    },
+    "player_buffer_kept_again": {
+        "message": "再ダウンロード"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "再利用中の $1 を破棄し、動画全体をもう一度ダウンロードします。動画が正しく再生されない場合にのみ必要です。"
     },
     "player_pip_label": {
         "message": "ピクチャー イン ピクチャー (PiP)"

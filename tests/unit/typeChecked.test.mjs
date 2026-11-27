@@ -183,6 +183,7 @@ const CHECKED = [
   'chrome/player/ui/ToolManager.mjs',
   'chrome/player/ui/VolumeControls.mjs',
   'chrome/player/ui/WaitNotice.mjs',
+  'chrome/player/ui/BufferKeptNotice.mjs',
   'chrome/player/ui/VpnPrompt.mjs',
   'chrome/player/ui/audio/AbstractAudioModule.mjs',
   'chrome/player/ui/audio/AudioGain.mjs',

@@ -512,8 +512,17 @@
     "player_redownload_label": {
         "message": "重新下載影片"
     },
-    "player_buffer_reused": {
-        "message": "正在重複使用已下載的 $1。按一下這裡即可重新下載全部內容。"
+    "player_buffer_kept": {
+        "message": "已重複使用 $1"
+    },
+    "player_buffer_kept_title": {
+        "message": "此影片先前已部分下載（在重新載入之前，或在關閉後重新開啟的分頁中）。這部分會從儲存空間播放，而不會重新下載。"
+    },
+    "player_buffer_kept_again": {
+        "message": "重新下載"
+    },
+    "player_buffer_kept_again_title": {
+        "message": "捨棄已重複使用的 $1，並重新下載整部影片。只有在影片播放異常時才需要。"
     },
     "player_pip_label": {
         "message": "畫中畫"
