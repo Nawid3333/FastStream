@@ -936,7 +936,7 @@ export class DownloadManager {
   }
 
   /**
-   * @return {boolean} Not in a private window, with "Keep video on disk" off, or once no disk store works.
+   * @return {boolean} Not in a private window, with "RAM only", or once no disk store works.
    */
   canSpill() {
     return !!this.blobStore && !this.blobStore.memoryOnly && !this.blobStore.diskGone;

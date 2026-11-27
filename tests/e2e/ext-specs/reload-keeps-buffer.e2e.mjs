@@ -393,7 +393,8 @@ describe('A reload of the page', function() {
   });
 
   it('lets go of what nobody takes back within 20 s, files and all', async function() {
-    await setOptions({autoEnableURLs: [SITE + '/'], ramBudget: 2e6, bufferToDisk: true});
+    // storageVersion: kept as saved, a budget the options page does not offer.
+    await setOptions({autoEnableURLs: [SITE + '/'], ramBudget: 2e6, bufferToDisk: true, storageVersion: 1});
     segments = [];
     const first = await loadAndBuffer('/watch-gone', 12);
     const buffered = placesFor(first);

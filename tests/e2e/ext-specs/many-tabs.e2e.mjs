@@ -208,9 +208,9 @@ describe('Players in four tabs at once', function() {
     const handles = {};
     try {
       // One budget for all, the rest on the disk, each downloading its whole video; a closed tab's files deleted at
-      // once.
+      // once. storageVersion: kept as saved, a budget the options page does not offer.
       await setOptions({ramBudget: BUDGET, bufferToDisk: true, downloadAll: true, maxVideoSize: -1, bufferAhead: 300,
-        storeProgress: false, bufferKeep: 0});
+        storeProgress: false, bufferKeep: 0, storageVersion: 1});
       // The last one opened stays in front; the first collects from the start.
       for (const who of ['b', 'c', 'd', 'a']) {
         handles[who] = await openPlayerTab(`${ORIGIN}/${who}/video.m3u8?run=${run}`);

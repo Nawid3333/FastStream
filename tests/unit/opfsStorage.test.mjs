@@ -874,6 +874,74 @@ describe('FSBlob', () => {
     expect(fsblob.getBlob(identifier)).toBe(blob);
   });
 
+  // A full disk: trying on let each fragment go, downloaded it again and failed again (docs/notes/storage.md).
+  it('writes nothing more for this video once a write fails, and tries the disk again with the next', async () => {
+    let full = true;
+    const written = [];
+    const {fsblob} = withOpfs({
+      worker: {},
+      setFile: async (identifier) => {
+        written.push(identifier);
+        if (full) throw new DOMException('Unknown failure', 'UnknownError');
+      },
+      getFile: async () => new Blob(['on disk']),
+      clearStorage: async () => {},
+      close: vi.fn(),
+    });
+    await fsblob.saveBlobAsync(new Blob(['a']), 'a', {deferred: true});
+    await fsblob.saveBlobAsync(new Blob(['b']), 'b', {deferred: true});
+    expect(await fsblob.spill('a')).toBe(false);
+    expect(fsblob).toMatchObject({diskFull: true, diskGone: true});
+    expect(await fsblob.spill('b')).toBe(false);
+    expect(written).toEqual(['a']);
+    expect(fsblob.ramBytes()).toBe(2);
+
+    full = false;
+    await fsblob.clear();
+    expect(fsblob).toMatchObject({diskFull: false, diskGone: false});
+    await fsblob.saveBlobAsync(new Blob(['c']), 'c', {deferred: true});
+    expect(await fsblob.spill('c')).toBe(true);
+  });
+
+  it('takes a write that clear() cut short for no sign of a full disk', async () => {
+    let fail;
+    const {fsblob} = withOpfs({
+      worker: {},
+      setFile: () => new Promise((resolve, reject) => {
+        fail = reject;
+      }),
+      clearStorage: async () => {},
+      close: vi.fn(),
+    });
+    const saving = fsblob.saveBlobAsync(new Blob(['fragment']), 'blob0');
+    await vi.waitFor(() => expect(fail).toBeTypeOf('function'));
+    const clearing = fsblob.clear();
+    fail(new DOMException('The file was deleted', 'NotFoundError'));
+    await saving;
+    await clearing;
+    expect(fsblob).toMatchObject({diskFull: false, diskGone: false});
+  });
+
+  it('takes a write whose fragment was let go of meanwhile for no sign of a full disk', async () => {
+    let fail;
+    const {fsblob} = withOpfs({
+      worker: {},
+      setFile: () => new Promise((resolve, reject) => {
+        fail = reject;
+      }),
+      deleteFile: async () => {},
+      close: vi.fn(),
+    });
+    await fsblob.saveBlobAsync(new Blob(['fragment']), 'blob0', {deferred: true});
+    const spilling = fsblob.spill('blob0');
+    await vi.waitFor(() => expect(fail).toBeTypeOf('function'));
+    const deleting = fsblob.deleteBlob('blob0');
+    fail(new DOMException('The file was deleted', 'NotFoundError'));
+    expect(await spilling).toBe(false);
+    await deleting;
+    expect(fsblob).toMatchObject({diskFull: false, diskGone: false});
+  });
+
   it('does not let an offload that finishes after clear() put its blob back', async () => {
     let release;
     const gate = new Promise((resolve) => {

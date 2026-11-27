@@ -34,11 +34,11 @@ Notes:
 - This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright. When its manifest says a page's video is copy-protected, FastStream leaves it to the site's own player (the toolbar button shows "DRM" and says why), and mpv mode does not send it to mpv (the button's "!" says why).
 - Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues. A security problem goes in a private report instead: see [SECURITY.md](SECURITY.md).
 - For your privacy, this extension **does not collect telemetry** and has no server of its own. Besides the sites whose videos you play, it connects only to OpenSubtitles when you search for subtitles, and to GitHub for updates. Everything it runs ships inside the add-on. The details, permission by permission, are in [docs/privacy-policy.md](docs/privacy-policy.md).
-- The default maximum size for predownloading is 5 GB. This can be changed in the settings page (0 = predownload nothing, empty = no limit). Where the downloaded video is kept, in RAM or on the disk, is your choice too: see [RAM and disk](#ram-and-disk).
+- FastStream loads a video whole ahead of playback when it is at most 5 GB. Options > Download and storage changes that: **Load ahead** a fixed time instead (30 seconds to 1 hour), or **Largest video loaded whole** another size or no limit. Where the downloaded video is kept, in RAM or on the disk, is your choice too: see [RAM and disk](#ram-and-disk).
 
 ## RAM and disk
 
-FastStream downloads the video ahead and keeps it until it is played. **Where to keep downloaded video** (Options > General) decides where:
+FastStream downloads the video ahead and keeps it until it is played. **Where to keep downloaded video** (Options > Download and storage) decides where:
 
 | Mode | What it does | For |
 |---|---|---|
@@ -46,13 +46,13 @@ FastStream downloads the video ahead and keeps it until it is played. **Where to
 | **RAM only** | Nothing of the buffer is written to the disk. What does not fit in the RAM is let go of and downloaded again when you need it. | Sparing an SSD's writes |
 | **Disk only** | The video goes to the disk as it arrives; only the part playing now stays in RAM. | Computers with little memory |
 
-In the two RAM modes, **RAM for buffered video (all tabs)** sets the amount, for all FastStream tabs together (default 1 GB). Pick **this computer's memory** above it, and FastStream puts in the recommended amount (an eighth of the memory, at most 4 GB), and warns when the field asks for more than the computer can spare. "No limit" is offered only with RAM only, with a warning: a long video can then fill the memory and freeze the computer.
+With **RAM, then disk**, FastStream keeps up to 1 GB in RAM for all its tabs together, by itself: more RAM would only save SSD writes (measured below). Only **RAM only** asks for a limit, **RAM for video (all tabs)**: 512 MB, 1 GB (default), 2 or 4 GB. There is no "no limit": a long video could fill the memory and freeze the computer. Under the modes, **Stored now** shows how much downloaded video FastStream holds at the moment, on the disk and in RAM, and for how many open videos.
 
 Measured with a 1080p video at 16 Mbit/s on an SSD, on Windows and Linux, the disk modes played as smoothly as RAM, with no more dropped frames, and a seek took at most about 15 ms longer; the disk took the video faster than any internet line delivers it. More RAM saves SSD writes and nothing else. RAM only has a cost: what does not fit is downloaded again, so seeking back waits for the network.
 
 Private windows never write the buffer to the disk: they keep it in RAM (with Disk only, 64 MB). Your watch progress and the videos you save are not the buffer: these settings do not touch them.
 
-Reloading or closing the page doesn't throw the buffer away at once. FastStream keeps what it had downloaded for the time set under **How long the downloaded video is kept after a reload or a closed tab** (Off, 20 seconds by default, 1, 5, 15 or 30 minutes, or 1 hour; past 20 seconds on the disk, and never past the moment Firefox closes: what a closed Firefox leaves behind is deleted a minute after it starts again). The player of the page opened again plays on with it, also when the site gives the video a new signed link at every load. Whatever no player takes back in that time is let go of, and its files are deleted. To start from scratch instead, click the "Reusing ... already downloaded" notice the player shows, or **Download the video again** in the player's menu.
+Reloading or closing the page doesn't throw the buffer away at once. FastStream keeps what it had downloaded for the time set under **Keep video after a reload or closed tab** (Off, 20 seconds by default, 1, 5, 15 or 30 minutes, or 1 hour; past 20 seconds on the disk, and never past the moment Firefox closes: what a closed Firefox leaves behind is deleted a minute after it starts again). The player of the page opened again plays on with it, also when the site gives the video a new signed link at every load. Whatever no player takes back in that time is let go of, and its files are deleted. To start from scratch instead, click the "Reusing ... already downloaded" notice the player shows, or **Download the video again** in the player's menu.
 
 ## Your settings on several computers
 

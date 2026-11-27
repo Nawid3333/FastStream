@@ -11,7 +11,7 @@ const {WaitNotice, waitCause} = await import('../../chrome/player/ui/WaitNotice.
 // only the players' own 10-30 s are buffered and a short slowdown of the line stops the video.
 
 const MB = 1e6;
-const video = {rate: 1.25 * MB, speed: 0.5 * MB, ramOnly: false, aheadKept: 120, live: false};
+const video = {rate: 1.25 * MB, speed: 0.5 * MB, ramOnly: false, live: false};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -20,10 +20,6 @@ afterEach(() => {
 describe('waitCause', () => {
   it('says nothing with no limit set (the defaults)', () => {
     expect(waitCause({maxSpeed: -1, bufferAhead: 120, ramBudget: 2e9}, video)).toBeNull();
-  });
-
-  it('names a download speed of 0', () => {
-    expect(waitCause({maxSpeed: 0}, video)).toEqual({key: 'player_wait_speed_zero'});
   });
 
   it('names a download speed below the video\'s, in Mbit/s', () => {
@@ -42,19 +38,13 @@ describe('waitCause', () => {
     expect(waitCause({maxSpeed: 0.5 * MB}, {...video, speed: 0.45 * MB})?.key).toBe('player_wait_speed_low');
   });
 
-  it('names 0 seconds ahead only when the client keeps none ahead', () => {
-    expect(waitCause({bufferAhead: 0}, {...video, aheadKept: 0})).toEqual({key: 'player_wait_ahead_zero'});
-    // Predownload on keeps more ahead than the setting.
-    expect(waitCause({bufferAhead: 0}, video)).toBeNull();
-  });
-
   it('names a RAM of 0 only where nothing is kept on disk', () => {
     expect(waitCause({ramBudget: 0}, {...video, ramOnly: true})).toEqual({key: 'player_wait_ram_zero'});
     expect(waitCause({ramBudget: 0}, video)).toBeNull();
   });
 
   it('says nothing for a live stream, which waits for its next segment', () => {
-    expect(waitCause({maxSpeed: 0}, {...video, live: true})).toBeNull();
+    expect(waitCause({ramBudget: 0}, {...video, ramOnly: true, live: true})).toBeNull();
   });
 });
 
@@ -72,14 +62,14 @@ describe('WaitNotice', () => {
 
   it('tells the cause after the video waited 2 s while playing, once per video, as an info for 12 s', () => {
     vi.spyOn(Localize, 'getMessage').mockImplementation((key) => key);
-    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(false);
-    const {client, notice} = stalled({maxSpeed: 0});
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const {client, notice} = stalled({ramBudget: 0});
     notice.check(0);
     notice.check(1999);
     expect(said(client)).toEqual([]);
     notice.check(2000);
-    expect(said(client)).toEqual(['player_wait_speed_zero']);
-    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('wait', 'player_wait_speed_zero', 'info', 12000);
+    expect(said(client)).toEqual(['player_wait_ram_zero']);
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledWith('wait', 'player_wait_ram_zero', 'info', 12000);
     // Played on, waited again: told already.
     client.state.buffering = false;
     notice.check(3000);
@@ -95,8 +85,8 @@ describe('WaitNotice', () => {
 
   it('counts the 2 s from the start of each wait, and not while paused or loading at the start', () => {
     vi.spyOn(Localize, 'getMessage').mockImplementation((key) => key);
-    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(false);
-    const {client, notice} = stalled({maxSpeed: 0});
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const {client, notice} = stalled({ramBudget: 0});
     notice.check(0);
     client.state.buffering = false;
     notice.check(1500);
@@ -111,11 +101,11 @@ describe('WaitNotice', () => {
 
   it('takes itself down when the downloads are paused after it showed: the pause message is under it', () => {
     vi.spyOn(Localize, 'getMessage').mockImplementation((key) => key);
-    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(false);
-    const {client, notice} = stalled({maxSpeed: 0});
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const {client, notice} = stalled({ramBudget: 0});
     notice.check(0);
     notice.check(2000);
-    expect(said(client)).toEqual(['player_wait_speed_zero']);
+    expect(said(client)).toEqual(['player_wait_ram_zero']);
     client.downloadManager.paused = true;
     notice.check(2500);
     expect(client.interfaceController.setStatusMessage).toHaveBeenLastCalledWith('wait', null, 'info');
@@ -125,8 +115,8 @@ describe('WaitNotice', () => {
 
   it('leaves a download pause to its own message, which names the key that resumes', () => {
     vi.spyOn(Localize, 'getMessage').mockImplementation((key) => key);
-    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(false);
-    const {client, notice} = stalled({maxSpeed: 0});
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const {client, notice} = stalled({ramBudget: 0});
     client.downloadManager.paused = true;
     notice.check(0);
     notice.check(5000);

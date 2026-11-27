@@ -6,7 +6,6 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DefaultOptions} from './defaults/DefaultOptions.mjs';
 import {Localize} from '../modules/Localize.mjs';
-import {clearProblems, issueUrl, readProblems} from '../utils/ProblemLog.mjs';
 import {OptionsStore} from './OptionsStore.mjs';
 import {resetSearch, searchWithQuery, initsearch} from '../utils/SearchUtils.mjs';
 
@@ -22,8 +21,9 @@ import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 import {holdImportedNumbers, importedForMigration, settingsForExport} from './SettingsFile.mjs';
 import {CloudSettings} from './CloudSettings.mjs';
-import {ComputerMemorySizes, memorySizeLabel, optionsForComputerMemory, ramBudgetRisky} from './RamGuard.mjs';
-import {BufferAheadMaxSeconds, migrateStorage, optionsForStorageMode, recommendedRamBudget, StorageModes, storageModeOf} from './StorageMode.mjs';
+import {AutomaticRamBudget, migrateStorage, optionsForStorageMode, StorageModes, storageModeOf} from './StorageMode.mjs';
+import {AheadSteps, BehindSteps, MaxSizeSteps, RamOnlySteps, SpeedSteps, WholeVideo} from './SettingSteps.mjs';
+import {StoredNow} from './StoredNow.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
 import {ignoredPatternLines, ignoredUrlLines, showIgnoredLines} from './IgnoredLines.mjs';
 import {BufferKeepChoices, bufferKeepLabel, bufferKeepSeconds} from './BufferKeep.mjs';
@@ -32,7 +32,6 @@ import {BufferKeepChoices, bufferKeepLabel, bufferKeepSeconds} from './BufferKee
 let Options = /** @type {typeof DefaultOptions} */ ({});
 const playStreamURLs = /** @type {HTMLInputElement} */ (document.getElementById('playstreamurls'));
 const playMP4URLs = /** @type {HTMLInputElement} */ (document.getElementById('playmp4urls'));
-const downloadAll = /** @type {HTMLInputElement} */ (document.getElementById('downloadall'));
 const keybindsList = /** @type {HTMLElement} */ (document.getElementById('keybindslist'));
 const autoEnableURLSInput = /** @type {HTMLTextAreaElement} */ (document.getElementById('autoEnableURLs'));
 const mpvModeToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvModeSectionToggle'));
@@ -46,25 +45,22 @@ const mpvTestButton = /** @type {HTMLButtonElement} */ (document.getElementById(
 const mpvTestResult = /** @type {HTMLElement} */ (document.getElementById('mpvtestresult'));
 const autoSub = /** @type {HTMLInputElement} */ (document.getElementById('autosub'));
 const cycleSubs = /** @type {HTMLInputElement} */ (document.getElementById('cyclesubs'));
-const maxSpeed = /** @type {HTMLInputElement} */ (document.getElementById('maxspeed'));
-const maxSize = /** @type {HTMLInputElement} */ (document.getElementById('maxsize'));
-const maxSizeUnit = /** @type {HTMLSelectElement} */ (document.getElementById('maxsizeunit'));
-const ramBudget = /** @type {HTMLInputElement} */ (document.getElementById('rambudget'));
-const ramBudgetUnit = /** @type {HTMLSelectElement} */ (document.getElementById('rambudgetunit'));
-const ramSize = /** @type {HTMLSelectElement} */ (document.getElementById('ramsize'));
-const storageMode = /** @type {HTMLSelectElement} */ (document.getElementById('storagemode'));
-const storageModeHint = /** @type {HTMLElement} */ (document.getElementById('storagemodehint'));
-const ramOptions = /** @type {HTMLElement} */ (document.getElementById('ramoptions'));
-const ramBudgetHint = /** @type {HTMLElement} */ (document.getElementById('rambudgethint'));
-const ramBudgetHintText = /** @type {HTMLElement} */ (document.getElementById('rambudgethinttext'));
-const ramRecommended = /** @type {HTMLButtonElement} */ (document.getElementById('ramrecommended'));
-const bufferAhead = /** @type {HTMLInputElement} */ (document.getElementById('bufferahead'));
-const bufferBehind = /** @type {HTMLInputElement} */ (document.getElementById('bufferbehind'));
+const loadAhead = /** @type {HTMLSelectElement} */ (document.getElementById('loadahead'));
+const maxSize = /** @type {HTMLSelectElement} */ (document.getElementById('maxsize'));
+const maxSizeRow = /** @type {HTMLElement} */ (document.getElementById('maxsizerow'));
+const bufferBehind = /** @type {HTMLSelectElement} */ (document.getElementById('bufferbehind'));
+const maxSpeed = /** @type {HTMLSelectElement} */ (document.getElementById('maxspeed'));
+const storageRadios = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('.storage-mode'));
+const storageRamDiskDesc = /** @type {HTMLElement} */ (document.getElementById('storageramdiskdesc'));
+const ramBudget = /** @type {HTMLSelectElement} */ (document.getElementById('rambudget'));
+const ramBudgetRow = /** @type {HTMLElement} */ (document.getElementById('rambudgetrow'));
+const ramBudgetDesc = /** @type {HTMLElement} */ (document.getElementById('rambudgetdesc'));
 const bufferKeep = /** @type {HTMLSelectElement} */ (document.getElementById('bufferkeep'));
+const storedNowBox = /** @type {HTMLElement} */ (document.getElementById('storednow'));
+const storedNowText = /** @type {HTMLElement} */ (document.getElementById('storednowtext'));
+const resetButtons = /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.section-reset'));
 const seekStepSize = /** @type {HTMLInputElement} */ (document.getElementById('seekstepsize'));
 const autoplayCountdown = /** @type {HTMLInputElement} */ (document.getElementById('autoplaycountdown'));
-const problemsList = /** @type {HTMLElement} */ (document.getElementById('problemslist'));
-const clearProblemsButton = /** @type {HTMLButtonElement} */ (document.getElementById('clearproblems'));
 const blockPopupsWhilePlaying = /** @type {HTMLInputElement} */ (document.getElementById('blockpopupswhileplaying'));
 const qualityMenu = /** @type {HTMLElement} */ (document.getElementById('quality'));
 const importButton = /** @type {HTMLElement} */ (document.getElementById('import'));
@@ -190,9 +186,6 @@ async function loadOptions(newOptions) {
   newOptions = newOptions || OptionsStore.get();
   Options = /** @type {typeof DefaultOptions} */ (newOptions);
 
-  downloadAll.checked = !!Options.downloadAll;
-  maxSize.disabled = !downloadAll.checked;
-  maxSizeUnit.disabled = !downloadAll.checked;
   playStreamURLs.checked = !!Options.playStreamURLs;
   playMP4URLs.checked = !!Options.playMP4URLs;
   mpvModeToggle.checked = !!Options.mpvMode;
@@ -210,12 +203,8 @@ async function loadOptions(newOptions) {
   cycleSubs.checked = !!Options.cycleSubtitles;
   autoplayCountdown.value = /** @type {string} */ (/** @type {unknown} */ (Options.autoplayCountdown));
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
-  showSpeed(Options.maxSpeed);
-  showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
-  ramSize.value = String(ComputerMemorySizes.includes(Options.computerMemory) ? Options.computerMemory : 0);
+  showDownload();
   showStorage();
-  showSeconds(bufferAhead, Options.bufferAhead);
-  showSeconds(bufferBehind, Options.bufferBehind);
   bufferKeep.value = String(bufferKeepSeconds(Options.bufferKeep));
   seekStepSize.value = /** @type {any} */ (Math.round(Options.seekStepSize * 100) / 100);
   customSourcePatterns.value = Options.customSourcePatterns || '';
@@ -263,6 +252,7 @@ async function loadOptions(newOptions) {
   if (Options.dev) {
     /** @type {HTMLElement} */ (document.getElementById('dev')).style.display = '';
   }
+  markChanged();
   if (mpvSuggestion) {
     mpvSuggestion.optionsChanged();
   }
@@ -660,13 +650,6 @@ mpvTestButton.addEventListener('click', () => {
   sendTest();
 });
 
-downloadAll.addEventListener('change', () => {
-  Options.downloadAll = downloadAll.checked;
-  maxSize.disabled = !downloadAll.checked;
-  maxSizeUnit.disabled = !downloadAll.checked;
-  optionChanged();
-});
-
 previewEnabled.addEventListener('change', () => {
   Options.previewEnabled = previewEnabled.checked;
   optionChanged();
@@ -686,53 +669,6 @@ storeProgress.addEventListener('change', () => {
   Options.storeProgress = storeProgress.checked;
   optionChanged();
 });
-
-/**
- * Sites where autoplay got stuck (ProblemLog.mjs).
- */
-async function renderProblems() {
-  if (!EnvUtils.isExtension()) {
-    /** @type {HTMLElement} */ (document.getElementById('autoplayproblems')).hidden = true;
-    return;
-  }
-  const problems = await readProblems();
-  problemsList.replaceChildren();
-  clearProblemsButton.disabled = problems.length === 0;
-  if (problems.length === 0) {
-    const none = document.createElement('li');
-    none.textContent = Localize.getMessage('options_problems_none');
-    problemsList.appendChild(none);
-    return;
-  }
-  const about = {version: chrome.runtime.getManifest().version, browser: navigator.userAgent};
-  for (const entry of problems) {
-    const item = document.createElement('li');
-    const text = document.createElement('span');
-    const what = Localize.getMessage(entry.kind === 'no_next' ? 'options_problems_no_next' : 'options_problems_no_stream');
-    const where = Localize.getMessage(entry.mode === 'mpv' ? 'options_problems_mode_mpv' : 'options_problems_mode_player');
-    const seen = Localize.getMessage('options_problems_seen', [String(entry.count), new Date(entry.last).toLocaleDateString()]);
-    text.textContent = `${entry.host}: ${what} (${where}; ${seen})`;
-    const report = document.createElement('button');
-    report.textContent = Localize.getMessage('options_problems_report');
-    report.addEventListener('click', () => {
-      // Not window.open: this page is an iframe in the player.
-      EnvUtils.openExternalURL(issueUrl(entry, about));
-    });
-    item.append(text, report);
-    problemsList.appendChild(item);
-  }
-}
-
-clearProblemsButton.addEventListener('click', () => {
-  clearProblems().then(renderProblems).catch((e) => console.error(e));
-});
-
-if (EnvUtils.isExtension()) {
-  chrome.storage.onChanged?.addListener((changes, area) => {
-    if (area === 'local' && changes.siteProblems) renderProblems().catch((e) => console.error(e));
-  });
-}
-renderProblems().catch((e) => console.error(e));
 
 // In the unit each option is saved in; an imported file is held to them too (holdToFields).
 /** @type {Object<string, {min: number, max: number, whole: boolean}>} */
@@ -754,148 +690,96 @@ blockPopupsWhilePlaying.addEventListener('change', () => {
   optionChanged();
 });
 
-// Saved as bytes a second and bytes; an empty field is no limit (-1), 0 is none.
-const BYTES_PER_MBIT_PER_S = 1000000 / 8;
-const GB = 1000 ** 3;
+const BYTES_PER_MBIT_PER_S = 125000;
 
 /**
- * In Mbit/s, as speed tests give it.
- * @param {number} bytesPerSecond
+ * @param {HTMLSelectElement} select
+ * @param {Array<[string, string]>} choices - Each one's value and text.
+ * @param {string} value
  */
-function showSpeed(bytesPerSecond) {
-  maxSpeed.value = bytesPerSecond >= 0 ? String(Math.round(bytesPerSecond / BYTES_PER_MBIT_PER_S * 1000) / 1000) : '';
-  showLimitHint(maxSpeed, bytesPerSecond);
+function fillPicker(select, choices, value) {
+  select.replaceChildren(...choices.map(([choice, text]) => {
+    const option = document.createElement('option');
+    option.value = choice;
+    option.textContent = text;
+    return option;
+  }));
+  select.value = value;
 }
 
-/** @type {Object<string, {zero: string, none?: string}>} By the field's id. */
-const LIMIT_HINTS = {
-  maxspeed: {zero: 'options_general_targetspeed_zero'},
-  maxsize: {zero: 'options_general_maxsize_zero', none: 'options_general_maxsize_none'},
-  bufferahead: {zero: 'options_general_bufferahead_zero'},
-  bufferbehind: {zero: 'options_general_bufferbehind_zero', none: 'options_general_bufferbehind_none'},
-};
+/** @param {number} seconds */
+const durationText = (seconds) => bufferKeepLabel(seconds, Localize.getLanguage()) ?? String(seconds);
 
-/**
- * 0 and no limit are easy to set without meaning to: say what they do.
- * @param {HTMLInputElement} input
- * @param {number} value - The limit as saved: -1 for none.
- */
-function showLimitHint(input, value) {
-  if (input === ramBudget) {
-    showRamHint(value);
-    return;
-  }
-  const hint = document.getElementById(input.id + 'hint');
-  const key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
-  if (!hint) return;
-  hint.textContent = key ? Localize.getMessage(key) : '';
-  hint.hidden = !key;
+/** The download pickers as the options say; the largest size greyed unless the whole video is loaded. */
+function showDownload() {
+  fillPicker(loadAhead, [...AheadSteps.map((seconds) => /** @type {[string, string]} */ ([String(seconds), durationText(seconds)])),
+    [WholeVideo, Localize.getMessage('options_storage_whole')]], Options.downloadAll ? WholeVideo : String(Options.bufferAhead));
+  fillPicker(maxSize, MaxSizeSteps.map((bytes) => [String(bytes),
+    bytes < 0 ? Localize.getMessage('options_general_nolimit') : StringUtils.formatSize(bytes)]), String(Options.maxVideoSize));
+  maxSize.disabled = !Options.downloadAll;
+  maxSizeRow.classList.toggle('disabled', !Options.downloadAll);
+  fillPicker(bufferBehind, BehindSteps.map((seconds) => [String(seconds),
+    seconds < 0 ? Localize.getMessage('options_storage_all') : durationText(seconds)]), String(Options.bufferBehind));
+  fillPicker(maxSpeed, SpeedSteps.map((bytes) => [String(bytes), bytes < 0 ? Localize.getMessage('options_general_nolimit') :
+    `${(bytes / BYTES_PER_MBIT_PER_S).toLocaleString()} Mbit/s`]), String(Options.maxSpeed));
 }
 
-/**
- * Under the RAM field: the amount recommended for the memory given, and, when the amount can freeze the computer, why;
- * a button puts the recommended amount in.
- * @param {number} bytes - The amount as the field says it: -1 for no limit.
- * @param {?string} [refused] - Why what was typed was not taken.
- */
-function showRamHint(bytes, refused = null) {
-  const gigabytes = ComputerMemorySizes.includes(Options.computerMemory) ? Options.computerMemory : 0;
-  const recommended = gigabytes > 0 ? recommendedRamBudget(gigabytes) : null;
-  const parts = refused ? [refused] : [];
-  if (bytes < 0) {
-    parts.push(Localize.getMessage('options_general_rambudget_none'));
-  } else if (ramBudgetRisky(bytes, gigabytes)) {
-    parts.push(Localize.getMessage('options_general_rambudget_high'));
-  }
-  parts.push(recommended === null ? Localize.getMessage('options_general_rambudget_unknown') :
-    Localize.getMessage('options_general_rambudget_recommended',
-        [memorySizeLabel(gigabytes), StringUtils.formatSize(recommended)]));
-  ramBudgetHintText.textContent = parts.join(' ');
-  ramBudgetHint.hidden = false;
-  ramRecommended.hidden = recommended === null || bytes === recommended;
-  if (recommended !== null) {
-    ramRecommended.textContent = Localize.getMessage('options_general_rambudget_use', [StringUtils.formatSize(recommended)]);
-  }
-}
-
-/** The mode the RAM settings make, its explanation, and the RAM rows where the mode uses them. */
+/** The mode's radio and the RAM row: a limit to pick with "RAM only", else greyed with what it is. */
 function showStorage() {
   const mode = storageModeOf(Options);
-  storageMode.value = mode;
-  storageModeHint.textContent = Localize.getMessage('options_general_storage_' + mode + '_hint');
-  ramOptions.hidden = mode === StorageModes.DISK_ONLY;
-  // No limit keeps all of it in RAM: only where nothing goes to the disk anyway.
-  ramBudget.placeholder = mode === StorageModes.RAM_ONLY ? Localize.getMessage('options_general_nolimit') : '';
-  showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
+  for (const radio of storageRadios) radio.checked = radio.value === mode;
+  // The automatic amount, unless one was saved by hand since the migration.
+  const ramDiskBudget = mode === StorageModes.RAM_THEN_DISK ? Options.ramBudget : AutomaticRamBudget;
+  storageRamDiskDesc.textContent = Localize.getMessage('options_general_storage_ramdisk_hint', [StringUtils.formatSize(ramDiskBudget)]);
+  const ramOnly = mode === StorageModes.RAM_ONLY;
+  if (ramOnly) {
+    fillPicker(ramBudget, RamOnlySteps.map((bytes) => [String(bytes), StringUtils.formatSize(bytes)]), String(Options.ramBudget));
+  } else {
+    fillPicker(ramBudget, [['', mode === StorageModes.DISK_ONLY ? Localize.getMessage('options_storage_ram_unused') :
+      Localize.getMessage('options_storage_ram_auto', [StringUtils.formatSize(ramDiskBudget)])]], '');
+  }
+  ramBudget.disabled = !ramOnly;
+  ramBudgetRow.classList.toggle('disabled', !ramOnly);
+  ramBudgetDesc.textContent = Localize.getMessage(ramOnly ? 'options_storage_ram_ramonly_desc' : 'options_storage_ram_auto_desc');
 }
 
-/**
- * To three decimals. Loaded, in GB when that holds it exactly, else MB; after a change, in the
- * unit the user picked.
- * @param {HTMLInputElement} input
- * @param {HTMLSelectElement} unit
- * @param {number} bytes
- * @param {boolean} [keepUnit] - Whether the unit picked stays.
- */
-function showSize(input, unit, bytes, keepUnit = false) {
-  if (!keepUnit) unit.value = String(!(bytes >= 0) || (bytes >= GB && bytes % (GB / 1000) === 0) ? GB : GB / 1000);
-  input.value = bytes >= 0 ? String(Math.round(bytes / Number(unit.value) * 1000) / 1000) : '';
-  showLimitHint(input, bytes);
-}
-
-/**
- * -1 for an empty field, null for no number from 0 up (the limit stays). A comma is a decimal
- * point; read to the three decimals the field shows, so what is saved is what it says.
- * @param {HTMLInputElement} input
- * @param {number} multiplier
- * @return {?number}
- */
-function readLimit(input, multiplier) {
-  const text = input.value.trim().replace(',', '.');
-  if (text === '') return -1;
-  // Number(), not parseFloat(): "10 MB" is no number.
-  const shown = Math.round(Number(text) * 1000) / 1000;
-  const amount = Math.round(shown * multiplier);
-  return Number.isFinite(amount) && amount >= 0 ? amount : null;
-}
-
-// Written back only on a trusted change, not on a save while typing.
-maxSpeed.addEventListener('change', (e) => {
-  const value = readLimit(maxSpeed, BYTES_PER_MBIT_PER_S);
-  if (value !== null) Options.maxSpeed = value;
-  if (e.isTrusted) showSpeed(Options.maxSpeed);
-  if (value !== null) optionChanged();
+loadAhead.addEventListener('change', () => {
+  Options.downloadAll = loadAhead.value === WholeVideo;
+  // With the whole video, the default is what a video too large for the room keeps at least (migrateStorage).
+  Options.bufferAhead = Options.downloadAll ? DefaultOptions.bufferAhead : Number(loadAhead.value);
+  showDownload();
+  optionChanged();
 });
 
-const onMaxSizeChange = /** @param {Event} e */ (e) => {
-  const value = readLimit(maxSize, Number(maxSizeUnit.value));
-  if (value !== null) Options.maxVideoSize = value;
-  if (e.isTrusted) showSize(maxSize, maxSizeUnit, Options.maxVideoSize, true);
-  if (value !== null) optionChanged();
-};
-maxSize.addEventListener('change', onMaxSizeChange);
-maxSizeUnit.addEventListener('change', onMaxSizeChange);
+maxSize.addEventListener('change', () => {
+  Options.maxVideoSize = Number(maxSize.value);
+  optionChanged();
+});
 
-const onRamBudgetChange = /** @param {Event} e */ (e) => {
-  const value = readLimit(ramBudget, Number(ramBudgetUnit.value));
-  // 0 is "Disk only", and no limit is for "RAM only": the field keeps what it had.
-  const refused = value === 0 || (value !== null && value < 0 && storageModeOf(Options) !== StorageModes.RAM_ONLY);
-  if (value !== null && !refused) Options.ramBudget = value;
-  if (e.isTrusted) {
-    showSize(ramBudget, ramBudgetUnit, Options.ramBudget, true);
-    if (refused) showRamHint(Options.ramBudget, Localize.getMessage('options_general_rambudget_refused'));
-  }
-  if (value !== null && !refused) optionChanged();
-};
-ramBudget.addEventListener('change', onRamBudgetChange);
-ramBudgetUnit.addEventListener('change', onRamBudgetChange);
+bufferBehind.addEventListener('change', () => {
+  Options.bufferBehind = Number(bufferBehind.value);
+  optionChanged();
+});
 
-for (const gigabytes of ComputerMemorySizes) {
-  const option = document.createElement('option');
-  option.value = String(gigabytes);
-  option.textContent = memorySizeLabel(gigabytes);
-  ramSize.append(option);
+maxSpeed.addEventListener('change', () => {
+  Options.maxSpeed = Number(maxSpeed.value);
+  optionChanged();
+});
+
+for (const radio of storageRadios) {
+  radio.addEventListener('change', () => {
+    if (!radio.checked) return;
+    Object.assign(Options, optionsForStorageMode(radio.value, Options));
+    showStorage();
+    optionChanged();
+  });
 }
+
+ramBudget.addEventListener('change', () => {
+  if (storageModeOf(Options) !== StorageModes.RAM_ONLY) return;
+  Options.ramBudget = Number(ramBudget.value);
+  optionChanged();
+});
 
 // Fixed steps up to an hour (BufferKeep.mjs): no other value can be picked.
 for (const seconds of BufferKeepChoices) {
@@ -910,23 +794,48 @@ bufferKeep.addEventListener('change', () => {
   optionChanged();
 });
 
-ramSize.addEventListener('change', () => {
-  Object.assign(Options, optionsForComputerMemory(Number(ramSize.value)));
-  showStorage();
-  optionChanged();
-});
+/** A dot at each setting that differs from its default, and its section's reset button while one does. */
+function markChanged() {
+  /** @type {Object<string, *>} */
+  const options = Options;
+  /** @type {Object<string, *>} */
+  const defaults = DefaultOptions;
+  for (const row of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-keys]'))) {
+    // A greyed setting does nothing now: the choice above it is what changed.
+    const changed = !row.classList.contains('disabled') && (row.dataset.keys || '').split(',')
+        .some((key) => JSON.stringify(options[key]) !== JSON.stringify(defaults[key]));
+    row.classList.toggle('changed', changed);
+    const label = /** @type {?HTMLElement} */ (row.querySelector('.label'));
+    if (label) label.title = changed ? Localize.getMessage('options_changed') : '';
+  }
+  for (const button of resetButtons) {
+    button.hidden = !button.closest('section')?.querySelector('[data-keys].changed');
+  }
+}
 
-ramRecommended.addEventListener('click', () => {
-  Options.ramBudget = recommendedRamBudget(Options.computerMemory);
-  showStorage();
-  optionChanged();
-});
+for (const button of resetButtons) {
+  button.addEventListener('click', () => {
+    /** @type {Object<string, *>} */
+    const options = Options;
+    /** @type {Object<string, *>} */
+    const defaults = DefaultOptions;
+    const section = /** @type {HTMLElement} */ (button.closest('section'));
+    for (const row of /** @type {NodeListOf<HTMLElement>} */ (section.querySelectorAll('[data-keys]'))) {
+      for (const key of (row.dataset.keys || '').split(',')) options[key] = structuredClone(defaults[key]);
+    }
+    loadOptions(Options);
+    optionChanged();
+  });
+}
 
-storageMode.addEventListener('change', () => {
-  Object.assign(Options, optionsForStorageMode(storageMode.value, Options));
-  showStorage();
-  optionChanged();
-});
+// Also with no OPFS (a private window's player refuses it): its RAM is still shown.
+const storedNow = EnvUtils.isExtension() ? new StoredNow({
+  box: storedNowBox,
+  show: (disk, ram, players) => {
+    storedNowText.textContent = Localize.getMessage('options_storage_stored',
+        [StringUtils.formatSize(disk), StringUtils.formatSize(ram), String(players)]);
+  },
+}) : null;
 
 /**
  * Within its limits, or the default when it holds no number, shown back in the field.
@@ -943,37 +852,6 @@ function readNumberField(input, fallback, {min, max, whole}, scale = 1) {
   input.value = /** @type {string} */ (/** @type {unknown} */ (result));
   return result;
 }
-
-/**
- * @param {HTMLInputElement} input
- * @param {number} seconds - As saved: -1 for no limit.
- */
-function showSeconds(input, seconds) {
-  input.value = seconds >= 0 ? String(seconds) : '';
-  showLimitHint(input, seconds);
-}
-
-// An empty field is no limit; anything else that is no number keeps the value saved.
-// "Ahead" takes a number only: the whole video is predownload's. Empty is its default.
-bufferAhead.addEventListener('change', (e) => {
-  const text = bufferAhead.value.trim().replace(',', '.');
-  const seconds = text === '' ? DefaultOptions.bufferAhead : Number(text);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    Options.bufferAhead = Math.min(Math.floor(seconds), BufferAheadMaxSeconds);
-    optionChanged();
-  }
-  if (e.isTrusted) showSeconds(bufferAhead, Options.bufferAhead);
-});
-
-bufferBehind.addEventListener('change', (e) => {
-  const text = bufferBehind.value.trim().replace(',', '.');
-  const seconds = text === '' ? -1 : Number(text);
-  if (seconds === -1 || (Number.isFinite(seconds) && seconds >= 0)) {
-    Options.bufferBehind = seconds === -1 ? -1 : Math.floor(seconds);
-    optionChanged();
-  }
-  if (e.isTrusted) showSeconds(bufferBehind, Options.bufferBehind);
-});
 
 seekStepSize.addEventListener('change', () => {
   Options.seekStepSize = readNumberField(seekStepSize, DefaultOptions.seekStepSize, NUMBER_LIMITS.seekStepSize);
@@ -1034,8 +912,7 @@ function saveWhileTyping(input) {
   });
 }
 
-[maxSpeed, maxSize, ramBudget, bufferAhead, bufferBehind, seekStepSize, replaceDelay, miniSize, maxdownloaders,
-  mpvPathInput, autoplayCountdown].forEach(saveWhileTyping);
+[seekStepSize, replaceDelay, miniSize, maxdownloaders, mpvPathInput, autoplayCountdown].forEach(saveWhileTyping);
 
 /**
  * Not while typing: half a line would be an entry of its own ("https://" matches every site).
@@ -1072,6 +949,9 @@ optionsResetButton.addEventListener('click', () => {
 
 /** @type {HTMLElement} */ (document.getElementById('resetdefault')).addEventListener('click', () => {
   Options.keybinds = structuredClone(DefaultKeybinds);
+  // The seek step is this section's too.
+  Options.seekStepSize = DefaultOptions.seekStepSize;
+  seekStepSize.value = /** @type {any} */ (Options.seekStepSize);
   renderKeybinds();
   optionChanged();
 });
@@ -1154,7 +1034,9 @@ function applyImportedSettings(newOptionsObj) {
   /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
   holdToFields(newOptions);
   holdImportedNumbers(newOptions);
-  migrateStorage(newOptions);
+  // Always, whatever storageVersion the file names: it comes from outside, and only saved settings keep what was
+  // saved since the migration.
+  migrateStorage(newOptions, null);
   const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
   const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
   loadOptions(newOptions);
@@ -1194,6 +1076,7 @@ function optionChanged() {
   }
   OptionsStore.replace(Options);
   ownSave = OptionsStore.get();
+  markChanged();
 }
 
 const versionDiv = /** @type {HTMLElement} */ (document.getElementById('version'));
@@ -1210,6 +1093,8 @@ OptionsStore.subscribe((options) => {
 });
 
 if (EnvUtils.isExtension()) {
+  let intersecting = false;
+  const seenNow = () => storedNow?.setSeen(intersecting && !document.hidden);
   const o = new IntersectionObserver(([entry]) => {
     if (entry.isIntersecting && optionsLoaded) loadOptions(OptionsStore.get());
     if (entry.isIntersecting) {
@@ -1217,8 +1102,11 @@ if (EnvUtils.isExtension()) {
       offerMpvWhenReady();
       cloudSettings.pageSeen();
     }
+    intersecting = entry.isIntersecting;
+    seenNow();
   });
   o.observe(document.body);
+  document.addEventListener('visibilitychange', seenNow);
 
   // SPLICER:NO_UPDATE_CHECKER:REMOVE_START
   const updatebox = /** @type {HTMLElement} */ (document.getElementById('updatebox'));

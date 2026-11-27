@@ -7,9 +7,6 @@ import {bufferKeepSeconds} from './BufferKeep.mjs';
 // (it names the Windows account).
 const LOCAL_ONLY = ['mpvPath'];
 
-// -1 for none, or a whole amount from 0 up.
-const LIMITS = ['maxSpeed', 'maxVideoSize', 'ramBudget', 'bufferAhead', 'bufferBehind'];
-
 /**
  * @param {Object<string, *>} options - The saved options.
  * @return {Object<string, *>} A new object.
@@ -36,17 +33,13 @@ export function importedForMigration(file) {
 }
 
 /**
- * Holds an imported file's numbers that no field limits (holdToFields does those) to what the
- * fields can save.
+ * Holds an imported file's numbers that no field limits (holdToFields does those) and no picker steps
+ * (StorageMode.migrateStorage does those) to what the page can save.
  * @param {Object<string, *>} options - Merged over DefaultOptions; changed in place.
  */
 export function holdImportedNumbers(options) {
   /** @type {Object<string, *>} */
   const defaults = DefaultOptions;
-  for (const name of LIMITS) {
-    const value = options[name];
-    options[name] = value === -1 || (Number.isFinite(value) && value >= 0) ? (value === -1 ? -1 : Math.floor(value)) : defaults[name];
-  }
   options.videoZoom = Number.isFinite(options.videoZoom) ? Math.min(Math.max(options.videoZoom, 0.1), 2) : defaults.videoZoom;
   if (!Number.isFinite(options.videoDelay)) options.videoDelay = defaults.videoDelay;
   // One of the settings' steps: none other is kept (up to an hour).

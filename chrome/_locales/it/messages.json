@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "Grazie per aver installato FastStream! Facci sapere se hai problemi o suggerimenti."
     },
-    "welcome_page_ram_header": {
-        "message": "Memoria di questo computer"
-    },
-    "welcome_page_ram_question": {
-        "message": "Quanta memoria (RAM) ha questo computer? FastStream tiene una parte di ogni video nella RAM e il resto su disco; la tua risposta stabilisce quanta RAM può usare."
-    },
-    "welcome_page_ram_set": {
-        "message": "Fatto: FastStream tiene fino a $1 di video nella RAM, il resto su disco. Puoi cambiarlo nelle opzioni, in «Opzioni Generali»."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Impostato: FastStream tiene fino a $1 di video nella RAM; ciò che non ci sta viene scaricato di nuovo se necessario. Puoi cambiarlo nelle opzioni, alla voce «Opzioni Generali»."
-    },
     "welcome_page_keybinds_header": {
         "message": "Comandi Tastiera Predefiniti"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "Download in pausa: premi $1 per riprendere"
     },
-    "player_wait_speed_zero": {
-        "message": "Il video attende dati perché «Velocità di download obiettivo del predownloader» è 0: non viene scaricato nulla in anticipo. Lascia vuota questa impostazione per non avere limiti."
-    },
     "player_wait_speed_low": {
-        "message": "Il video attende dati perché «Velocità di download obiettivo del predownloader» ($1 Mbit/s) è inferiore a quanto serve a questo video (circa $2 Mbit/s): viene scaricato poco in anticipo. Aumenta questa impostazione o lasciala vuota per non avere limiti."
-    },
-    "player_wait_ahead_zero": {
-        "message": "Il video attende dati perché «Secondi da mantenere nel buffer davanti alla riproduzione» è 0: non viene tenuto nulla in anticipo. Aumenta questa impostazione."
+        "message": "Il video attende dati perché «Limite di velocità di download» ($1 Mbit/s) è inferiore a quanto serve a questo video (circa $2 Mbit/s): viene scaricato poco in anticipo. Scegli lì un limite più alto, oppure «Nessun limite»."
     },
     "player_wait_ram_zero": {
         "message": "Il video attende dati: qui non viene tenuto nulla su disco, e «Solo disco» tiene solo 64 MB nella RAM. Scegli un'altra modalità in «Dove conservare il video scaricato» per tenere più video in anticipo."
@@ -696,13 +678,13 @@
         "message": "(sconosciuto)"
     },
     "player_buffer_size_warning": {
-        "message": "Questo video (circa $1) è più grande dell'impostazione «Dimensione massima del video prescaricato» ($2), quindi non viene prescaricato per intero. Viene comunque riprodotto normalmente e continua a caricarsi fino a $3 in anticipo. Per prescaricarlo per intero, aumenta questa impostazione o lascia vuoto il campo."
+        "message": "Questo video (circa $1) è più grande di «Dimensione massima del video caricato per intero» ($2), quindi non viene caricato per intero. Viene comunque riprodotto normalmente e continua a caricarsi fino a $3 in anticipo. Per caricarlo per intero, scegli lì una dimensione maggiore, oppure «Nessun limite»."
     },
     "player_buffer_private_warning": {
-        "message": "In una finestra anonima FastStream tiene il video solo nella RAM, e questo video (circa $1) è più grande della parte di «RAM per il video nel buffer» che FastStream può usare per esso ($2), quindi non viene prescaricato per intero. Viene comunque riprodotto normalmente e continua a caricarsi fino a $3 in anticipo."
+        "message": "In una finestra anonima FastStream tiene il video solo nella RAM, e questo video (circa $1) è più grande della parte di «RAM per il video» che FastStream può usare per esso ($2), quindi non viene caricato per intero. Viene comunque riprodotto normalmente e continua a caricarsi fino a $3 in anticipo."
     },
     "player_buffer_ram_warning": {
-        "message": "«Dove conservare il video scaricato» è impostato su «Solo RAM», quindi FastStream tiene il video solo nella RAM, e questo video (circa $1) è più grande della parte di «RAM per il video nel buffer» che FastStream può usare per esso ($2). Non viene prescaricato per intero, ma viene comunque riprodotto normalmente e continua a caricarsi fino a $3 in anticipo. Per prescaricarlo per intero, scegli «RAM, poi disco» in quell'impostazione."
+        "message": "«Dove conservare il video scaricato» è impostato su «Solo RAM», quindi FastStream tiene il video solo nella RAM, e questo video (circa $1) è più grande della parte di «RAM per il video» che FastStream può usare per esso ($2). Non viene caricato per intero, ma viene comunque riprodotto normalmente e continua a caricarsi fino a $3 in anticipo. Per caricarlo per intero, scegli lì «RAM, poi disco»."
     },
     "player_buffer_disk_warning": {
         "message": "Questo video (circa $1) è più grande dello spazio su disco che Firefox concede a FastStream ($2 liberi), quindi non viene prescaricato per intero. Viene comunque riprodotto normalmente e continua a caricarsi fino a $3 in anticipo. Liberare spazio su disco aiuta."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Ingrandisci l'immagine o regola il ritardo video rispetto al suono. Lo zoom video non funziona in picture-in-picture."
     },
+    "options_playback_header": {
+        "message": "Riproduzione"
+    },
+    "options_storage_header": {
+        "message": "Scaricamento e archiviazione"
+    },
+    "options_subtitles_header": {
+        "message": "Sottotitoli"
+    },
+    "options_mouse_header": {
+        "message": "Mouse e finestra"
+    },
+    "options_opening_header": {
+        "message": "Apertura dei video"
+    },
+    "options_section_reset": {
+        "message": "Ripristina questa sezione"
+    },
+    "options_changed": {
+        "message": "Modificato rispetto al valore predefinito"
+    },
     "options_video_zoom": {
         "message": "Zoom Video"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Ritardo Video"
     },
-    "options_general_header": {
-        "message": "Opzioni Generali"
-    },
-    "options_general_predownload": {
-        "message": "Prescarica l'intero video in background, se possibile"
-    },
     "options_general_targetspeed": {
-        "message": "Velocità di download obiettivo del predownloader"
+        "message": "Limite di velocità di download"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Il caricamento in anticipo si ferma finché va più veloce di questo limite; ciò che serve alla riproduzione in quel momento viene sempre caricato."
     },
     "options_general_maxsize": {
-        "message": "Dimensione massima del video prescaricato (usata solo quando lo scaricamento anticipato è attivo)"
+        "message": "Dimensione massima del video caricato per intero"
+    },
+    "options_general_maxsize_desc": {
+        "message": "Un video più grande carica quanto ci sta. Solo con «Video intero»."
     },
     "options_general_rambudget": {
-        "message": "RAM per il video nel buffer (tutte le schede)"
+        "message": "RAM per il video (tutte le schede)"
+    },
+    "options_storage_ram_auto": {
+        "message": "Automatico: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Non usata"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Selezionabile solo con «Solo RAM»."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB o più solo su computer con 16 GB di memoria o più."
     },
     "options_general_nolimit": {
         "message": "Nessun limite"
     },
-    "options_general_targetspeed_zero": {
-        "message": "0: non viene scaricato nulla in anticipo, quindi i video potrebbero interrompersi per caricare. Lascia vuoto il campo per rimuovere il limite."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: non viene precaricato nulla; solo i secondi impostati qui sotto vengono mantenuti davanti alla riproduzione. Lascia vuoto il campo per rimuovere il limite."
-    },
-    "options_general_maxsize_none": {
-        "message": "Nessun limite: quanto entra nella RAM e nello spazio che Firefox dà a FastStream su disco."
-    },
-    "options_general_rambudget_none": {
-        "message": "Nessun limite: tutto il video scaricato resta nella RAM. Un video lungo può occupare più memoria di quella che il computer ha e bloccarlo."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "Consigliato per $1: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Scegli sopra la memoria di questo computer per vedere la quantità consigliata."
-    },
-    "options_general_rambudget_use": {
-        "message": "Usa $1"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Non accettato: perché non resti video nella RAM, scegli sopra «Solo disco»; «Nessun limite» vale solo per «Solo RAM»."
-    },
-    "options_general_rambudget_high": {
-        "message": "Tanto video nella RAM può bloccare un computer: il sistema e Firefox hanno bisogno della maggior parte della sua memoria. Una quantità minore si riproduce allo stesso modo, perché il resto del video va su disco o viene scaricato di nuovo se necessario."
-    },
-    "options_general_ramsize": {
-        "message": "Memoria di questo computer (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Scegliendo una dimensione, la quantità consigliata viene inserita nel campo RAM sotto."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Non indicata"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 o più"
-    },
     "options_list_ignored_lines": {
         "message": "Ignorata, voce non valida: riga $1"
     },
-    "options_general_bufferahead": {
-        "message": "Secondi da mantenere nel buffer davanti alla riproduzione quando il video non è prescaricato per intero (da 0 a 3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: non viene mantenuto nulla nel buffer davanti alla riproduzione, quindi il video si ferma spesso per caricare."
-    },
     "options_general_bufferbehind": {
-        "message": "Secondi da mantenere nel buffer dietro la posizione di riproduzione prima di scartarli"
+        "message": "Mantieni il video già riprodotto"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "Il salto indietro al suo interno è istantaneo; le parti più vecchie vengono ricaricate quando servono."
     },
     "options_general_bufferkeep": {
-        "message": "Per quanto tempo il video scaricato viene conservato dopo un ricaricamento o la chiusura della scheda (al massimo fino alla chiusura di Firefox)"
+        "message": "Mantieni il video dopo un ricaricamento o la chiusura di una scheda"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "Così un ricaricamento non lo scarica di nuovo. Al massimo fino alla chiusura di Firefox."
+    },
+    "options_storage_stored": {
+        "message": "Conservati ora: $1 su disco · $2 in RAM · video aperti: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "I dati di un video vengono eliminati quando si chiude la sua scheda, o allo scadere del tempo indicato sopra. Ciò che Firefox lascia alla chiusura viene eliminato un minuto dopo il prossimo avvio."
     },
     "options_general_bufferkeep_off": {
         "message": "Disattivato"
@@ -924,7 +906,7 @@
         "message": "Dove conservare il video scaricato"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM, poi disco"
+        "message": "RAM, poi disco (consigliato)"
     },
     "options_general_storage_ramonly": {
         "message": "Solo RAM"
@@ -933,49 +915,85 @@
         "message": "Solo disco"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Consigliato. Il video resta nella RAM fino alla quantità indicata sotto; ciò che non ci sta va su disco e viene riprodotto allo stesso modo. Le finestre private non scrivono mai su disco: lì il video resta solo nella RAM."
+        "message": "Fino a $1 il video resta nella RAM per tutte le schede insieme; il resto va su disco e viene riprodotto allo stesso modo. Le finestre private non scrivono mai su disco: lì il video resta solo nella RAM."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Non viene scritto nulla su disco. Ciò che non entra nella RAM indicata sotto viene scartato e scaricato di nuovo se necessario."
+        "message": "Non viene scritto nulla su disco; ciò che non entra nel limite indicato sotto viene scaricato di nuovo quando serve."
     },
     "options_general_storage_disk_hint": {
         "message": "Per computer con poca memoria: il video va su disco man mano che arriva e solo la parte in riproduzione in questo momento resta nella RAM. Le finestre private, che non scrivono nulla su disco, tengono 64 MB nella RAM."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: il video già riprodotto viene eliminato subito; tornando indietro viene ricaricato. Lascia il campo vuoto per non avere limiti."
+    "options_storage_whole": {
+        "message": "Video intero"
     },
-    "options_general_bufferbehind_none": {
-        "message": "Nessun limite: tutto quello che è già stato riprodotto viene mantenuto, in RAM o su disco in base a quanto scelto sotto."
+    "options_storage_all": {
+        "message": "Tutti"
+    },
+    "options_storage_ahead": {
+        "message": "Carica in anticipo"
+    },
+    "options_storage_ahead_desc": {
+        "message": "Tutto il video, così ogni punto della riproduzione parte subito; oppure un tempo fisso in anticipo rispetto alla posizione di riproduzione."
     },
     "options_general_blockpopups": {
-        "message": "Blocca i popup/popunder aperti subito dopo un clic sul lettore"
+        "message": "Blocca i popup subito dopo un clic sul lettore"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Molti siti aprono una scheda pubblicitaria a un clic: FastStream chiude una scheda che la pagina apre subito dopo un clic sul lettore."
     },
     "options_general_previewenabled": {
-        "message": "Mostra anteprima quando passi il mouse sulla timeline"
+        "message": "Mostra le anteprime sulla timeline"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Mostra l'immagine sotto il mouse; un secondo, piccolo player carica il video per mostrarla."
     },
     "options_general_decodingawarequality": {
-        "message": "Preferisci la versione che la scheda grafica può decodificare (decodifica hardware), poi un frame rate più alto e codec più efficienti come AV1. Non abbassa mai la risoluzione scelta"
+        "message": "Preferisci una versione che la scheda grafica può decodificare"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Tra le versioni della risoluzione scelta: prima una che la scheda grafica di questo computer può decodificare, poi un frame rate più alto e codec più efficienti come AV1. Non abbassa mai la risoluzione."
     },
     "options_general_storeprogress": {
-        "message": "Riproduci i video dall'ultima posizione visualizzata"
+        "message": "Riprendi da dove hai interrotto"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Ricorda per ogni video dove hai interrotto la riproduzione, su questo computer."
     },
     "options_general_autosub": {
-        "message": "Abilita automaticamente la migliore traccia dei sottotitoli trovata\n(Cambia la lingua predefinita nelle impostazioni dei sottotitoli)"
+        "message": "Abilita la migliore traccia dei sottotitoli"
+    },
+    "options_general_autosub_desc": {
+        "message": "Nella lingua scelta nelle impostazioni dei sottotitoli del player."
     },
     "options_general_cyclesubs": {
-        "message": "Il tasto dei sottotitoli scorre le tracce una alla volta, poi li disattiva\n(Non selezionato: attiva e disattiva i sottotitoli)"
+        "message": "Il tasto dei sottotitoli scorre le tracce"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "Una traccia dopo l'altra, poi li disattiva. Non selezionato: il tasto attiva e disattiva i sottotitoli."
     },
     "options_general_stream": {
-        "message": "Usa il lettore video per riprodurre flussi HLS/DASH quando apri l'URL di una playlist (.m3u8/.mpd)"
+        "message": "Apri i collegamenti ai flussi (.m3u8, .mpd) in FastStream"
+    },
+    "options_general_stream_desc": {
+        "message": "Un collegamento diretto a un flusso viene riprodotto nel player invece di scaricare il file della playlist."
     },
     "options_general_mp4": {
-        "message": "Usa il lettore video per riprodurre video MP4 quando apri l'URL di un video (.mp4)"
+        "message": "Apri i collegamenti .mp4 in FastStream"
+    },
+    "options_general_mp4_desc": {
+        "message": "Non selezionato: Firefox li riproduce da sé."
     },
     "options_general_seekstep": {
-        "message": "Salto dei tasti freccia (secondi)"
+        "message": "Passo di salto, in secondi"
+    },
+    "options_general_seekstep_desc": {
+        "message": "Di quanto salta il video a ogni pressione di un tasto di salto (per impostazione predefinita le frecce sinistra e destra)."
     },
     "options_general_replace_delay": {
-        "message": "Ritardo prima della sostituzione automatica del player (ms)"
+        "message": "Attesa prima che il player prenda il controllo, in ms"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "Quando FastStream è attivo per una pagina, quanto tempo attende un video trovato prima che il player sostituisca quello del sito."
     },
     "options_general_maxdownloaders": {
         "message": "Numero di download simultanei (da 1 a 6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Qualità video predefinita"
+    },
+    "options_general_quality_desc": {
+        "message": "Auto: la più alta che il video offre. Un'altezza: quella; se manca, la più vicina superiore; altrimenti la più alta inferiore."
     },
     "options_general_clickaction": {
         "message": "Azione clic singolo"
@@ -1014,16 +1035,19 @@
         "message": "Nascondi il lettore video"
     },
     "options_general_vischangeaction": {
-        "message": "Quando cambia la visibilità del lettore video"
+        "message": "Quando il player non è più visibile"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Il player esce dalla vista se scorri la pagina, o la sua scheda va in background; non a schermo intero né in picture-in-picture."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Non fare nulla"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Riproduci / Metti in pausa"
+        "message": "Metti in pausa, riprendi al ritorno"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Attiva/disattiva il miniplayer"
+        "message": "Mostra un miniplayer"
     },
     "options_general_minipos": {
         "message": "Posizione miniplayer"
@@ -1045,6 +1069,9 @@
     },
     "options_general_color_theme": {
         "message": "Tema colore del lettore video"
+    },
+    "options_general_color_theme_desc": {
+        "message": "I colori dei controlli e dei menu del player."
     },
     "options_general_color_theme_default": {
         "message": "Predefinito Scuro"
@@ -1349,6 +1376,9 @@
     "player_outofstorage": {
         "message": "Impossibile aprire lo spazio di archiviazione di Firefox per i video scaricati, quindi FastStream tiene invece i video in memoria (RAM), e un video lungo potrebbe non entrare. Riavviare Firefox o liberare spazio su disco di solito risolve questo problema."
     },
+    "player_disk_full": {
+        "message": "Il disco è pieno, quindi FastStream tiene il resto di questo video solo in memoria (RAM). Il video continua a essere riprodotto e viene caricato in anticipo finché c'è spazio nella RAM. Quando ci sarà di nuovo spazio libero su disco, il prossimo video verrà di nuovo salvato sul disco."
+    },
     "player_vpn_allow": {
         "message": "Riproduci tramite Firefox VPN"
     },
@@ -1383,7 +1413,10 @@
         "message": "la sua scheda è chiusa o non è in modalità MPV"
     },
     "options_general_autoplay_countdown": {
-        "message": "Conto alla rovescia prima del prossimo episodio, in secondi (0: nessuno)"
+        "message": "Conto alla rovescia prima del prossimo episodio, in secondi"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "Nel player e in MPV. 0: il prossimo episodio parte subito."
     },
     "options_mpv_autoplaynext": {
         "message": "Riproduci automaticamente il prossimo episodio in mpv (anche il pulsante autoplay in mpv lo attiva/disattiva)"
@@ -1430,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "la pagina non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo"
     },
-    "options_problems_title": {
-        "message": "Siti in cui l'autoplay si è bloccato"
-    },
-    "options_problems_note": {
-        "message": "FastStream annota qui dove l'autoplay non è riuscito a proseguire, così puoi segnalare il sito. La segnalazione apre un issue su GitHub da controllare: gli issue sono pubblici, quindi rimuovi ciò che non vuoi condividere."
-    },
-    "options_problems_none": {
-        "message": "Nessuno per ora."
-    },
-    "options_problems_no_next": {
-        "message": "prossimo episodio non trovato (l'ultimo, o una pagina che FastStream non sa ancora leggere)"
-    },
-    "options_problems_no_stream": {
-        "message": "la pagina del prossimo episodio non ha prodotto alcun video"
-    },
-    "options_problems_mode_player": {
-        "message": "nel player"
-    },
-    "options_problems_mode_mpv": {
-        "message": "in modalità MPV"
-    },
-    "options_problems_seen": {
-        "message": "$1 volte, l'ultima il $2"
-    },
-    "options_problems_report": {
-        "message": "Segnala su GitHub"
-    },
-    "options_problems_clear": {
-        "message": "Svuota la lista"
-    },
     "player_nextvideo_cancel": {
         "message": "Interrompi l'autoplay per questa scheda"
     },
@@ -1476,7 +1479,10 @@
         "message": "Qualità abbassata a $1: questo computer ha perso il $2% dei fotogrammi a $3. Scegli $3 nel menu qualità per mantenerla."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Abbassare la qualità video quando questo computer non riesce a mostrare tutti i fotogrammi in tempo (il player ti avviserà ogni volta)"
+        "message": "Abbassa la qualità quando i fotogrammi vanno persi"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "Quando questo computer non riesce a mostrare in tempo un fotogramma su cinque, viene riprodotta la versione subito più bassa. Il player ti avvisa ogni volta."
     },
     "menu_play_in_faststream": {
         "message": "Riproduci in FastStream"
@@ -1518,7 +1524,7 @@
         "message": "Conservare i video lunghi su disco"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Senza di esso, Firefox consente a un componente aggiuntivo di salvare al massimo 10 GB, quindi un video lungo non potrebbe essere prescaricato per intero nemmeno senza limiti nelle impostazioni di FastStream. FastStream continua a non conservare più di quanto indica l'impostazione «Dimensione massima del video prescaricato» ed elimina il video alla chiusura del lettore. Un video conservato dopo un ricaricamento o la chiusura della scheda viene eliminato allo scadere del tempo impostato. Firefox non chiede nulla per questo permesso."
+        "message": "Senza di esso, Firefox consente a un componente aggiuntivo di salvare al massimo 10 GB, quindi un video lungo non potrebbe essere caricato per intero nemmeno senza limiti nelle impostazioni di FastStream. FastStream continua a non conservare più di quanto indica l'impostazione «Dimensione massima del video caricato per intero» ed elimina il video alla chiusura del lettore. Un video conservato dopo un ricaricamento o la chiusura della scheda viene eliminato allo scadere del tempo impostato. Firefox non chiede nulla per questo permesso."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Eliminare in tempo i video conservati"

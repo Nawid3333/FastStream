@@ -246,7 +246,7 @@ export async function loadBackground({
     // The browser window (windows.get/update; one window, id 1): its state, and each update.
     windowState: 'maximized',
     windowUpdates: [],
-    // storage.local beside the options (ProblemLog's siteProblems).
+    // storage.local beside the options.
     local: {},
     badges: new Map(),
     titles: new Map(),

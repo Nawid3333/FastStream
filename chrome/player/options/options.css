@@ -546,7 +546,8 @@ button:focus-visible {
 .option.grid2 {
   display: grid;
   gap: var(--space-2);
-  grid-template-columns: 1fr 150px;
+  /* Wide enough for the longest choices in German ("Abspielen/Pausieren umschalten" was cut off at 220px). */
+  grid-template-columns: 1fr 240px;
   align-items: center;
   grid-column: 1 / -1;
 }
@@ -560,29 +561,100 @@ button:focus-visible {
   text-align: center;
 }
 
-/* A number with its unit: a picker (MB, GB) or a fixed one (Mbit/s). Typed by hand, "10 Mb"
-   or "10 Mo" left users unsure what the field took (#378). */
-/* What 0 or no limit does, under a limit's field (options.mjs showLimitHint). */
-.option.grid2 .limit-hint {
-  grid-column: 1 / -1;
-  font-size: 0.9em;
-  opacity: 0.8;
-  margin-top: calc(-1 * var(--space-1));
+.option.grid2 select {
+  grid-column: 2;
+  width: 100%;
 }
 
-.option.grid2 .limit-hint[hidden] {
+/* A setting: its control, and under it one line on what it does. */
+.row {
+  margin-top: var(--space-3);
+}
+
+.desc {
+  font-size: 0.9em;
+  color: var(--color-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+/* In line with the label's text (.option .label's margin). */
+.row > .desc,
+.row > .label,
+.row > .radios {
+  margin-left: var(--space-2);
+}
+
+/* Under a checkbox's text, not under the box. */
+.row > .check-desc {
+  margin-left: 36px;
+}
+
+/* A setting that belongs to the one above it. */
+.row.sub {
+  margin-left: 28px;
+}
+
+/* Greyed, not hidden: the choice above decides it, and its line says which. */
+.row.disabled {
+  opacity: 0.5;
+}
+
+/* Changed from its default (options.mjs markChanged). */
+.row.changed > .option .label::before,
+.row.changed > .label::before,
+.video-option.changed > .label::before {
+  content: "\25CF";
+  color: var(--color-warning);
+  font-size: 9px;
+  margin-right: 6px;
+  vertical-align: 2px;
+}
+
+.section-reset {
+  margin-left: auto;
+  min-height: 0;
+  padding: 0 var(--control-pad-x);
+  font-size: 0.9em;
+}
+
+.section-reset[hidden] {
   display: none;
 }
 
-/* "Use 1 GB": puts the recommended RAM amount in (options.mjs showRamHint). */
-.option.grid2 .limit-hint .ram-recommended {
-  margin-left: var(--space-2);
-  min-height: 0;
-  padding: 0 var(--control-pad-x);
+.radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }
 
-.option.grid2 .limit-hint .ram-recommended[hidden],
-#ramoptions[hidden] {
+.radio {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  column-gap: var(--space-2);
+  align-items: center;
+}
+
+.radio input {
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.radio .desc {
+  grid-column: 2;
+  margin-top: 0;
+}
+
+/* What is stored now (StoredNow.mjs). */
+.stored-now {
+  margin-top: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.stored-now[hidden] {
   display: none;
 }
 
@@ -700,26 +772,6 @@ input[type="checkbox"]:focus-visible {
   grid-template-columns: auto auto 1fr;
   gap: var(--space-2) var(--space-3);
   align-items: center;
-}
-
-/* Sites where autoplay got stuck (ProblemLog.mjs), each with its report button. */
-.problems-note {
-    opacity: 0.8;
-    font-size: 0.9em;
-    margin: 4px 0 8px;
-}
-
-.problems-list {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 8px;
-}
-
-.problems-list li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+  /* In line with the rows below (.option .label's margin). */
+  margin-left: var(--space-2);
 }

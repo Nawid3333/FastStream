@@ -207,11 +207,10 @@ describe('the options page once the saved options are read', () => {
 describe('the options page\'s controls', () => {
   it('names each menu on the <select> itself', () => {
     const selects = doc.querySelectorAll('select');
-    // Eight until the colour-blindness filter's was removed; two more since the
-    // MB/GB pickers beside the maximum size and the RAM budget, one for the aspect
-    // ratio, one for the computer's memory, one for how long a gone player's buffer is kept, and one for where
-    // downloaded video is kept; one fewer since the triple click is gone.
-    expect(selects.length).toBe(12);
+    // The seven options.mjs builds (quality, two clicks, visibility, theme, aspect ratio, miniplayer
+    // position), and the six pickers of downloading and storage (ahead, largest size, behind, speed, RAM,
+    // keep after a reload).
+    expect(selects.length).toBe(13);
     for (const select of selects) {
       // A menu options.mjs builds takes its name from its wrapper; a unit picker written in
       // the page carries its own, which i18n.mjs applies.
@@ -290,6 +289,14 @@ describe('importing a settings file', () => {
     expect(keybinds.PlayPause).toBe(DefaultKeybinds.PlayPause);
     expect(keybinds.Mute).toBe(DefaultKeybinds.Mute);
     expect(keybinds.Fullscreen).toBe('KeyG');
+  });
+
+  it('puts the download and storage values on their steps, whatever version the file names', async () => {
+    // Imports run the migration always: a hand-edited file could bring back "0 ahead", which stopped the video.
+    await importFile({storageVersion: 1, sizesVersion: 1, downloadAll: false, bufferAhead: 0, maxSpeed: 0, maxVideoSize: 3e9,
+      ramBudget: 20e9, bufferToDisk: true, bufferBehind: 7});
+    expect(optionWrites().at(-1).value).toMatchObject({bufferAhead: 30, maxSpeed: 250000, maxVideoSize: 2e9,
+      ramBudget: 1e9, bufferToDisk: true, bufferBehind: 20});
   });
 
   it('holds the numbers to what their fields take, and a menu to its choices', async () => {

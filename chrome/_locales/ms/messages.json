@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "Terima kasih kerana memasang FastStream! Sila maklumkan kepada kami jika anda mempunyai sebarang isu atau cadangan."
     },
-    "welcome_page_ram_header": {
-        "message": "Memori komputer ini"
-    },
-    "welcome_page_ram_question": {
-        "message": "Berapa banyak memori (RAM) yang ada pada komputer ini? FastStream menyimpan sebahagian setiap video dalam RAM dan selebihnya pada cakera; jawapan anda menentukan berapa banyak RAM yang boleh digunakannya."
-    },
-    "welcome_page_ram_set": {
-        "message": "Sudah ditetapkan: FastStream menyimpan sehingga $1 video dalam RAM, selebihnya pada cakera. Anda boleh mengubahnya dalam pilihan, di bawah \"Pilihan Umum\"."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Ditetapkan: FastStream mengekalkan sehingga $1 video dalam RAM; yang tidak muat dimuat turun semula jika perlu. Anda boleh mengubahnya dalam pilihan, di bawah \"Pilihan Umum\"."
-    },
     "welcome_page_keybinds_header": {
         "message": "Kawalan Papan Kekunci Lalai"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "Muat turun dijeda: tekan $1 untuk menyambung semula"
     },
-    "player_wait_speed_zero": {
-        "message": "Video menunggu data kerana \"Sasaran kelajuan muat turun bagi pemuat turun awal\" ialah 0: tiada apa-apa dimuat turun lebih awal. Biarkan tetapan itu kosong untuk tiada had."
-    },
     "player_wait_speed_low": {
-        "message": "Video menunggu data kerana \"Sasaran kelajuan muat turun bagi pemuat turun awal\" ($1 Mbit/s) lebih rendah daripada keperluan video ini (kira-kira $2 Mbit/s): hanya sedikit dimuat turun lebih awal. Naikkan tetapan itu, atau biarkan kosong untuk tiada had."
-    },
-    "player_wait_ahead_zero": {
-        "message": "Video menunggu data kerana \"Detik yang dikekalkan dalam penampan di hadapan main balik\" ialah 0: tiada apa-apa disimpan lebih awal. Naikkan tetapan itu."
+        "message": "Video menunggu data kerana \"Had kelajuan muat turun\" ($1 Mbit/s) lebih rendah daripada keperluan video ini (kira-kira $2 Mbit/s): hanya sedikit dimuat turun lebih awal. Pilih had yang lebih tinggi di sana, atau \"Tanpa had\"."
     },
     "player_wait_ram_zero": {
         "message": "Video menunggu data: tiada apa-apa disimpan pada cakera di sini, dan \"Cakera sahaja\" mengekalkan hanya 64 MB dalam RAM. Pilih mod lain di bawah \"Tempat menyimpan video yang dimuat turun\" untuk menyimpan lebih banyak di hadapan."
@@ -696,13 +678,13 @@
         "message": "(tidak diketahui)"
     },
     "player_buffer_size_warning": {
-        "message": "Video ini (kira-kira $1) lebih besar daripada tetapan \"Saiz maksimum video yang dimuat turun awal\" ($2), jadi ia tidak dimuat turun awal sepenuhnya. Ia tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Untuk memuat turun awal sepenuhnya, naikkan tetapan itu atau biarkan medannya kosong."
+        "message": "Video ini (kira-kira $1) lebih besar daripada \"Video terbesar yang dimuatkan sepenuhnya\" ($2), jadi ia tidak dimuatkan sepenuhnya. Ia tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Untuk memuatkan sepenuhnya, pilih saiz yang lebih besar di sana, atau \"Tanpa had\"."
     },
     "player_buffer_private_warning": {
-        "message": "Dalam tetingkap peribadi, FastStream menyimpan video dalam RAM sahaja, dan video ini (kira-kira $1) lebih besar daripada bahagian \"RAM untuk video yang ditimbal\" yang boleh digunakan FastStream untuknya ($2), jadi ia tidak dimuat turun awal sepenuhnya. Ia tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan."
+        "message": "Dalam tetingkap peribadi, FastStream menyimpan video dalam RAM sahaja, dan video ini (kira-kira $1) lebih besar daripada bahagian \"RAM untuk video\" yang boleh digunakan FastStream untuknya ($2), jadi ia tidak dimuatkan sepenuhnya. Ia tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan."
     },
     "player_buffer_ram_warning": {
-        "message": "\"Tempat menyimpan video yang dimuat turun\" ialah \"RAM sahaja\", jadi FastStream menyimpan video dalam RAM sahaja, dan video ini (kira-kira $1) lebih besar daripada bahagian \"RAM untuk video yang ditimbal\" yang boleh digunakan FastStream untuknya ($2). Ia tidak dimuat turun awal sepenuhnya, tetapi tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Untuk memuat turun awal sepenuhnya, pilih \"RAM, kemudian cakera\" di sana."
+        "message": "\"Tempat menyimpan video yang dimuat turun\" ialah \"RAM sahaja\", jadi FastStream menyimpan video dalam RAM sahaja, dan video ini (kira-kira $1) lebih besar daripada bahagian \"RAM untuk video\" yang boleh digunakan FastStream untuknya ($2). Ia tidak dimuatkan sepenuhnya, tetapi tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Untuk memuatkan sepenuhnya, pilih \"RAM, kemudian cakera\" di sana."
     },
     "player_buffer_disk_warning": {
         "message": "Video ini (kira-kira $1) lebih besar daripada ruang cakera yang diberikan Firefox kepada FastStream ($2 kosong), jadi ia tidak dimuat turun awal sepenuhnya. Ia tetap dimainkan seperti biasa dan terus dimuatkan sehingga $3 ke hadapan. Mengosongkan ruang cakera membantu."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Zum gambar atau sesuaikan tangguhan video berbanding dengan bunyi. Zum video tidak berfungsi dalam gambar-dalam-gambar."
     },
+    "options_playback_header": {
+        "message": "Main balik"
+    },
+    "options_storage_header": {
+        "message": "Muat turun dan storan"
+    },
+    "options_subtitles_header": {
+        "message": "Sarikata"
+    },
+    "options_mouse_header": {
+        "message": "Tetikus dan tetingkap"
+    },
+    "options_opening_header": {
+        "message": "Membuka video"
+    },
+    "options_section_reset": {
+        "message": "Set semula bahagian ini"
+    },
+    "options_changed": {
+        "message": "Berbeza daripada lalai"
+    },
     "options_video_zoom": {
         "message": "Zum Video"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Tangguhan Video"
     },
-    "options_general_header": {
-        "message": "Pilihan Umum"
-    },
-    "options_general_predownload": {
-        "message": "Muat turun awal seluruh video di latar belakang jika boleh"
-    },
     "options_general_targetspeed": {
-        "message": "Sasaran kelajuan muat turun bagi pemuat turun awal"
+        "message": "Had kelajuan muat turun"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Memuat lebih awal dijeda selagi lebih pantas daripada had ini; apa yang diperlukan oleh main balik pada saat itu sentiasa dimuatkan."
     },
     "options_general_maxsize": {
-        "message": "Saiz maksimum video yang dimuat turun awal (digunakan hanya apabila muat turun awal dihidupkan)"
+        "message": "Video terbesar yang dimuatkan sepenuhnya"
+    },
+    "options_general_maxsize_desc": {
+        "message": "Video yang lebih besar dimuatkan sebanyak yang muat. Hanya dengan \"Video penuh\"."
     },
     "options_general_rambudget": {
-        "message": "RAM untuk video yang ditimbal (semua tab)"
+        "message": "RAM untuk video (semua tab)"
+    },
+    "options_storage_ram_auto": {
+        "message": "Automatik: $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Tidak digunakan"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Ditetapkan hanya dengan \"RAM sahaja\"."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB atau lebih hanya pada komputer dengan memori 16 GB atau lebih."
     },
     "options_general_nolimit": {
         "message": "Tanpa had"
     },
-    "options_general_targetspeed_zero": {
-        "message": "0: tiada apa-apa yang dimuat turun di hadapan main balik, jadi video mungkin berhenti untuk memuatkan. Biarkan medan ini kosong jika anda mahu tanpa had."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0: tiada apa-apa yang dimuat turun awal; hanya bilangan detik yang ditetapkan di bawah dikekalkan di hadapan. Biarkan medan ini kosong jika anda mahu tanpa had."
-    },
-    "options_general_maxsize_none": {
-        "message": "Tanpa had: sebanyak mana yang muat dalam RAM dan dalam ruang yang diberikan Firefox kepada FastStream pada cakera."
-    },
-    "options_general_rambudget_none": {
-        "message": "Tiada had: semua video yang dimuat turun kekal dalam RAM. Video yang panjang boleh menggunakan lebih banyak memori daripada yang ada pada komputer dan menyebabkannya tergantung."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "Disyorkan untuk $1: $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Pilih memori komputer ini di atas untuk melihat jumlah yang disyorkan."
-    },
-    "options_general_rambudget_use": {
-        "message": "Guna $1"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Tidak diterima: untuk tiada video dalam RAM, pilih \"Cakera sahaja\" di atas; \"Tanpa had\" hanya untuk \"RAM sahaja\"."
-    },
-    "options_general_rambudget_high": {
-        "message": "Video sebanyak ini dalam RAM boleh menyebabkan komputer tergantung: sistem dan Firefox memerlukan sebahagian besar memorinya. Jumlah yang lebih kecil dimainkan sama seperti biasa, kerana baki video disimpan pada cakera atau dimuat turun semula jika perlu."
-    },
-    "options_general_ramsize": {
-        "message": "Memori komputer ini (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Memilih satu saiz akan memasukkan jumlah yang disyorkan ke dalam medan RAM di bawah."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Tidak ditetapkan"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 atau lebih"
-    },
     "options_list_ignored_lines": {
         "message": "Diabaikan, bukan entri yang sah: baris $1"
     },
-    "options_general_bufferahead": {
-        "message": "Detik yang dikekalkan dalam penampan di hadapan main balik apabila keseluruhan video tidak dimuat turun awal (0 hingga 3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0: tiada apa-apa yang dikekalkan dalam penampan di hadapan, jadi video kerap berhenti untuk memuatkan."
-    },
     "options_general_bufferbehind": {
-        "message": "Detik yang dikekalkan dalam penampan di belakang main balik sebelum dipangkas"
+        "message": "Kekalkan video yang sudah dimainkan"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "Melompat ke belakang di dalamnya berlaku serta-merta; bahagian yang lebih lama dimuatkan semula apabila diperlukan."
     },
     "options_general_bufferkeep": {
-        "message": "Berapa lama video yang dimuat turun disimpan selepas muat semula atau tab ditutup (paling lama sehingga Firefox ditutup)"
+        "message": "Kekalkan video selepas muat semula atau tab ditutup"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "Supaya muat semula tidak memuat turunnya semula. Paling lama sehingga Firefox ditutup."
+    },
+    "options_storage_stored": {
+        "message": "Disimpan sekarang: $1 pada cakera · $2 dalam RAM · video terbuka: $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "Data video dipadam apabila tabnya ditutup, atau selepas masa di atas. Apa yang Firefox tinggalkan semasa ditutup dipadam satu minit selepas dimulakan semula."
     },
     "options_general_bufferkeep_off": {
         "message": "Mati"
@@ -924,7 +906,7 @@
         "message": "Tempat menyimpan video yang dimuat turun"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM, kemudian cakera"
+        "message": "RAM, kemudian cakera (disyorkan)"
     },
     "options_general_storage_ramonly": {
         "message": "RAM sahaja"
@@ -933,49 +915,85 @@
         "message": "Cakera sahaja"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Disyorkan. Video kekal dalam RAM sehingga jumlah yang ditetapkan di bawah; yang tidak muat disimpan pada cakera dan dimainkan sama seperti biasa. Tetingkap peribadi tidak pernah menulis pada cakera: di sana hanya RAM digunakan."
+        "message": "Sehingga $1 kekal dalam RAM untuk semua tab bersama; yang selebihnya disimpan pada cakera dan dimainkan sama seperti biasa. Tetingkap peribadi tidak pernah menulis pada cakera: di sana RAM sahaja."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Tiada apa-apa ditulis pada cakera. Yang tidak muat dalam RAM yang ditetapkan di bawah dibuang dan dimuat turun semula jika perlu."
+        "message": "Tiada apa-apa ditulis pada cakera. Yang tidak muat dalam had di bawah dimuat turun semula jika perlu."
     },
     "options_general_storage_disk_hint": {
         "message": "Untuk komputer yang memorinya sedikit: video disimpan pada cakera sebaik sahaja tiba, dan hanya bahagian yang sedang dimainkan kekal dalam RAM. Tetingkap peribadi, yang tidak menulis apa-apa pada cakera, mengekalkan 64 MB dalam RAM."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0: video yang telah dimainkan terus dibuang; mencari ke belakang memuatkan semula. Biarkan medan ini kosong jika anda mahu tanpa had."
+    "options_storage_whole": {
+        "message": "Video penuh"
     },
-    "options_general_bufferbehind_none": {
-        "message": "Tanpa had: semua yang telah dimainkan dikekalkan, dalam RAM atau pada cakera mengikut pilihan di bawah."
+    "options_storage_all": {
+        "message": "Semua"
+    },
+    "options_storage_ahead": {
+        "message": "Muat lebih awal"
+    },
+    "options_storage_ahead_desc": {
+        "message": "Seluruh video, supaya setiap bahagian dimainkan serta-merta; atau jangka masa tetap di hadapan kedudukan main balik."
     },
     "options_general_blockpopups": {
-        "message": "Sekat popup/popunder yang dibuka sejurus selepas mengklik pemain"
+        "message": "Sekat popup sejurus selepas mengklik pemain"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Banyak laman membuka tab iklan apabila diklik: FastStream menutup tab yang dibuka oleh halaman sejurus selepas mengklik pemain."
     },
     "options_general_previewenabled": {
-        "message": "Tunjukkan pratonton apabila menuding di atas garis masa"
+        "message": "Gambar pratonton pada garis masa"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Menunjukkan gambar di bawah tetikus; pemain kedua yang kecil memuatkan video untuknya."
     },
     "options_general_decodingawarequality": {
-        "message": "Utamakan versi yang boleh dinyahkod oleh kad grafik (penyahkodan perkakasan), kemudian kadar bingkai lebih tinggi dan codec lebih cekap seperti AV1. Tidak sekali-kali menurunkan resolusi yang dipilih"
+        "message": "Utamakan versi yang boleh dinyahkod oleh kad grafik"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Antara versi resolusi yang dipilih: dahulu yang boleh dinyahkod oleh kad grafik komputer ini, kemudian kadar bingkai lebih tinggi dan codec lebih cekap seperti AV1. Tidak sekali-kali menurunkan resolusi."
     },
     "options_general_storeprogress": {
-        "message": "Main video dari kedudukan tontonan terakhir"
+        "message": "Sambung dari tempat anda berhenti"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Mengingat tempat anda berhenti dalam setiap video, pada komputer ini."
     },
     "options_general_autosub": {
-        "message": "Aktifkan trek sarikata terbaik yang ditemui secara automatik\n(Tukar bahasa lalai dalam tetapan sarikata)"
+        "message": "Aktifkan trek sarikata terbaik"
+    },
+    "options_general_autosub_desc": {
+        "message": "Dalam bahasa yang ditetapkan dalam tetapan sarikata pemain."
     },
     "options_general_cyclesubs": {
-        "message": "Kekunci sarikata beralih ke setiap trek satu demi satu, kemudian mematikan sarikata\n(Tidak ditanda: menghidupkan dan mematikan sarikata)"
+        "message": "Kekunci sarikata beralih antara trek"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "Satu trek demi satu, kemudian mati. Tidak ditanda: kekunci menghidupkan dan mematikan sarikata."
     },
     "options_general_stream": {
-        "message": "Gunakan pemain untuk memainkan strim HLS/DASH apabila membuka URL senarai main (.m3u8/.mpd)"
+        "message": "Buka pautan strim (.m3u8, .mpd) dalam FastStream"
+    },
+    "options_general_stream_desc": {
+        "message": "Pautan terus ke strim dimainkan dalam pemain, bukannya memuat turun fail senarai main."
     },
     "options_general_mp4": {
-        "message": "Gunakan pemain untuk memainkan video MP4 apabila membuka URL video (.mp4)"
+        "message": "Buka pautan .mp4 dalam FastStream"
+    },
+    "options_general_mp4_desc": {
+        "message": "Tidak ditanda: Firefox memainkannya sendiri."
     },
     "options_general_seekstep": {
-        "message": "Langkah lompat kekunci anak panah (saat)"
+        "message": "Langkah lompat (saat)"
+    },
+    "options_general_seekstep_desc": {
+        "message": "Berapa jauh satu tekanan kekunci lompat melompat (secara lalai, anak panah kiri dan kanan)."
     },
     "options_general_replace_delay": {
-        "message": "Tangguhan sebelum pemain diganti secara automatik (ms)"
+        "message": "Tangguhan sebelum pemain mengambil alih (ms)"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "Apabila FastStream dihidupkan untuk satu halaman, berapa lama video yang ditemui menunggu sebelum pemain menggantikan pemain laman itu."
     },
     "options_general_maxdownloaders": {
         "message": "Muat turun serentak (1 hingga 6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Kualiti video lalai"
+    },
+    "options_general_quality_desc": {
+        "message": "Auto: paling tinggi yang ditawarkan video. Ketinggian tertentu: ketinggian itu, jika tidak, yang terdekat di atasnya, jika tidak juga, yang paling tinggi di bawahnya."
     },
     "options_general_clickaction": {
         "message": "Tindakan klik tunggal"
@@ -1014,16 +1035,19 @@
         "message": "Sembunyikan pemain"
     },
     "options_general_vischangeaction": {
-        "message": "Apabila keterlihatan pemain berubah"
+        "message": "Apabila pemain tidak kelihatan"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Ditatal keluar dari pandangan, atau tabnya di latar belakang; bukan dalam skrin penuh atau gambar dalam gambar."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Jangan buat apa-apa"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Togol main/jeda"
+        "message": "Jeda, main semula apabila kembali"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Togol minipemain"
+        "message": "Tunjukkan minipemain"
     },
     "options_general_minipos": {
         "message": "Kedudukan minipemain"
@@ -1045,6 +1069,9 @@
     },
     "options_general_color_theme": {
         "message": "Tema warna pemain"
+    },
+    "options_general_color_theme_desc": {
+        "message": "Warna kawalan dan menu pemain."
     },
     "options_general_color_theme_default": {
         "message": "Gelap Lalai"
@@ -1349,6 +1376,9 @@
     "player_outofstorage": {
         "message": "Storan Firefox untuk video yang dimuat turun tidak dapat dibuka, jadi FastStream menyimpan video dalam memori (RAM) sebagai gantinya, dan video yang panjang mungkin tidak muat. Memulakan semula Firefox, atau membebaskan ruang cakera, biasanya menyelesaikan masalah ini."
     },
+    "player_disk_full": {
+        "message": "Cakera penuh, jadi FastStream menyimpan baki video ini dalam memori (RAM) sahaja. Video masih dimainkan, dan dimuat lebih awal sebanyak yang muat dalam RAM. Begitu ada ruang kosong dalam cakera semula, video seterusnya kembali disimpan dalam cakera."
+    },
     "player_vpn_allow": {
         "message": "Main melalui Firefox VPN"
     },
@@ -1383,7 +1413,10 @@
         "message": "tab ditutup atau tidak dalam Mod MPV"
     },
     "options_general_autoplay_countdown": {
-        "message": "Kiraan detik sebelum episod seterusnya, dalam detik (0: tiada)"
+        "message": "Kiraan detik sebelum episod seterusnya, dalam detik"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "Dalam pemain dan dalam MPV. 0: episod seterusnya bermula serta-merta."
     },
     "options_mpv_autoplaynext": {
         "message": "Mainkan episod seterusnya secara automatik dalam mpv (butang main automatik dalam mpv juga menukarnya)"
@@ -1430,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "halaman tidak memberikan strim dalam masa satu minit; buka dalam pelayar untuk melihat sebabnya"
     },
-    "options_problems_title": {
-        "message": "Laman web di mana autoplay tersekat"
-    },
-    "options_problems_note": {
-        "message": "FastStream mencatat di sini di mana autoplay tidak dapat diteruskan, supaya anda boleh melaporkan laman tersebut. Laporan akan membuka isu GitHub untuk disemak: isu adalah awam, jadi padamkan apa yang anda tidak mahu kongsi."
-    },
-    "options_problems_none": {
-        "message": "Setakat ini tiada."
-    },
-    "options_problems_no_next": {
-        "message": "episod seterusnya tidak ditemui (episod terakhir, atau halaman yang belum boleh dibaca oleh FastStream)"
-    },
-    "options_problems_no_stream": {
-        "message": "halaman episod seterusnya tidak memaparkan video"
-    },
-    "options_problems_mode_player": {
-        "message": "dalam pemain"
-    },
-    "options_problems_mode_mpv": {
-        "message": "dalam mod MPV"
-    },
-    "options_problems_seen": {
-        "message": "$1 kali, terakhir pada $2"
-    },
-    "options_problems_report": {
-        "message": "Lapor di GitHub"
-    },
-    "options_problems_clear": {
-        "message": "Kosongkan senarai"
-    },
     "player_nextvideo_cancel": {
         "message": "Hentikan autoplay untuk tab ini"
     },
@@ -1476,7 +1479,10 @@
         "message": "Kualiti diturunkan kepada $1: komputer ini menggugurkan $2% bingkai pada $3. Pilih $3 dalam menu kualiti untuk mengekalkannya."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Turunkan kualiti video apabila komputer ini tidak dapat memaparkan semua bingkai tepat pada masanya (pemain akan memberitahu anda setiap kali)"
+        "message": "Turunkan kualiti apabila bingkai tercicir"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "Apabila komputer ini tidak dapat memaparkan seperlima daripada bingkai tepat pada masanya, versi yang lebih rendah seterusnya akan dimainkan. Pemain akan memberitahu anda setiap kali."
     },
     "menu_play_in_faststream": {
         "message": "Mainkan dalam FastStream"
@@ -1518,7 +1524,7 @@
         "message": "Simpan video panjang pada cakera"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Tanpanya, Firefox membenarkan alat tambah menyimpan paling banyak 10 GB, jadi video panjang tidak dapat dimuat turun awal sepenuhnya walaupun tanpa had dalam tetapan FastStream. FastStream tetap tidak menyimpan lebih daripada tetapan \"Saiz maksimum video yang dimuat turun awal\" dan memadam video apabila pemain ditutup. Video yang disimpan selepas muat semula atau tab ditutup dipadam sebaik sahaja masa yang ditetapkan tamat. Firefox tidak bertanya tentang kebenaran ini."
+        "message": "Tanpanya, Firefox membenarkan alat tambah menyimpan paling banyak 10 GB, jadi video panjang tidak dapat dimuatkan sepenuhnya walaupun tanpa had dalam tetapan FastStream. FastStream tetap tidak menyimpan lebih daripada tetapan \"Video terbesar yang dimuatkan sepenuhnya\" dan memadam video apabila pemain ditutup. Video yang disimpan selepas muat semula atau tab ditutup dipadam sebaik sahaja masa yang ditetapkan tamat. Firefox tidak bertanya tentang kebenaran ini."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Memadam video yang disimpan tepat pada masanya"

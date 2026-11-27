@@ -41,18 +41,6 @@
     "welcome_page_usage_end": {
         "message": "Merci d'avoir installé FastStream ! N'hésitez pas à nous signaler tout problème ou suggestion."
     },
-    "welcome_page_ram_header": {
-        "message": "Mémoire de cet ordinateur"
-    },
-    "welcome_page_ram_question": {
-        "message": "Combien de mémoire (RAM) cet ordinateur a-t-il ? FastStream garde une partie de chaque vidéo en mémoire vive et le reste sur le disque ; votre réponse fixe la quantité de mémoire vive qu'il peut utiliser."
-    },
-    "welcome_page_ram_set": {
-        "message": "C'est réglé : FastStream garde jusqu'à $1 de vidéo en mémoire vive, le reste sur le disque. Vous pouvez le modifier dans les options, sous « Options générales »."
-    },
-    "welcome_page_ram_set_ramonly": {
-        "message": "Défini : FastStream garde jusqu'à $1 de vidéo en mémoire vive ; ce qui n'y tient pas est téléchargé à nouveau si besoin. Vous pouvez le modifier dans les options, sous « Options générales »."
-    },
     "welcome_page_keybinds_header": {
         "message": "Raccourcis clavier par défaut"
     },
@@ -584,14 +572,8 @@
     "player_download_paused_key": {
         "message": "Téléchargement en pause : appuyez sur $1 pour reprendre"
     },
-    "player_wait_speed_zero": {
-        "message": "La vidéo attend des données, car « Vitesse de téléchargement cible du préchargeur » est à 0 : rien n'est téléchargé à l'avance. Laissez ce réglage vide pour ne fixer aucune limite."
-    },
     "player_wait_speed_low": {
-        "message": "La vidéo attend des données, car « Vitesse de téléchargement cible du préchargeur » ($1 Mbit/s) est inférieure à ce dont cette vidéo a besoin (environ $2 Mbit/s) : peu de données sont téléchargées à l'avance. Augmentez ce réglage ou laissez-le vide pour ne fixer aucune limite."
-    },
-    "player_wait_ahead_zero": {
-        "message": "La vidéo attend des données, car « Secondes à conserver en mémoire tampon devant la lecture » est à 0 : rien n'est conservé à l'avance. Augmentez ce réglage."
+        "message": "La vidéo attend des données, car « Limite de vitesse de téléchargement » ($1 Mbit/s) est inférieure à ce dont cette vidéo a besoin (environ $2 Mbit/s) : peu de données sont téléchargées à l'avance. Choisissez une limite plus élevée dans ce réglage, ou « Pas de limite »."
     },
     "player_wait_ram_zero": {
         "message": "La vidéo attend des données : rien n'est conservé sur le disque ici, et « Disque uniquement » ne garde que 64 MB en mémoire vive. Choisissez un autre mode sous « Où conserver la vidéo téléchargée » pour en conserver davantage à l'avance."
@@ -696,13 +678,13 @@
         "message": "(inconnu)"
     },
     "player_buffer_size_warning": {
-        "message": "Cette vidéo (environ $1) dépasse le réglage « Taille maximale de la vidéo préchargée » ($2) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la précharger en entier, augmentez ce réglage ou laissez le champ vide."
+        "message": "Cette vidéo (environ $1) dépasse le réglage « Taille maximale de la vidéo chargée en entier » ($2) : elle n'est donc pas chargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la charger en entier, choisissez une taille plus grande dans ce réglage, ou « Pas de limite »."
     },
     "player_buffer_private_warning": {
-        "message": "Dans une fenêtre de navigation privée, FastStream garde la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo en mémoire tampon » que FastStream peut lui consacrer ($2) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance."
+        "message": "Dans une fenêtre de navigation privée, FastStream garde la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo » que FastStream peut lui consacrer ($2) : elle n'est donc pas chargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance."
     },
     "player_buffer_ram_warning": {
-        "message": "« Où conserver la vidéo téléchargée » est réglé sur « RAM uniquement » : FastStream garde donc la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo en mémoire tampon » que FastStream peut lui consacrer ($2). Elle n'est pas préchargée en entier, mais se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la précharger en entier, choisissez « RAM puis disque » dans ce réglage."
+        "message": "« Où conserver la vidéo téléchargée » est réglé sur « RAM uniquement » : FastStream garde donc la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo » que FastStream peut lui consacrer ($2). Elle n'est pas chargée en entier, mais se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la charger en entier, choisissez « RAM puis disque » dans ce réglage."
     },
     "player_buffer_disk_warning": {
         "message": "Cette vidéo (environ $1) dépasse l'espace disque que Firefox accorde à FastStream ($2 libres) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Libérer de l'espace disque aide."
@@ -830,6 +812,27 @@
     "options_video_body": {
         "message": "Zoomez sur l'image ou ajustez le décalage vidéo par rapport au son. Le zoom vidéo ne fonctionne pas en mode image dans l'image."
     },
+    "options_playback_header": {
+        "message": "Lecture"
+    },
+    "options_storage_header": {
+        "message": "Téléchargement et stockage"
+    },
+    "options_subtitles_header": {
+        "message": "Sous-titres"
+    },
+    "options_mouse_header": {
+        "message": "Souris et fenêtre"
+    },
+    "options_opening_header": {
+        "message": "Ouverture des vidéos"
+    },
+    "options_section_reset": {
+        "message": "Réinitialiser cette section"
+    },
+    "options_changed": {
+        "message": "Modifié par rapport à la valeur par défaut"
+    },
     "options_video_zoom": {
         "message": "Zoom vidéo"
     },
@@ -845,77 +848,56 @@
     "options_video_delay": {
         "message": "Décalage vidéo"
     },
-    "options_general_header": {
-        "message": "Options générales"
-    },
-    "options_general_predownload": {
-        "message": "Précharger la vidéo entière en arrière-plan si possible"
-    },
     "options_general_targetspeed": {
-        "message": "Vitesse de téléchargement cible du préchargeur"
+        "message": "Limite de vitesse de téléchargement"
+    },
+    "options_general_targetspeed_desc": {
+        "message": "Le chargement à l'avance fait une pause tant qu'il dépasserait cette limite ; ce dont la lecture a besoin tout de suite est toujours chargé."
     },
     "options_general_maxsize": {
-        "message": "Taille maximale de la vidéo préchargée (utilisée uniquement lorsque le pré-téléchargement est activé)"
+        "message": "Taille maximale de la vidéo chargée en entier"
+    },
+    "options_general_maxsize_desc": {
+        "message": "Une vidéo plus grande se charge autant qu'il y a de place. Uniquement avec « Vidéo entière »."
     },
     "options_general_rambudget": {
-        "message": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)"
+        "message": "Mémoire vive pour la vidéo (tous les onglets)"
+    },
+    "options_storage_ram_auto": {
+        "message": "Automatique : $1"
+    },
+    "options_storage_ram_unused": {
+        "message": "Non utilisé"
+    },
+    "options_storage_ram_auto_desc": {
+        "message": "Ne s'applique qu'avec « RAM uniquement »."
+    },
+    "options_storage_ram_ramonly_desc": {
+        "message": "2 GB ou plus seulement sur les ordinateurs dotés de 16 GB de mémoire ou plus."
     },
     "options_general_nolimit": {
         "message": "Pas de limite"
     },
-    "options_general_targetspeed_zero": {
-        "message": "0 : rien n'est téléchargé à l'avance, les vidéos peuvent donc s'arrêter pour charger. Laissez le champ vide pour supprimer la limite."
-    },
-    "options_general_maxsize_zero": {
-        "message": "0 : rien n'est préchargé ; seules les secondes définies ci-dessous sont conservées en mémoire tampon. Laissez le champ vide pour supprimer la limite."
-    },
-    "options_general_maxsize_none": {
-        "message": "Aucune limite : autant que ce qui tient dans la mémoire vive et dans l'espace que Firefox accorde à FastStream sur le disque."
-    },
-    "options_general_rambudget_none": {
-        "message": "Aucune limite : toute la vidéo téléchargée reste en mémoire vive. Une longue vidéo peut prendre plus de mémoire que l'ordinateur n'en a et le figer."
-    },
-    "options_general_rambudget_recommended": {
-        "message": "Recommandé pour $1 : $2."
-    },
-    "options_general_rambudget_unknown": {
-        "message": "Choisissez ci-dessus la mémoire de cet ordinateur pour voir la quantité recommandée."
-    },
-    "options_general_rambudget_use": {
-        "message": "Utiliser $1"
-    },
-    "options_general_rambudget_refused": {
-        "message": "Non appliqué : pour ne garder aucune vidéo en mémoire vive, choisissez « Disque uniquement » ci-dessus ; « Pas de limite » ne vaut que pour « RAM uniquement »."
-    },
-    "options_general_rambudget_high": {
-        "message": "Autant de vidéo en mémoire vive peut figer un ordinateur : le système et Firefox ont besoin de la plus grande partie de sa mémoire. Une quantité moindre se lit de la même façon, car le reste de la vidéo va sur le disque ou est téléchargé à nouveau si besoin."
-    },
-    "options_general_ramsize": {
-        "message": "Mémoire de cet ordinateur (RAM)"
-    },
-    "options_general_ramsize_note": {
-        "message": "Choisir une taille place la quantité recommandée dans le champ de mémoire vive ci-dessous."
-    },
-    "options_general_ramsize_unknown": {
-        "message": "Non indiquée"
-    },
-    "options_general_ramsize_more": {
-        "message": "$1 ou plus"
-    },
     "options_list_ignored_lines": {
         "message": "Ignorée, entrée non valide : ligne $1"
     },
-    "options_general_bufferahead": {
-        "message": "Secondes à conserver en mémoire tampon devant la lecture lorsque la vidéo entière n'est pas préchargée (de 0 à 3600)"
-    },
-    "options_general_bufferahead_zero": {
-        "message": "0 : rien n'est conservé en mémoire tampon devant la lecture, la vidéo s'arrête donc souvent pour charger."
-    },
     "options_general_bufferbehind": {
-        "message": "Secondes à conserver en mémoire tampon derrière la lecture avant leur suppression"
+        "message": "Conserver la vidéo déjà visionnée"
+    },
+    "options_general_bufferbehind_desc": {
+        "message": "Revenir en arrière dans la partie conservée est instantané ; les parties plus anciennes se rechargent au besoin."
     },
     "options_general_bufferkeep": {
-        "message": "Durée de conservation de la vidéo téléchargée après un rechargement ou la fermeture de l'onglet (au plus jusqu'à la fermeture de Firefox)"
+        "message": "Conserver la vidéo après un rechargement ou la fermeture d'un onglet"
+    },
+    "options_general_bufferkeep_desc": {
+        "message": "Pour qu'un rechargement ne la télécharge pas à nouveau. Au plus tard jusqu'à la fermeture de Firefox."
+    },
+    "options_storage_stored": {
+        "message": "Stocké actuellement : $1 sur le disque · $2 en mémoire vive · vidéos ouvertes : $3"
+    },
+    "options_storage_stored_desc": {
+        "message": "Les données d'une vidéo sont supprimées quand son onglet se ferme, ou au bout du temps indiqué ci-dessus. Ce que Firefox laisse en partant est effacé une minute après son prochain démarrage."
     },
     "options_general_bufferkeep_off": {
         "message": "Désactivé"
@@ -924,7 +906,7 @@
         "message": "Où conserver la vidéo téléchargée"
     },
     "options_general_storage_ramdisk": {
-        "message": "RAM puis disque"
+        "message": "RAM puis disque (recommandé)"
     },
     "options_general_storage_ramonly": {
         "message": "RAM uniquement"
@@ -933,49 +915,85 @@
         "message": "Disque uniquement"
     },
     "options_general_storage_ramdisk_hint": {
-        "message": "Recommandé. La vidéo reste en mémoire vive jusqu'à la quantité ci-dessous ; ce qui n'y tient pas va sur le disque et se lit de la même façon. Les fenêtres privées n'écrivent jamais sur le disque : là, la vidéo reste uniquement en mémoire vive."
+        "message": "Pour tous les onglets ensemble, la vidéo reste en mémoire vive jusqu'à $1 ; le reste va sur le disque et se lit de la même façon. Les fenêtres privées n'écrivent jamais sur le disque : là, c'est RAM uniquement."
     },
     "options_general_storage_ramonly_hint": {
-        "message": "Rien n'est écrit sur le disque. Ce qui ne tient pas dans la mémoire vive indiquée ci-dessous est supprimé et téléchargé à nouveau si besoin."
+        "message": "Rien n'est écrit sur le disque ; ce qui ne tient pas dans la limite ci-dessous est téléchargé à nouveau si besoin."
     },
     "options_general_storage_disk_hint": {
         "message": "Pour les ordinateurs avec peu de mémoire : la vidéo va sur le disque dès qu'elle arrive et seule la partie en cours de lecture reste en mémoire vive. Les fenêtres privées, qui n'écrivent rien sur le disque, conservent 64 MB en mémoire vive."
     },
-    "options_general_bufferbehind_zero": {
-        "message": "0 : la vidéo déjà lue est immédiatement supprimée ; revenir en arrière la recharge. Laissez le champ vide pour ne définir aucune limite."
+    "options_storage_whole": {
+        "message": "Vidéo entière"
     },
-    "options_general_bufferbehind_none": {
-        "message": "Aucune limite : tout ce qui a déjà été lu est conservé dans la mémoire vive ou sur le disque, selon ce qui est choisi ci-dessous."
+    "options_storage_all": {
+        "message": "Tout"
+    },
+    "options_storage_ahead": {
+        "message": "Charger à l'avance"
+    },
+    "options_storage_ahead_desc": {
+        "message": "Toute la vidéo, pour que chaque endroit se lise tout de suite ; ou un temps fixe d'avance sur la lecture."
     },
     "options_general_blockpopups": {
-        "message": "Bloquer les popups/popunders ouverts juste après avoir cliqué sur le lecteur"
+        "message": "Bloquer les popups juste après un clic sur le lecteur"
+    },
+    "options_general_blockpopups_desc": {
+        "message": "Beaucoup de sites ouvrent un onglet publicitaire au clic : FastStream ferme l'onglet que la page ouvre juste après un clic sur le lecteur."
     },
     "options_general_previewenabled": {
-        "message": "Afficher l'aperçu au survol de la barre temporelle"
+        "message": "Aperçus sur la barre temporelle"
+    },
+    "options_general_previewenabled_desc": {
+        "message": "Affiche l'image sous la souris ; un petit deuxième lecteur charge la vidéo pour cela."
     },
     "options_general_decodingawarequality": {
-        "message": "Préférer la version que votre carte graphique peut décoder (décodage matériel), puis une fréquence d'images plus élevée et des codecs plus efficaces comme AV1. Ne baisse jamais la résolution choisie"
+        "message": "Préférer une version que votre carte graphique peut décoder"
+    },
+    "options_general_decodingawarequality_desc": {
+        "message": "Parmi les versions de la résolution choisie : d'abord une version que votre carte graphique peut décoder, puis une fréquence d'images plus élevée et des codecs plus efficaces comme AV1. Ne baisse jamais la résolution."
     },
     "options_general_storeprogress": {
-        "message": "Lire les vidéos depuis la dernière position regardée"
+        "message": "Reprendre la lecture là où vous l'avez laissée"
+    },
+    "options_general_storeprogress_desc": {
+        "message": "Mémorise où vous en étiez dans chaque vidéo, sur cet ordinateur."
     },
     "options_general_autosub": {
-        "message": "Activer automatiquement la meilleure piste de sous-titres trouvée\n(Changer la langue par défaut dans les paramètres des sous-titres)"
+        "message": "Activer la meilleure piste de sous-titres"
+    },
+    "options_general_autosub_desc": {
+        "message": "Dans la langue définie dans les paramètres des sous-titres du lecteur."
     },
     "options_general_cyclesubs": {
-        "message": "La touche des sous-titres parcourt les pistes une par une, puis les désactive\n(Décoché : elle active et désactive les sous-titres)"
+        "message": "La touche des sous-titres parcourt les pistes"
+    },
+    "options_general_cyclesubs_desc": {
+        "message": "Une piste après l'autre, puis désactivées. Décoché : la touche active et désactive les sous-titres."
     },
     "options_general_stream": {
-        "message": "Utiliser le lecteur pour lire les flux HLS/DASH lors de l'ouverture d'URL de playlist (.m3u8/.mpd)"
+        "message": "Ouvrir les liens de flux (.m3u8, .mpd) dans FastStream"
+    },
+    "options_general_stream_desc": {
+        "message": "Un lien direct vers un flux se lit dans le lecteur au lieu de télécharger le fichier de playlist."
     },
     "options_general_mp4": {
-        "message": "Utiliser le lecteur pour lire les vidéos MP4 lors de l'ouverture d'URL (.mp4)"
+        "message": "Ouvrir les liens .mp4 dans FastStream"
+    },
+    "options_general_mp4_desc": {
+        "message": "Décoché : Firefox les lit lui-même."
     },
     "options_general_seekstep": {
-        "message": "Pas de saut des touches fléchées (secondes)"
+        "message": "Pas de saut, en secondes"
+    },
+    "options_general_seekstep_desc": {
+        "message": "De combien un appui sur une touche de saut avance ou recule (par défaut, les flèches gauche et droite)."
     },
     "options_general_replace_delay": {
-        "message": "Délai avant remplacement automatique du lecteur (ms)"
+        "message": "Délai avant que le lecteur prenne le relais, en ms"
+    },
+    "options_general_replace_delay_desc": {
+        "message": "Quand FastStream est activé pour une page, combien de temps une vidéo trouvée attend avant que le lecteur ne remplace celle du site."
     },
     "options_general_maxdownloaders": {
         "message": "Nombre de téléchargements simultanés (1 à 6)"
@@ -985,6 +1003,9 @@
     },
     "options_general_quality": {
         "message": "Qualité vidéo par défaut"
+    },
+    "options_general_quality_desc": {
+        "message": "Auto : la plus haute offerte par la vidéo. Une hauteur : celle choisie, sinon la plus proche au-dessus, sinon la plus haute en dessous."
     },
     "options_general_clickaction": {
         "message": "Action au clic simple"
@@ -1014,16 +1035,19 @@
         "message": "Masquer le lecteur"
     },
     "options_general_vischangeaction": {
-        "message": "Quand la visibilité du lecteur change"
+        "message": "Quand le lecteur n'est plus visible"
+    },
+    "options_general_vischangeaction_desc": {
+        "message": "Défilé hors de l'écran, ou onglet en arrière-plan ; pas en plein écran ni en image dans l'image."
     },
     "options_general_vischangeaction_nothing": {
         "message": "Ne rien faire"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Basculer lecture/pause"
+        "message": "Pause, puis reprise au retour"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Basculer mini-lecteur"
+        "message": "Afficher un mini-lecteur"
     },
     "options_general_minipos": {
         "message": "Position du mini-lecteur"
@@ -1045,6 +1069,9 @@
     },
     "options_general_color_theme": {
         "message": "Thème de couleur du lecteur"
+    },
+    "options_general_color_theme_desc": {
+        "message": "Les couleurs des commandes et des menus du lecteur."
     },
     "options_general_color_theme_default": {
         "message": "Sombre (par défaut)"
@@ -1349,6 +1376,9 @@
     "player_outofstorage": {
         "message": "Firefox n'a pas pu ouvrir son espace de stockage pour les vidéos téléchargées, FastStream conserve donc les vidéos en mémoire (RAM) à la place, et une longue vidéo pourrait ne pas rentrer. Le redémarrage de Firefox, ou la libération d'espace disque, résout généralement ce problème."
     },
+    "player_disk_full": {
+        "message": "Le disque est plein, donc FastStream conserve le reste de cette vidéo uniquement en mémoire (RAM). La lecture continue, et la vidéo se charge par avance dans la limite de ce que peut contenir la RAM. Dès qu'il y a de nouveau de l'espace disque libre, la prochaine vidéo est à nouveau conservée sur le disque."
+    },
     "player_vpn_allow": {
         "message": "Lire via Firefox VPN"
     },
@@ -1383,7 +1413,10 @@
         "message": "son onglet est fermé ou n'est pas en mode MPV"
     },
     "options_general_autoplay_countdown": {
-        "message": "Compte à rebours avant le prochain épisode, en secondes (0 : aucun)"
+        "message": "Compte à rebours avant le prochain épisode, en secondes"
+    },
+    "options_general_autoplay_countdown_desc": {
+        "message": "Dans le lecteur et dans MPV. 0 : le prochain épisode démarre immédiatement."
     },
     "options_mpv_autoplaynext": {
         "message": "Lecture automatique du prochain épisode dans mpv (le bouton de lecture auto dans mpv le change aussi)"
@@ -1430,36 +1463,6 @@
     "mpv_episode_nostream": {
         "message": "la page n'a fourni aucun flux en une minute ; ouvrez-la dans le navigateur pour savoir pourquoi"
     },
-    "options_problems_title": {
-        "message": "Sites où l'autoplay a bloqué"
-    },
-    "options_problems_note": {
-        "message": "FastStream note ici les endroits où l'autoplay n'a pas pu continuer pour que vous puissiez signaler le site. Un signalement ouvre un ticket GitHub à vérifier : les tickets sont publics, supprimez donc ce que vous ne souhaitez pas partager."
-    },
-    "options_problems_none": {
-        "message": "Aucun pour l'instant."
-    },
-    "options_problems_no_next": {
-        "message": "aucun prochain épisode trouvé (le dernier, ou une page que FastStream ne peut pas encore lire)"
-    },
-    "options_problems_no_stream": {
-        "message": "la page du prochain épisode n'a produit aucune vidéo"
-    },
-    "options_problems_mode_player": {
-        "message": "dans le lecteur"
-    },
-    "options_problems_mode_mpv": {
-        "message": "en mode MPV"
-    },
-    "options_problems_seen": {
-        "message": "$1 fois, dernière fois le $2"
-    },
-    "options_problems_report": {
-        "message": "Signaler sur GitHub"
-    },
-    "options_problems_clear": {
-        "message": "Effacer la liste"
-    },
     "player_nextvideo_cancel": {
         "message": "Arrêter l'autoplay pour cet onglet"
     },
@@ -1476,7 +1479,10 @@
         "message": "Qualité réduite à $1 : cet ordinateur a perdu $2% des images à $3. Choisissez $3 dans le menu de qualité pour la maintenir."
     },
     "options_general_lowerondroppedframes": {
-        "message": "Baisser la qualité vidéo lorsque cet ordinateur ne peut pas afficher toutes les images à temps (le lecteur vous en informe à chaque fois)"
+        "message": "Baisser la qualité quand des images sont perdues"
+    },
+    "options_general_lowerondroppedframes_desc": {
+        "message": "Quand cet ordinateur ne peut pas afficher à temps un cinquième des images, c'est la version immédiatement inférieure qui est lue. Le lecteur le signale à chaque fois."
     },
     "menu_play_in_faststream": {
         "message": "Lire dans FastStream"
@@ -1518,7 +1524,7 @@
         "message": "Conserver les longues vidéos sur le disque"
     },
     "perms_page_breakdown_perm13d": {
-        "message": "Sans elle, Firefox permet à un module de stocker au plus 10 Go : une longue vidéo ne pourrait donc pas être préchargée en entier, même sans limite dans les réglages de FastStream. FastStream ne conserve toujours pas plus que le réglage « Taille maximale de la vidéo préchargée » et supprime la vidéo à la fermeture du lecteur. Une vidéo conservée après un rechargement ou la fermeture de l'onglet est supprimée dès que la durée choisie est écoulée. Firefox ne demande rien pour cette permission."
+        "message": "Sans elle, Firefox permet à un module de stocker au plus 10 GB : une longue vidéo ne pourrait donc pas être chargée en entier, même sans limite dans les réglages de FastStream. FastStream ne conserve toujours pas plus que le réglage « Taille maximale de la vidéo chargée en entier » et supprime la vidéo à la fermeture du lecteur. Une vidéo conservée après un rechargement ou la fermeture d'un onglet est supprimée dès que la durée choisie pour elle est écoulée. Firefox ne demande rien pour cette permission."
     },
     "perms_page_breakdown_perm14h": {
         "message": "Supprimer à temps les vidéos conservées"
