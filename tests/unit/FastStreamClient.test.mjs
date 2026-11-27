@@ -52,6 +52,7 @@ vi.mock('../../chrome/player/utils/AlertPolyfill.mjs', () => ({AlertPolyfill: {e
 const {FastStreamClient} = await import('../../chrome/player/FastStreamClient.mjs');
 const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mjs');
 const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
+const {PreviewSeeks, SeekLostMs} = await import('../../chrome/player/ui/PreviewSeeks.mjs');
 const {DownloadStatus} = await import('../../chrome/player/enums/DownloadStatus.mjs');
 const {ReferenceTypes} = await import('../../chrome/player/enums/ReferenceTypes.mjs');
 const {DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, LOW} = await import('../../chrome/player/network/MemoryBudget.mjs');
@@ -180,6 +181,7 @@ function makeClient(options = {}) {
     context: null,
     previewContext: null,
     previewPlayer: null,
+    previewSeeks: new PreviewSeeks(),
     syncedAudioPlayer: null,
     audioContext: null,
     audioSource: null,
@@ -2867,36 +2869,115 @@ describe('FastStreamClient, going while its buffer is on the disk', () => {
 
 describe('FastStreamClient, the seek preview shown', () => {
   /**
-   * A client whose seek preview's element is at 9 s with its frame there, the preview's
-   * player pointed at `time`.
-   * @param {number} time
-   * @return {Object}
+   * A client whose seek preview has its frame of 9 s on screen; 10 px a second on the bar.
+   * @return {{client: Object, video: Object, context: EventEmitter}}
    */
-  function previewAt(time) {
+  function previewOn9() {
     const client = makeClient({previewEnabled: true});
-    client.previewPlayer = {
-      getVideo: () => ({readyState: 2, currentTime: 9, style: {}}),
-      currentTime: time,
-      buffered: {length: 1, start: () => 0, end: () => 9},
-    };
+    const video = {readyState: 2, seeking: false, currentTime: 9, style: {}};
+    // Seeks its element, as every player but an MP4 preview holding a place does.
+    const player = Object.assign(new EventEmitter(), {getVideo: () => video});
+    Object.defineProperty(player, 'currentTime', {configurable: true, get: () => video.currentTime, set: (value) => {
+      video.currentTime = value;
+      video.seeking = true;
+    }});
+    client.previewPlayer = player;
+    client.interfaceController = {updateFragmentsLoaded() {}};
+    const context = client.bindPreviewPlayer(player);
+    vi.spyOn(client, 'previewPxApart').mockImplementation((a, b) => Math.abs(a - b) * 10);
     vi.spyOn(client, 'showPreview').mockImplementation(() => {});
     vi.spyOn(client, 'hidePreview').mockImplementation(() => {});
-    return client;
+    video.seeking = true;
+    client.seekPreview(9);
+    video.seeking = false;
+    player.emit(DefaultPlayerEvents.SEEKED);
+    vi.mocked(client.showPreview).mockClear();
+    vi.mocked(client.hidePreview).mockClear();
+    return {client, video, context};
   }
 
-  it('is hidden while its player holds a place its element is not at yet', () => {
-    // an MP4 preview past the known duration still shows the frame before
-    const client = previewAt(120);
-    client.updatePreview();
+  it('hides the last place\'s frame while its player holds a place far away', () => {
+    // an MP4 preview past the known duration still shows the frame before (its element does not seek yet)
+    const {client, video} = previewOn9();
+    let held = null;
+    Object.defineProperty(client.previewPlayer, 'currentTime', {get: () => held ?? video.currentTime, set: (value) => {
+      held = value;
+    }});
+    client.seekPreview(120);
     expect(client.hidePreview).toHaveBeenCalledTimes(1);
     expect(client.showPreview).not.toHaveBeenCalled();
   });
 
-  it('is shown once its element has a frame at the place', () => {
-    const client = previewAt(9);
-    client.updatePreview();
+  it('takes the end of an earlier seek for that seek\'s, not for a place its player holds', () => {
+    const {client, video} = previewOn9();
+    client.seekPreview(30);
+    let held = null;
+    Object.defineProperty(client.previewPlayer, 'currentTime', {get: () => held ?? video.currentTime, set: (value) => {
+      held = value;
+    }});
+    client.seekPreview(120);
+    video.seeking = false;
+    client.previewPlayer.emit(DefaultPlayerEvents.SEEKED);
+    expect(client.showPreview).not.toHaveBeenCalled();
+    expect(client.previewSeeks.onScreen).toBe(30);
+  });
+
+  it('hides it while its element seeks far away, and shows the new frame once it is there', () => {
+    const {client, video} = previewOn9();
+    client.seekPreview(120);
+    expect(client.hidePreview).toHaveBeenCalledTimes(1);
+    expect(client.showPreview).not.toHaveBeenCalled();
+    video.seeking = false;
+    client.previewPlayer.emit(DefaultPlayerEvents.SEEKED);
     expect(client.showPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps it while its element seeks a place near, and seeks the newest place next', () => {
+    const {client, video} = previewOn9();
+    client.seekPreview(10);
+    client.seekPreview(11);
+    expect(client.showPreview).toHaveBeenCalledTimes(2);
     expect(client.hidePreview).not.toHaveBeenCalled();
+    expect(client.previewPlayer.currentTime).toBe(10);
+    video.seeking = false;
+    client.previewPlayer.emit(DefaultPlayerEvents.SEEKED);
+    expect(client.previewPlayer.currentTime).toBe(11);
+  });
+
+  it('seeks the pointer\'s place once a seek has not ended for a second', () => {
+    vi.useFakeTimers();
+    try {
+      const {client} = previewOn9();
+      client.seekPreview(10);
+      client.seekPreview(11);
+      vi.advanceTimersByTime(SeekLostMs);
+      expect(client.previewPlayer.currentTime).toBe(11);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('counts the second from the seek\'s start, not from the pointer\'s last move', () => {
+    vi.useFakeTimers();
+    try {
+      const {client} = previewOn9();
+      client.seekPreview(10);
+      vi.advanceTimersByTime(SeekLostMs - 100);
+      client.seekPreview(10.5);
+      vi.advanceTimersByTime(99);
+      expect(client.previewPlayer.currentTime).toBe(10);
+      vi.advanceTimersByTime(1);
+      expect(client.previewPlayer.currentTime).toBe(10.5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('takes every other place for far when the bar cannot be measured', () => {
+    const client = makeClient({previewEnabled: true});
+    Object.defineProperty(client, 'duration', {get: () => Infinity, configurable: true});
+    expect(client.previewPxApart(0, 100)).toBe(Infinity);
+    expect(client.previewPxApart(5, 5)).toBe(0);
   });
 });
 
