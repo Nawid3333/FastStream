@@ -1594,3 +1594,7 @@ cleared, or FastStream off and on while the page played it). Rejected:
   it cannot be told from another video's: waiting only for the choice's own file would send the
   switched file to mpv a second time (the case the wait is for). The wait is bounded and now always
   settles; another video in the same tab within the seconds of a switch is rare.
+
+Its pass over the fixes measured in Firefox (a small video not asked about, the quality row pressed
+at once, the faster waits, the page's video moved with its file, a teaser no word on its hoster):
+no findings.
