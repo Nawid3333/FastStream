@@ -7,6 +7,9 @@ import {BufferKeepMaxMs, BufferKeepRamOnlySeconds} from '../player/options/Buffe
  */
 
 export const BufferKeepMs = BufferKeepRamOnlySeconds * 1000;
+// How long a buffer lent to a player under another link waits for its word (lendNear): its first part downloaded
+// anew and compared takes seconds.
+export const LendMs = 60 * 1000;
 // The record of a buffer on the disk is written again after this much of its RAM was written there: what an event page
 // that went meanwhile wrote and had not recorded is downloaded again.
 const RecordEveryBytes = 64 * 1024 * 1024;
@@ -38,6 +41,7 @@ const RecordEveryBytes = 64 * 1024 * 1024;
  * @property {number} since - When it was handed over: of two records of one video, the newer is kept.
  * @property {string} url
  * @property {HandedEntry[]} entries - Its files only.
+ * @property {?string} [near] - nearKey: where takeNear finds it.
  */
 
 /**
@@ -60,6 +64,7 @@ const RecordEveryBytes = 64 * 1024 * 1024;
  * @property {number} since
  * @property {number} bytes
  * @property {boolean} onDisk
+ * @property {?string} near - nearKey: the tab's page it was handed over in, for takeNear.
  * @property {ReturnType<typeof setTimeout>} timer
  * @property {Promise<void>} busy - Its write to the disk that runs now: a directory with a file open for writing
  *   cannot be deleted (Firefox locks it), so its deletion waits for that.
@@ -72,6 +77,19 @@ const RecordEveryBytes = 64 * 1024 * 1024;
  */
 export function bufferKey({pageUrl, identifier, incognito, cookieStoreId}) {
   return JSON.stringify([incognito ? 1 : 0, cookieStoreId || '', pageUrl, identifier]);
+}
+
+/**
+ * @param {string} key - bufferKey's.
+ * @return {?string} The hoster's page it names.
+ */
+function pageOf(key) {
+  try {
+    const page = JSON.parse(key)[2];
+    return typeof page === 'string' ? page : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 /**
@@ -99,6 +117,33 @@ function validRecord(record, browser, now) {
   return {...record, entries};
 }
 
+/**
+ * The tab's page, window kind and container: where a buffer is looked for when its own key finds none, because the
+ * hoster's frame or the stream's link came anew in another form (another host, a token in the path).
+ * @param {{topUrl: string, incognito: boolean, cookieStoreId?: ?string}} where
+ * @return {string}
+ */
+export function nearKey({topUrl, incognito, cookieStoreId}) {
+  return JSON.stringify([incognito ? 1 : 0, cookieStoreId || '', topUrl]);
+}
+
+/**
+ * What a stream's link looks like apart from what a hoster issues anew: its scheme, how deep its path is, its
+ * file's extension.
+ * @param {string} url
+ * @return {string}
+ */
+function linkShape(url) {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split('/');
+    const extension = (parts[parts.length - 1].match(/\.\w+$/) || [''])[0].toLowerCase();
+    return [parsed.protocol, parts.length, extension].join(' ');
+  } catch (e) {
+    return '';
+  }
+}
+
 export class BufferStash {
   /**
    * @param {Object} [options]
@@ -112,6 +157,9 @@ export class BufferStash {
     this.disk = disk;
     /** @type {Map<string, Kept>} */
     this.kept = new Map();
+    /** @type {Map<number, {key: string, kept: Kept, to: string, timer: ReturnType<typeof setTimeout>}>} */
+    this.lent = new Map();
+    this.lends = 0;
     // What an unloaded event page kept on the disk: take() and expire() wait for it.
     this.ready = disk ? this.restore().catch((e) => console.warn('Could not read the buffers kept on the disk', e)) :
       Promise.resolve();
@@ -121,9 +169,10 @@ export class BufferStash {
    * @param {string} key
    * @param {BufferHandOff} handOff
    * @param {number} [keepMs] - 0: none kept, its files deleted.
-   * @param {{ramOnly?: boolean}} [where] - A private window's: in RAM, at most BufferKeepMs.
+   * @param {{ramOnly?: boolean, near?: ?string}} [where] - A private window's: in RAM, at most BufferKeepMs. near:
+   *   nearKey, where takeNear finds it.
    */
-  put(key, handOff, keepMs = this.keepMs, {ramOnly = false} = {}) {
+  put(key, handOff, keepMs = this.keepMs, {ramOnly = false, near = null} = {}) {
     this.flush(key, handOff.session);
     if (!(keepMs > 0)) {
       this.drop(handOff.session);
@@ -133,7 +182,7 @@ export class BufferStash {
     const ms = Math.min(keepMs, ramOnly || !this.disk ? BufferKeepMs : BufferKeepMaxMs);
     const now = Date.now();
     /** @type {Kept} */
-    const kept = {handOff, until: now + ms, since: now, bytes: sizeOf(handOff.entries), onDisk: false,
+    const kept = {handOff, until: now + ms, since: now, bytes: sizeOf(handOff.entries), onDisk: false, near,
       timer: this.timerFor(key, ms), busy: Promise.resolve()};
     this.kept.set(key, kept);
     if (this.disk && ms > BufferKeepMs) {
@@ -154,18 +203,90 @@ export class BufferStash {
     if (!kept) return null;
     clearTimeout(kept.timer);
     this.kept.delete(key);
-    if (kept.onDisk) {
-      this.schedule();
-      // Its record, read back by a later event page, would hand it over again: files the taker moved away, and a
-      // newer buffer of the same video deleted as the older one.
-      const session = kept.handOff.session;
-      const disk = /** @type {KeptDisk} */ (this.disk);
-      if (session) {
-        kept.busy.then(() => disk.removeRecord(session))
-            .catch((e) => console.warn('Could not remove a taken buffer\'s record', e));
-      }
-    }
+    this.taken(kept);
     return kept.handOff;
+  }
+
+  /**
+   * @param {Kept} kept - Gone to its taker for good.
+   */
+  taken(kept) {
+    if (!kept.onDisk) return;
+    this.schedule();
+    // Its record, read back by a later event page, would hand it over again: files the taker moved away, and a
+    // newer buffer of the same video deleted as the older one.
+    const session = kept.handOff.session;
+    const disk = /** @type {KeptDisk} */ (this.disk);
+    if (session) {
+      kept.busy.then(() => disk.removeRecord(session))
+          .catch((e) => console.warn('Could not remove a taken buffer\'s record', e));
+    }
+  }
+
+  /**
+   * A buffer handed over in the same tab page when the video's own key finds none: first one from the same hoster's
+   * page (its link issued anew), then one whose link looks like this one's, the newest of them. Under this very link it
+   * is taken; under another it is lent, as it may be another video's (a hoster's other language on the same page):
+   * the taker checks its data (DownloadManager.adopt) and says so (endLend); until then it is out of the stash, its
+   * files where they are.
+   * @param {string} near - nearKey.
+   * @param {string} url - The new player's stream.
+   * @param {string} to - Who it is lent to: only they end the lend.
+   * @param {string} [own] - The new player's bufferKey, whose hoster's page goes first.
+   * @return {Promise<?{handOff: BufferHandOff, lent: ?number}>}
+   */
+  async lendNear(near, url, to, own = '') {
+    await this.ready;
+    const shape = linkShape(url);
+    const page = pageOf(own);
+    /** @type {(entry: [string, Kept]) => number} */
+    const rank = ([key, kept]) => (page !== null && pageOf(key) === page ? 2 : 0) + (linkShape(kept.handOff.url) === shape ? 1 : 0);
+    const found = [...this.kept].filter(([, kept]) => kept.near === near)
+        .sort((a, b) => rank(b) - rank(a) || b[1].since - a[1].since);
+    if (!found.length) return null;
+    const [key, kept] = found[0];
+    if (kept.handOff.url === url) {
+      const handOff = await this.take(key);
+      return handOff ? {handOff, lent: null} : null;
+    }
+    clearTimeout(kept.timer);
+    this.kept.delete(key);
+    const id = ++this.lends;
+    // A taker gone without a word: it is back after LendMs.
+    const timer = setTimeout(() => this.endLend(id, false, to), LendMs);
+    this.lent.set(id, {key, kept, to, timer});
+    return {handOff: kept.handOff, lent: id};
+  }
+
+  /**
+   * The taker's word on a lent buffer: its video's, it has it for good (as take); another's, it is back under its own
+   * key for the rest of its time, unless a newer one of that video is there now.
+   * @param {number} id
+   * @param {boolean} same
+   * @param {string} from
+   * @return {boolean} Whether the taker has it.
+   */
+  endLend(id, same, from) {
+    const lent = this.lent.get(id);
+    if (!lent || lent.to !== from) return false;
+    clearTimeout(lent.timer);
+    this.lent.delete(id);
+    const {key, kept} = lent;
+    if (same) {
+      this.taken(kept);
+      return true;
+    }
+    const left = kept.until - Date.now();
+    const newer = this.kept.get(key);
+    if (newer || !(left > 0)) {
+      if (kept.handOff.session !== newer?.handOff.session) this.drop(kept.handOff.session, kept.busy);
+      if (kept.onDisk) this.schedule();
+      return false;
+    }
+    kept.timer = this.timerFor(key, left);
+    this.kept.set(key, kept);
+    if (kept.onDisk) this.schedule();
+    return false;
   }
 
   /**
@@ -251,7 +372,8 @@ export class BufferStash {
       kept.timer = this.timerFor(key, ms);
       return;
     }
-    let total = kept.bytes;
+    // A lent one is on the disk still.
+    let total = kept.bytes + [...this.lent.values()].reduce((sum, lent) => sum + (lent.kept.onDisk ? lent.kept.bytes : 0), 0);
     const others = [...this.kept].filter(([, other]) => other.onDisk).sort(([, a], [, b]) => b.since - a.since);
     for (const [otherKey, other] of others) {
       if (total + other.bytes > limit) {
@@ -297,7 +419,7 @@ export class BufferStash {
     }
     const session = handOff.session;
     const record = () => busy(() => disk.writeRecord(session, {browser, key, until: kept.until, since: kept.since,
-      url: handOff.url,
+      url: handOff.url, near: kept.near,
       entries: handOff.entries.filter((entry) => typeof entry.file === 'string').map(({blob, ...entry}) => entry)}));
     await record();
     let count = 0;
@@ -349,7 +471,8 @@ export class BufferStash {
         continue;
       }
       this.kept.set(record.key, {handOff: {url: record.url, session, entries: record.entries}, until: record.until,
-        since, bytes: sizeOf(record.entries), onDisk: true, timer: this.timerFor(record.key, record.until - now),
+        since, bytes: sizeOf(record.entries), onDisk: true, near: typeof record.near === 'string' ? record.near : null,
+        timer: this.timerFor(record.key, record.until - now),
         busy: Promise.resolve()});
     }
     this.schedule();

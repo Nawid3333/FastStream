@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {BufferStash} from '../../chrome/background/BufferStash.mjs';
+import {BufferStash, LendMs} from '../../chrome/background/BufferStash.mjs';
 import {keptBufferDisk} from '../../chrome/background/KeptBufferDisk.mjs';
 import {BufferKeepChoices, bufferKeepLabel, bufferKeepMs, bufferKeepSeconds} from '../../chrome/player/options/BufferKeep.mjs';
 
@@ -132,7 +132,7 @@ describe('a buffer kept longer than the event page lives', () => {
     expect([...dir.files.keys()]).toEqual(['k0']);
     expect(await dir.files.get('k0').text()).toBe('one');
     expect(dir.record).toEqual({browser: 'run-1', key: KEY, until: 1_000_000 + 5 * 60000, since: 1_000_000, url: kept.url,
-      entries: [
+      near: null, entries: [
         {url: 'https://cdn.test/v/seg-1.ts', responseType: 'arraybuffer', dataSize: 3, file: 'k0'},
         {url: 'https://cdn.test/v/seg-2.ts', responseType: 'arraybuffer', dataSize: 5, file: 'f0'},
       ]});
@@ -287,6 +287,45 @@ describe('a buffer kept longer than the event page lives', () => {
     await settle();
     expect(dropSession).not.toHaveBeenCalled();
     expect((await stash.take(KEY)).session).toBe('fsblob-1-1');
+  });
+
+  it('keeps one lent on the disk as it is: back after the lend, forgotten once its taker says it is its video', async () => {
+    const disk = fakeDisk();
+    const {stash, dropSession} = stashOn(disk);
+    stash.put(KEY, handOff(), HOUR, {near: 'near'});
+    await settle();
+    const OTHER = 'https://cdn.test/w/master.m3u8';
+    const first = await stash.lendNear('near', OTHER, '1/5');
+    expect(first.lent).toEqual(expect.any(Number));
+    // Lent: its record stays, so an event page loaded again meanwhile has it back.
+    await settle();
+    expect(disk.dirs.get('fsblob-1-1').record).not.toBe(null);
+    // Its taker never said: back for the rest of its hour, its time on the alarm again.
+    disk.schedule.mockClear();
+    vi.advanceTimersByTime(LendMs);
+    expect(disk.schedule).toHaveBeenCalled();
+    const again = await stash.lendNear('near', OTHER, '1/5');
+    expect(again.handOff).toBe(first.handOff);
+    expect(stash.endLend(again.lent, true, '1/5')).toBe(true);
+    await settle();
+    expect(disk.dirs.get('fsblob-1-1').record).toBe(null);
+    expect(dropSession).not.toHaveBeenCalled();
+  });
+
+  it('counts one lent as on the disk still when it makes room for a new one', async () => {
+    // Three of 8 bytes, room for 20: the lent one and the new one leave none for the third.
+    const disk = fakeDisk({limit: 20});
+    const {stash, dropSession} = stashOn(disk);
+    const keyOf = (n) => KEY.replace('watch/1', 'watch/' + n);
+    stash.put(keyOf(1), handOff('fsblob-1-1'), HOUR, {near: 'near'});
+    await settle();
+    await stash.lendNear('near', 'https://cdn.test/w/master.m3u8', '1/5');
+    stash.put(keyOf(2), handOff('fsblob-2-2'), HOUR);
+    await settle();
+    stash.put(keyOf(3), handOff('fsblob-3-3'), HOUR);
+    await settle();
+    expect(dropSession).toHaveBeenCalledWith('fsblob-2-2');
+    expect(dropSession).not.toHaveBeenCalledWith('fsblob-1-1');
   });
 
   it('forgets one taken: a later event page does not hand it over again', async () => {

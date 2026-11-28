@@ -3748,7 +3748,8 @@ describe('FastStreamClient, a buffer taken back', () => {
    */
   function clientTaking(adopted) {
     const client = makeClient();
-    client.downloadManager.adopt = vi.fn(() => ({...adopted, onDisk: Promise.resolve(0)}));
+    client.downloadManager.adopt = vi.fn(() => ({...adopted, onDisk: Promise.resolve(0), checked: Promise.resolve(adopted.same ?? true),
+      check: 'its check'}));
     chrome.runtime.sendMessage = vi.fn(async () => ({page: 'https://site.test/watch',
       handOff: {url: 'https://cdn.example/v.m3u8', session: null, entries: [{url: 'https://cdn.example/s1.ts'}]}}));
     return client;
@@ -3759,7 +3760,10 @@ describe('FastStreamClient, a buffer taken back', () => {
     const client = clientTaking({taken: 1, bytes: 1.4e9});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));
 
-    const call = client.interfaceController.showBufferKept.mock.calls[0];
+    const call = await vi.waitFor(() => {
+      expect(client.interfaceController.showBufferKept).toHaveBeenCalled();
+      return client.interfaceController.showBufferKept.mock.calls[0];
+    });
     expect(call[0]).toBe(1.4e9);
     expect(client.interfaceController.setStatusMessage.mock.calls.some(([key]) => key === 'reused')).toBe(false);
     client.downloadAgain = vi.fn();
@@ -3771,11 +3775,39 @@ describe('FastStreamClient, a buffer taken back', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const client = clientTaking({taken: 1, bytes: 1.4e9});
     await setSource(client, makeSource('https://cdn.example/v.m3u8'));
-    const call = client.interfaceController.showBufferKept.mock.calls[0];
+    const call = await vi.waitFor(() => {
+      expect(client.interfaceController.showBufferKept).toHaveBeenCalled();
+      return client.interfaceController.showBufferKept.mock.calls[0];
+    });
     client.source = makeSource('https://cdn.example/other.m3u8');
     client.downloadAgain = vi.fn();
     call[1]();
     expect(client.downloadAgain).not.toHaveBeenCalled();
+  });
+
+  it('says nothing when its check finds another video\'s data under the new link', async () => {
+    const client = clientTaking({taken: 1, bytes: 1.4e9, same: false});
+    await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.interfaceController.showBufferKept).not.toHaveBeenCalled();
+    expect(client.bufferTakenBack.checked).toBe(false);
+  });
+
+  it('tells the stash the check\'s word on a lent buffer, and uses it only once the stash let it go', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    for (const [same, stashLets, used] of [[true, true, true], [true, false, false], [false, false, false]]) {
+      const client = clientTaking({taken: 1, bytes: 1.4e9, same});
+      client.downloadManager.confirmLent = vi.fn((check, taken) => taken);
+      const answers = chrome.runtime.sendMessage;
+      chrome.runtime.sendMessage = vi.fn(async (message) => (message.type === 'BUFFER_LENT' ? stashLets :
+        {...await answers(message), lent: 7}));
+      await setSource(client, makeSource('https://cdn.example/v.m3u8'));
+      await vi.waitFor(() => expect(client.bufferTakenBack.checked).toBe(used));
+      expect(client.downloadManager.adopt).toHaveBeenCalledWith(expect.anything(), 'https://cdn.example/v.m3u8', {lent: true});
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({type: 'BUFFER_LENT', lent: 7, same});
+      expect(client.downloadManager.confirmLent).toHaveBeenCalledWith('its check', same && stashLets);
+      expect(client.interfaceController.showBufferKept).toHaveBeenCalledTimes(used ? 1 : 0);
+    }
   });
 
   it('says nothing when none of it was taken (another link)', async () => {

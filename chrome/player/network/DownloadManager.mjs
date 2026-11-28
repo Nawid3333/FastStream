@@ -3,16 +3,40 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {DownloadEntry} from './DownloadEntry.mjs';
-import {signatureParams, withoutSignature} from './LinkSignature.mjs';
+import {linkChange, looseLink} from './LinkSignature.mjs';
 import {URGENT_PARALLEL} from './PlayheadFirst.mjs';
 import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
 const AdoptAtOnce = 8;
 
+/**
+ * @typedef {{state: 'pending'|'confirming'|'same'|'other', candidates: Map<string, DownloadEntry>,
+ *   settle: (same: boolean) => void, lent: boolean, confirm: (taken: boolean) => void, session: ?string}} AdoptCheck -
+ *   candidates: the kept twin of each part downloaded anew meanwhile, by the new part's key. lent: the stash keeps it
+ *   until its verdict (confirmLent), so nothing of it is moved or deleted before; session: its files' there.
+ */
+
+/**
+ * @param {ArrayBuffer} a
+ * @param {ArrayBuffer} b
+ * @return {boolean}
+ */
+function sameBytes(a, b) {
+  if (!(a instanceof ArrayBuffer) || !(b instanceof ArrayBuffer) || a.byteLength !== b.byteLength || !a.byteLength) {
+    return false;
+  }
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) {
+    if (x[i] !== y[i]) return false;
+  }
+  return true;
+}
+
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 /**
  * @typedef {{entry: DownloadEntry, identifier: string, session: string, file: string, generation: number,
- *   moved: ?Promise<boolean>}} AdoptedFile
+ *   moved: ?Promise<boolean>, lent: boolean}} AdoptedFile - lent: still the stash's, read where it is.
  */
 
 export class DownloadManager {
@@ -31,6 +55,8 @@ export class DownloadManager {
   static MaxCalmPeriodMs = 120000;
   /** Answers this soon after the last halving extend the Retry-After hold but do not halve again. */
   static SlowDownSettleMs = 2000;
+  /** A lent buffer's check gives up after this: before the stash has it back (BufferStash's LendMs, 60 s). */
+  static LentCheckMs = 50000;
 
   /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
@@ -44,11 +70,15 @@ export class DownloadManager {
     /** @type {StandardDownloader[]} */
     this.downloaders = [];
     this.paused = false;
-    // Handed over by an earlier player (adopt), by address without the link's signature.
+    // Handed over by an earlier player (adopt), by address without what the link issued anew (looseLink).
     /** @type {?Map<string, DownloadEntry>} */
     this.adopted = null;
-    /** @type {?Set<string>} */
-    this.adoptedSignature = null;
+    /** @type {?import('./LinkSignature.mjs').LinkChange} */
+    this.adoptedLink = null;
+    // Taken from another place than its own (another host, a token in the path): nothing of it is used until one part
+    // downloaded anew is the same, byte for byte (checkAdopted).
+    /** @type {?AdoptCheck} */
+    this.adoptCheck = null;
     // Counts clearStorage(): a handed-over file moved after its downloads went is not kept.
     this.storageGeneration = 0;
     this.keepStorageNext = false;
@@ -214,9 +244,14 @@ export class DownloadManager {
     if (entry || !this.adopted?.size) {
       return entry;
     }
-    const loose = this.looseIdentifier(details);
+    const loose = this.looseIdentifier(details, false);
     const adopted = this.adopted.get(loose);
     if (!adopted || this.storage.get(this.getIdentifier(adopted)) !== adopted) {
+      return undefined;
+    }
+    if (this.adoptCheck && this.adoptCheck.state !== 'same') {
+      // Downloaded anew, and compared once done (watchAdoptCheck).
+      if (this.adoptCheck.state === 'pending') this.adoptCheck.candidates.set(key, adopted);
       return undefined;
     }
     this.adopted.delete(loose);
@@ -231,10 +266,12 @@ export class DownloadManager {
 
   /**
    * @param {{url: string, rangeStart?: number, rangeEnd?: number, responseType?: string}} details
+   * @param {boolean} old - A download of the old link's (handed over, or before a new link).
    * @return {string}
    */
-  looseIdentifier(details) {
-    return this.getIdentifier({...details, url: withoutSignature(details.url, this.adoptedSignature)});
+  looseIdentifier(details, old) {
+    const change = this.adoptedLink;
+    return this.getIdentifier({...details, url: change ? looseLink(details.url, change, old) : details.url});
   }
 
   /**
@@ -243,15 +280,16 @@ export class DownloadManager {
    * @param {string} newUrl
    */
   relink(oldUrl, newUrl) {
-    const signature = signatureParams(oldUrl, newUrl);
-    if (!signature?.size || !this.storage) {
+    const change = linkChange(oldUrl, newUrl);
+    if (!change?.samePlace || !change.params.size || !this.storage) {
       return;
     }
-    this.adoptedSignature = signature;
+    this.adoptedLink = change;
+    this.endAdoptCheck(false);
     this.adopted = new Map();
     const adopted = /** @type {Map<string, DownloadEntry>} */ (this.adopted);
     this.storage.forEach((entry) => {
-      const loose = this.looseIdentifier(entry);
+      const loose = this.looseIdentifier(entry, true);
       // The first of twins (one file under two issues of the link) stands for both.
       if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && !entry.storeRaw && entry.responseType === 'arraybuffer' &&
           !adopted.has(loose)) {
@@ -270,9 +308,11 @@ export class DownloadManager {
     const entries = [];
     const store = this.blobStore;
     const opfs = store?.opfsManager;
+    // A buffer still checked is another player's: the stash has it back (a lent one) or it goes.
+    const unchecked = this.adoptCheck && this.adoptCheck.state !== 'same' ? new Set(this.adopted?.values()) : null;
     this.storage?.forEach((entry, identifier) => {
       if (entry.status !== DownloadStatus.DOWNLOAD_COMPLETE || entry.storeRaw || entry.responseType !== 'arraybuffer' ||
-          typeof entry.data !== 'function') {
+          typeof entry.data !== 'function' || unchecked?.has(entry)) {
         return;
       }
       const blobId = entry.blobId ?? identifier;
@@ -295,15 +335,42 @@ export class DownloadManager {
    * Takes back what an earlier player of this video handed over; its disk files are moved meanwhile.
    * @param {{url: string, session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}} handOff
    * @param {string} url
-   * @return {{taken: number, bytes: number, onDisk: Promise<number>}} Taken at once (RAM), the size of all taken
-   *   (RAM and disk), and how many of the disk's once moved.
+   * @param {{lent?: boolean}} [how] - lent: found by the tab's page alone (BufferStash.lendNear), so checked whatever
+   *   its link, and still the stash's until confirmLent: its disk files are moved only then.
+   * @return {{taken: number, bytes: number, onDisk: Promise<number>, checked: Promise<boolean>, check: ?AdoptCheck}}
+   *   Taken at once (RAM), the size of all taken (RAM and disk), how many of the disk's once moved, whether it is used:
+   *   at once for the same place (only the query changed), else once a part downloaded anew is the same
+   *   (checkAdopted); and its check, for confirmLent.
    */
-  adopt(handOff, url) {
-    const signature = signatureParams(handOff.url, url);
-    if (signature === null || !this.blobStore) {
-      return {taken: 0, bytes: 0, onDisk: Promise.resolve(0)};
+  adopt(handOff, url, {lent = false} = {}) {
+    const change = linkChange(handOff.url, url);
+    if (change === null || !this.blobStore) {
+      return {taken: 0, bytes: 0, onDisk: Promise.resolve(0), checked: Promise.resolve(false), check: null};
     }
-    this.adoptedSignature = signature;
+    this.endAdoptCheck(false);
+    this.adoptedLink = change;
+    const verify = lent || !change.samePlace;
+    /** @type {(same: boolean) => void} */
+    let settle = () => {};
+    const checked = verify ? new Promise((resolve) => {
+      settle = resolve;
+    }) : Promise.resolve(true);
+    /** @type {(taken: boolean) => void} */
+    let confirm = () => {};
+    /** @type {Promise<boolean>} */
+    const confirmed = lent ? new Promise((resolve) => {
+      confirm = resolve;
+    }) : Promise.resolve(true);
+    const check = this.adoptCheck = verify ?
+      {state: 'pending', candidates: new Map(), settle, lent, confirm, session: handOff.session} : null;
+    if (check && lent) {
+      // No part of it asked for, or none readable (its files gone with the stash's time): none of it is used.
+      setTimeout(() => {
+        if (this.adoptCheck !== check || check.state !== 'pending') return;
+        this.dropAdopted(check);
+        check.settle(false);
+      }, DownloadManager.LentCheckMs);
+    }
     this.adopted = new Map();
     let taken = 0;
     let bytes = 0;
@@ -320,7 +387,7 @@ export class DownloadManager {
       entry.dataSize = record.dataSize || 0;
       entry.blobId = identifier;
       // One file under two issues of the link: taken once.
-      const loose = this.looseIdentifier(entry);
+      const loose = this.looseIdentifier(entry, true);
       if (seen.has(loose)) continue;
       seen.add(loose);
       if (record.blob instanceof Blob) {
@@ -333,9 +400,11 @@ export class DownloadManager {
         if (this.storage.has(identifier)) continue;
         // Here at once, read once its file is moved: in its turn, or at once for a read that comes first.
         /** @type {AdoptedFile} */
-        const item = {entry, identifier, session: handOff.session, file: record.file, generation: this.storageGeneration, moved: null};
+        const item = {entry, identifier, session: handOff.session, file: record.file, generation: this.storageGeneration,
+          moved: null, lent};
         entry.data = async () => {
           try {
+            if (item.lent) return await this.blobStore?.opfsManager?.readSessionFile(item.session, item.file);
             return await this.adoptOne(item) ? await this.blobStore.getBlob(identifier) : undefined;
           } catch (e) {
             return undefined;
@@ -346,7 +415,15 @@ export class DownloadManager {
         bytes += entry.dataSize;
       }
     }
-    return {taken, bytes, onDisk: this.adoptDiskFiles(disk, handOff.session)};
+    const session = handOff.session;
+    const onDisk = !lent ? this.adoptDiskFiles(disk, session) : confirmed.then((taken) => {
+      if (!taken) return 0;
+      disk.forEach((item) => {
+        item.lent = false;
+      });
+      return this.adoptDiskFiles(disk, session);
+    });
+    return {taken, bytes, onDisk, checked, check};
   }
 
   /**
@@ -401,9 +478,120 @@ export class DownloadManager {
   /** @param {DownloadEntry} entry */
   keepAdopted(entry) {
     this.setEntry(entry);
-    if (this.adoptedSignature?.size) {
-      /** @type {Map<string, DownloadEntry>} */ (this.adopted).set(this.looseIdentifier(entry), entry);
+    const change = this.adoptedLink;
+    if (change && (!change.samePlace || change.params.size)) {
+      /** @type {Map<string, DownloadEntry>} */ (this.adopted).set(this.looseIdentifier(entry, true), entry);
     }
+  }
+
+  /**
+   * A part downloaded anew while the handed-over buffer waits for its check: compared with the kept one once done.
+   * @param {string} key
+   * @param {DownloadEntry} entry
+   */
+  watchAdoptCheck(key, entry) {
+    const check = this.adoptCheck;
+    const kept = check?.state === 'pending' ? check.candidates.get(key) : null;
+    if (!check || !kept) return;
+    const transfer = entry.transferFile;
+    entry.setTransferFunction((done) => {
+      Promise.resolve(transfer?.(done)).then(() => this.checkAdopted(check, key, done, kept))
+          .catch((e) => console.warn('Could not compare a handed-over download', e));
+    });
+  }
+
+  /**
+   * The same bytes: the handed-over buffer is this video's, and plays. Others: it is another video's, and goes.
+   * @param {AdoptCheck} check
+   * @param {string} key
+   * @param {DownloadEntry} fresh
+   * @param {DownloadEntry} kept
+   * @return {Promise<void>}
+   */
+  async checkAdopted(check, key, fresh, kept) {
+    if (check.state !== 'pending') return;
+    check.candidates.delete(key);
+    let same = null;
+    try {
+      const [a, b] = await Promise.all([fresh.getDataFromBlob('arraybuffer'), kept.getDataFromBlob('arraybuffer')]);
+      same = sameBytes(/** @type {ArrayBuffer} */ (a), /** @type {ArrayBuffer} */ (b));
+    } catch (e) {
+      // Not readable: the next part decides.
+    }
+    if (this.adoptCheck !== check || check.state !== 'pending' || same === null) return;
+    if (same) {
+      // The parts downloaded anew meanwhile have their kept twins.
+      this.forgetAdopted(kept);
+      check.candidates.forEach((twin) => this.forgetAdopted(twin));
+      check.candidates.clear();
+      // A lent one plays once the stash let it go (confirmLent).
+      check.state = check.lent ? 'confirming' : 'same';
+    } else {
+      console.warn('A handed-over buffer was another video\'s: it is not used');
+      this.dropAdopted(check);
+    }
+    check.settle(same);
+  }
+
+  /**
+   * The stash's answer for a lent buffer found to be this video's: let go of to this player (it plays, its disk files
+   * are moved), or no longer there (its time up, the background restarted): not used.
+   * @param {?AdoptCheck} check - adopt's: an answer for a check that ended meanwhile (a new source) changes nothing.
+   * @param {boolean} taken
+   * @return {boolean} Whether it is used.
+   */
+  confirmLent(check, taken) {
+    if (!check?.lent) return false;
+    if (this.adoptCheck !== check || check.state !== 'confirming') {
+      // Let go of to this player, which no longer uses it: its files would stay with nobody to delete them.
+      if (taken && check.session) this.blobStore?.dropSession(check.session);
+      return false;
+    }
+    if (!taken) {
+      this.dropAdopted(check);
+      return false;
+    }
+    check.state = 'same';
+    check.confirm(true);
+    return true;
+  }
+
+  /**
+   * None of a handed-over buffer is used: what this player holds of it goes. A lent one's files stay the stash's.
+   * @param {AdoptCheck} check
+   */
+  dropAdopted(check) {
+    this.adopted?.forEach((entry) => this.forgetAdopted(entry));
+    this.adopted = null;
+    check.state = 'other';
+    check.confirm(false);
+  }
+
+  /**
+   * Lets go of a handed-over download: its data, and its disk file once moved (adoptOne keeps none that failed).
+   * @param {DownloadEntry} entry
+   */
+  forgetAdopted(entry) {
+    this.adopted?.delete(this.looseIdentifier(entry, true));
+    const identifier = this.getIdentifier(entry);
+    if (this.storage?.get(identifier) === entry) {
+      this.storage.delete(identifier);
+      this.blobStore?.deleteBlob(entry.blobId ?? identifier);
+    }
+    entry.status = DownloadStatus.DOWNLOAD_FAILED;
+  }
+
+  /**
+   * @param {boolean} same - What a check still waiting is told.
+   */
+  endAdoptCheck(same) {
+    const check = this.adoptCheck;
+    if (check?.state === 'pending' || check?.state === 'confirming') {
+      // Unchecked, it is no download of this video's: a new link (relink) would take it for one.
+      this.dropAdopted(check);
+      check.settle(same);
+    }
+    this.adoptCheck = null;
   }
 
   /**
@@ -480,6 +668,7 @@ export class DownloadManager {
     if (!storedEntry || storedEntry.status === DownloadStatus.DOWNLOAD_FAILED) {
       storedEntry = new DownloadEntry(details);
       this.setEntry(storedEntry);
+      this.watchAdoptCheck(key, storedEntry);
     }
 
     if (storedEntry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
@@ -1179,7 +1368,8 @@ export class DownloadManager {
     this.storageGeneration++;
     this.storage.clear();
     this.adopted = null;
-    this.adoptedSignature = null;
+    this.adoptedLink = null;
+    this.endAdoptCheck(false);
     await this.blobStore.clear();
   }
 

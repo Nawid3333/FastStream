@@ -736,13 +736,60 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   (`DownloadManager.adoptOne`). The player asks for where it starts or resumes before those files'
   turn, and they were downloaded again (`reload-keeps-buffer.e2e`, twice in the week to
   2026-11-02, #620); one that cannot be moved is dropped as lost data and downloaded then.
-- **A new signed link** (vidmoly: `?t=&s=` new at every load): `LinkSignature.signatureParams` names
+- **A new signed link** (vidmoly: `?t=&s=` new at every load): `LinkSignature.linkChange` names
   the query parameters whose values differ between the old and the new source link, and a request
-  under the new link finds the file with those left out (`DownloadManager.stored`, an alias: the
-  entry's data stays under its old store id, `entry.blobId`). Parameters that did not change still
-  tell files apart. FreshLink uses the same (`DownloadManager.relink`): a refused link's fresh one
-  no longer downloads everything again. (FreshLink gives no link in a private window or a
-  container tab since 2026-11-13: "Storage in a private window".)
+  under the new link finds the file with those left out (`looseLink`; `DownloadManager.stored`, an
+  alias: the entry's data stays under its old store id, `entry.blobId`). Parameters that did not
+  change still tell files apart. FreshLink uses the same (`DownloadManager.relink`, the query only):
+  a refused link's fresh one no longer downloads everything again. (FreshLink gives no link in a
+  private window or a container tab since 2026-11-13: "Storage in a private window".)
+- **Every way back, and links issued anew in other forms** (the owner, 2026-11-27: "it does not even
+  keep it for those 5 minutes, the whole video buffers again", on most hosters; a reload on one HLS
+  hoster did keep it). Measured with `ext-specs/keep-buffer-ways-back.e2e.mjs`, an episode page
+  framing a hoster page, 5 minutes picked. With links signed in the query alone, every way back
+  already took everything back: reload 71/71, Back 85/85, the tab closed and opened again 91/91,
+  Firefox unloading the tab (`gBrowser.discardBrowser`, then the tab chosen again) 100/100. What
+  failed was the link: a token in the path (`/v/<token>/...`), another host (a CDN's next node), or
+  the hoster's frame under a new address took back nothing and downloaded all of it again (83, 79,
+  100 parts). The key was the frame's page and the stream's address without its query, and a file
+  was found only under the same host and path. Now:
+  - The background keeps each buffer under the tab's page too (`nearKey`, sent back by the player
+    in its hand-off as BUFFER_TAKE told it, and in the record on the disk); a player whose own key
+    finds none gets the one of the same tab page (`BufferStash.lendNear`: one from the same hoster
+    page first, then a link of the same shape, else the newest). Under the very same link it is
+    taken; under another it is only lent, as it may be another video's (a hoster's other language
+    in the same page): out of the stash meanwhile, its disk files left where they are (the check
+    reads one there, `OPFSManager.readSessionFile`), and the player says whose it is
+    (BUFFER_LENT, `endLend`). Its video's: the player has it for good, its files are moved then
+    (`confirmLent`). Another's: back under its own key for the rest of its time (a newer one of
+    that video there meanwhile wins), so the first language's buffer is still there when the user
+    goes back to it. A player that never says: back after `LendMs` (60 s); a player whose check
+    compares nothing (no part asked for, its twin unreadable) gives up before that (`LentCheckMs`,
+    50 s). The answer is tied to its check: a yes for one a new source ended deletes its files.
+  - `linkChange` also names a changed host and the path segments that changed in place (the same
+    depth), and `looseLink` leaves them out of the old parts' links and the new requests' alike;
+    the stream's own link stands for itself, so a single file whose whole link changed keeps its
+    ranges.
+  - Beyond the query, and for every lent one (its query alone changed too: on another hoster page
+    a query may name another video, `?id=`), nothing of it is used until one part downloaded anew
+    is the same, byte for byte (`DownloadManager.checkAdopted`): the parts asked for meanwhile
+    download anew, and the first one done decides. Other bytes: another video's, none of it used,
+    nothing of it goes on in this player's own hand-off. A check ended before its word (a new
+    source, a new link) leaves none of it behind. The notice of a buffer taken back waits for that
+    (`checked`).
+  - After: path token 67/67 taken back, 5 parts downloaded again (those asked for before the
+    check); another host 97/97, 1 again; the frame's new address 84/84, 0 again. Another video on
+    the same page under a new link (each segment one TS null packet longer): not used, all of it
+    downloaded, playback fine. The red runs before the change are the measurement above.
+  - With the lend (DeepSeek's review): the frame's new address is checked now, 1 to 23 parts
+    downloaded again in five runs (the parts asked for before the word, many on this fast local
+    server), path and host 1. The page's frame switched to another video and back
+    (`switch-frame`): the other video's player had the first one's buffer lent, found it was not
+    its own, gave it back, and the first video's next player took it, 1 part again; before the
+    lend it had been deleted by the other's check and all 72 parts downloaded again.
+  - Not covered: a hoster whose segments each carry a path token of their own, unrelated to the
+    stream's link (no part lines up: downloaded again, as before), and a playlist whose variant
+    links change differently from its master's.
 - **Downloading the video again** (the owner, 2026-11-22): a reload to mend a load that went wrong
   keeps what it downloaded, broken parts too. A buffer taken back says so for 15 s, with its size
   (`DownloadManager.adopt` counts the bytes of RAM and disk); its button, or the more menu's

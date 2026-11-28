@@ -9,7 +9,7 @@ import {getAddressKey} from '../player/utils/AddressKey.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
-import {bufferKey, BufferStash} from './BufferStash.mjs';
+import {bufferKey, BufferStash, nearKey} from './BufferStash.mjs';
 import {BufferKeepAlarm, keptBufferDisk} from './KeptBufferDisk.mjs';
 import {bufferKeepMs} from '../player/options/BufferKeep.mjs';
 import {pruneSessions, STALE_MS} from '../player/network/SessionPrune.mjs';
@@ -657,6 +657,7 @@ export const MessageSenders = {
   [MessageTypes.REQUEST_FRESH_LINK]: 'own',
   [MessageTypes.BUFFER_STASH]: 'own',
   [MessageTypes.BUFFER_TAKE]: 'own',
+  [MessageTypes.BUFFER_LENT]: 'own',
   [MessageTypes.REQUEST_SOURCES]: 'own',
   [MessageTypes.CLEAR_SOURCES]: 'own',
   [MessageTypes.SET_HEADERS]: 'own',
@@ -991,7 +992,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // A private window's and "RAM only"'s stay in RAM (BufferKeep.mjs): nothing of them reaches the disk.
       ensureOptions().then(() => {
         const ramOnly = !!senderTab?.incognito || Options.bufferToDisk === false;
-        bufferStash.put(key, handOff, bufferKeepMs(Options.bufferKeep, ramOnly), {ramOnly});
+        const near = typeof msg.near === 'string' && msg.near ? playerNearKey(msg.near, sender) : null;
+        bufferStash.put(key, handOff, bufferKeepMs(Options.bufferKeep, ramOnly), {ramOnly, near});
       }).catch((e) => console.warn('Could not keep a handed-over buffer', e));
     }
   } else if (msg.type === MessageTypes.BUFFER_TAKE) {
@@ -1001,12 +1003,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(null);
       return;
     }
+    // The tab's page: where a buffer is looked for when the hoster's frame or the stream's link came anew in another
+    // form; one under another link is lent, the taker checks its data first and says so (BUFFER_LENT).
+    const near = tab.url || '';
     // After the options, as BUFFER_STASH's put: a hand-off just made is there.
-    ensureOptions().then(() => bufferStash.take(key)).then((handOff) => sendResponse({page, handOff}), (e) => {
+    ensureOptions().then(async () => {
+      const own = await bufferStash.take(key);
+      if (own || !near || typeof msg.url !== 'string') return {handOff: own, lent: null};
+      return await bufferStash.lendNear(playerNearKey(near, sender), msg.url, `${tab.tabId}/${frame.frameId}`, key) ??
+        {handOff: null, lent: null};
+    }).then(({handOff, lent}) => sendResponse({page, near, handOff, ...(lent ? {lent} : {})}), (e) => {
       console.warn('Could not take back a handed-over buffer', e);
-      sendResponse({page, handOff: null});
+      sendResponse({page, near, handOff: null});
     });
     return true;
+  } else if (msg.type === MessageTypes.BUFFER_LENT) {
+    // The word of the player a buffer was lent to: its video's, or back in the stash for its own.
+    sendResponse(BackgroundUtils.isUrlPlayerUrl(sender.url || '') && typeof msg.lent === 'number' &&
+      bufferStash.endLend(msg.lent, msg.same === true, `${tab.tabId}/${frame.frameId}`));
+    return;
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
     // The page took the player iframe out before it loaded: no PLAYER_LOADED will end the opening.
     if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {
@@ -1596,6 +1611,19 @@ function playerBufferKey(pageUrl, sender, identifier) {
   return bufferKey({
     pageUrl,
     identifier,
+    incognito: !!sender.tab?.incognito,
+    cookieStoreId: /** @type {chrome.tabs.Tab & {cookieStoreId?: string}} */ (sender.tab)?.cookieStoreId,
+  });
+}
+
+/**
+ * @param {string} topUrl - The tab's page.
+ * @param {chrome.runtime.MessageSender} sender
+ * @return {string}
+ */
+function playerNearKey(topUrl, sender) {
+  return nearKey({
+    topUrl,
     incognito: !!sender.tab?.incognito,
     cookieStoreId: /** @type {chrome.tabs.Tab & {cookieStoreId?: string}} */ (sender.tab)?.cookieStoreId,
   });

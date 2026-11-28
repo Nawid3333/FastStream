@@ -158,6 +158,19 @@ export class OPFSManager {
   }
 
   /**
+   * Another session's file, read where it is: a buffer lent while it is checked stays the stash's.
+   * @param {string} session
+   * @param {string} name
+   * @return {Promise<File>}
+   */
+  async readSessionFile(session, name) {
+    const root = await navigator.storage.getDirectory();
+    const fsblobRoot = await root.getDirectoryHandle('fsblob');
+    const from = await fsblobRoot.getDirectoryHandle(session);
+    return (await from.getFileHandle(name)).getFile();
+  }
+
+  /**
    * @param {string} session
    * @return {Promise<void>}
    */

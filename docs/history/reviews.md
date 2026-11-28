@@ -1537,3 +1537,39 @@ clicks only when one options page is open and no tab shows it. Rejected, each me
   export through that path, as a player-frame `downloadBlob` did.
 - **"A fixed port fails when it is taken."** Fixed ports are the suites' rule, kept apart by
   `e2ePorts.test.mjs`.
+
+## DeepSeek's review of the buffer found again under another link (2026-11-27)
+
+deepseek-v4.1-flash read the diff of the kept buffer found by the tab's page with the files it touches.
+Fixed:
+
+- **A buffer found by the tab's page whose query alone changed was used unchecked.** On another
+  hoster page a query may name another video: every buffer found that way is checked now.
+- **A failed check deleted the buffer of the video it belonged to.** The other language of a
+  hoster on the same page took the first one's buffer and let it go: going back to the first
+  downloaded all of it again. Such a buffer is lent now and back in the stash when it is another
+  video's (`BufferStash.lendNear`/`endLend`, measured in `keep-buffer-ways-back.e2e.mjs`,
+  "switch-frame"). Found with it: the first video's player got the newest buffer of the page, the
+  other's; one from the same hoster page goes first now.
+- **A check ended before its word left the unchecked parts in the player** (a new link would take
+  them for its own): they go now.
+
+Rejected:
+
+- **"Disk parts miss the check: `adoptDiskFiles` has not put them in the storage yet, so `checked`
+  never settles."** `adopt` puts every part in the storage at once, a disk one with a function that
+  reads it (`keepAdopted`); only its file moves later. A check whose parts are never asked for stays
+  open as a buffer under its own link does, unused until a part is asked for.
+
+Its second pass, over the lend. Fixed: the stash's answer is tied to the check that asked
+(`confirmLent(check, …)`; a yes for a check a new source ended deletes the files nobody has now); a
+lent check that never compares a part (none asked for, its twin unreadable) gives up after
+`LentCheckMs`, before the stash has it back; a lent buffer counts as on the disk when room is made,
+and one put back sets the alarm again. Rejected:
+
+- **"Take a buffer of the same place whose query alone changed at once, unlent."** That is the
+  first pass's finding: on another hoster page the query may name another video.
+- **"A record lent while the event page restarts is handed out again."** The lend lasts the
+  seconds of one check, while its player's messages keep the event page up; and the player moves
+  nothing before the stash's word, so a second taker finds every file in place, and the first one's
+  check at worst gives up.
