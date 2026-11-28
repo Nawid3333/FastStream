@@ -205,6 +205,9 @@ const WAYS = {
   },
 };
 
+/** @type {Map<string, (page: string) => Promise<void>>} */
+const WaysBack = new Map(Object.entries(WAYS));
+
 /**
  * The options, saved as the options page does and loaded by the background.
  * @param {Object} options
@@ -232,9 +235,9 @@ async function wayBack(mode, way) {
   const page = `${SITE}/ep/${name}`;
   await browser.url(page);
   const first = await playing(name, 8);
-  // By a Map: the name comes from KEEP_CASES.
-  const goBack = new Map(Object.entries(WAYS)).get(way);
-  if (!goBack) throw new Error(`No way back called ${way}`);
+  // The name comes from KEEP_CASES: a way of the Map only, and a function (CodeQL's js/unvalidated-dynamic-method-call).
+  const goBack = WaysBack.has(way) ? WaysBack.get(way) : null;
+  if (typeof goBack !== 'function') throw new Error(`No way back called ${way}`);
   await goBack(page);
   const second = await playing(name, 1).catch((e) => ({load: -1, downloaded: new Set(), error: String(e)}));
   let tookBack = null;
