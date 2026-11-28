@@ -32,6 +32,7 @@ const CHECKED = [
   'chrome/background/MultiRegexMatcher.mjs',
   'chrome/background/NetRequestRuleManager.mjs',
   'chrome/background/PageFetchRelay.mjs',
+  'chrome/background/PageMenuQuality.mjs',
   'chrome/background/StreamDetection.mjs',
   'chrome/background/StreamLengths.mjs',
   'chrome/background/TabTracker.mjs',

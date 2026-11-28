@@ -177,7 +177,8 @@ async function recieveSources(request, sendResponse) {
     let url = s.url;
     if (played && s.qualities) {
       const best = pickQuality(s.qualities, desiredHeight(/** @type {FastStreamWindow} */ (window).fastStream.options.defaultQuality));
-      if (best) url = best.url;
+      // A menu's entry has no file but the one playing (PageMenuQuality.mjs).
+      if (best?.url) url = best.url;
     }
     const source = new VideoSource(url, s.headers, s.mode);
     source.setQualities(s.qualities);

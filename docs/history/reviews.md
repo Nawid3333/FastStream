@@ -1573,3 +1573,28 @@ and one put back sets the alarm again. Rejected:
   seconds of one check, while its player's messages keep the event page up; and the player moves
   nothing before the stash's word, so a second taker finds every file in place, and the first one's
   check at worst gives up.
+
+## DeepSeek's reviews of the kept-buffer notice and the menu quality before start (2026-11-27)
+
+deepseek-v4.1-flash read each diff with the files it touches.
+
+The notice apart from the status line (#867): its finding that the pointer leaving dropped the hold
+while the focus stayed on the button was fixed (one flag each). Rejected:
+
+- **"The new strings are missing from the other locales."** All 16 have them; the locale files were
+  left out of the diff it was sent.
+
+The menu quality chosen before the start (`PageMenuQuality.mjs`): fixed were a listener that throws
+leaving the tab's switch wait unsettled (every later play of the tab dropped), and the switched file
+dropped as "the switch's" when the file it was switched from was not in the same batch (the list
+cleared, or FastStream off and on while the page played it). Rejected:
+
+- **"A play of another video in the tab waits for the switch, up to 10 s; wait only when the play
+  is the choice's file."** The file the page loads is unknown until the switch answers, so a play of
+  it cannot be told from another video's: waiting only for the choice's own file would send the
+  switched file to mpv a second time (the case the wait is for). The wait is bounded and now always
+  settles; another video in the same tab within the seconds of a switch is rare.
+
+Its pass over the fixes measured in Firefox (a small video not asked about, the quality row pressed
+at once, the faster waits, the page's video moved with its file, a teaser no word on its hoster):
+no findings.

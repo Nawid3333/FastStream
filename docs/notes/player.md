@@ -465,10 +465,61 @@ mouse moves work on it, also after the takeover shrank the player to 0x0.
   no step down from https), and, picked automatically, only when its real size (else its label's,
   for a file slow to load) gets closer to the setting. A pick by hand says that the page switches,
   and when it did not; any pick made during a switch (of the same source) is made once that one
-  is done, instead of what it brings. MPV gets a list only when every entry has its file.
+  is done, instead of what it brings. MPV gets a list only when every entry has its file, so never
+  one of a menu's.
+- **Chosen once, before anything plays** (`chrome/background/PageMenuQuality.mjs`): the player's own
+  probe started on the page's default file and rebuilt itself on the switched one about 2 s later
+  (his report: a visible reload after pressing play). Now the background asks the page's frame as it
+  detects a single file there (`onSourceRecieved`, tab on, not MPV; at most 4 files per page, a
+  known piece never, the file a switch loaded never), picks by the setting and has the page switch,
+  with the same rules as an automatic pick in the player (`playableSwitch` against the file or its
+  address before a redirect, `closerTo` by the real size). The choice is kept per frame and file, so
+  the player's start and an mpv hand-off share it (one probe, one switch). `sendSources` waits for
+  it (`withMenuQualities`), within caps counted from its start: the menu's answer within
+  `MenuProbeCapMs` (2 s), the switch within `MenuSwitchCapMs` (4 s) of that answer. A menu found
+  after the first cap switches nothing: the player started on the page's file, and its own probe
+  at metadata stays the fallback. The player gets the switched file with the menu's entries as its
+  `qualities` (the played file and the switched one with their address, the others with
+  `control`), so it lists them, does not probe again, and a pick by hand switches through the page
+  (`source.pageFrameId` is the page frame, as before). The switched file, should the page's request
+  for it come before the player's frame is there, is no source of its own beside the file it was
+  switched from; alone (the list cleared, or FastStream off and on while the page played it), it is
+  the page's file. The probe's answer carries the page video's `width`/`height` (content.js) for a
+  menu that marks no entry, and says `{none: true}` when it found the video but no menu (null still
+  means no video to ask about).
+  What it costs the start, counted in the stand-in (`backgroundPageMenuQuality.test.mjs`): nothing
+  once the menu answered (no menu, or already at the setting) before the player asks; otherwise the
+  rest of the probe, at most 2 s from detection, which the player's own wait before it asks
+  (`replaceDelay`, 500 ms, then the player's page loading) partly covers. page-quality-control.js
+  answers "no menu" after its 1.5 s wait for controls when a page shows none, so a page without a
+  menu can wait up to that 1.5 s less what has passed. A hoster (the frame's origin) whose page
+  answered "no menu" is remembered (`NoMenu`, in memory, 100 at most): its next file starts at
+  once, its menu still asked meanwhile. A menu found then switches nothing (the player's own probe
+  at metadata does, as before) and the hoster is waited for again from its next file on. So an
+  episode list on one hoster pays the wait once. Not for a page where another video had a menu.
+- **Measured in Firefox** (`ext-specs/page-quality-menu.e2e.mjs`, a gear, then a "Quality" row,
+  then the list, and a 160x90 teaser beside the player): the first version still reloaded. Probes
+  run one at a time; the teaser's waited its 1.5 s for controls first, then the player's own took
+  2 s (after the gear, the whole 1.5 s for a list before its "Quality" row was tried). Its answer
+  came 3.5 s after detection, past the cap. Now: a video shown smaller than 200x112 is not asked
+  about (content.js; one not laid out yet still is), a settings panel's quality row is pressed as
+  soon as it shows, the waits poll every 50 ms, and an Escape that closed the menu ends its wait.
+  And the page's video (`GET_PLAYED_VIDEO`) moves to the switched file with its source: by its old
+  address the player had taken the teaser for it. Three runs each: the player set up once (no
+  second start), its first picture the 480p file 1.23 to 1.53 s after the page was asked for.
+  Before (1.3.82.245): the 240p file at 1.0 s, then the switch, 480p at 3.75 s.
+- **Plays during a switch** (DeepSeek review, 2026-11-27): a play the page reports in the tab while
+  a switch is still out waits for it (`pageMenuSwitching`, 10 s at most), any video of the tab: the
+  file the page loads is unknown until the switch answers, so it cannot be told apart from another
+  video's. The wait always ends: a listener that throws is caught, and the wait settles whatever
+  the switch does.
 - **Tests:** `PageQualityMenu.test.mjs` (labels, entries, the host rule), `FastStreamClient.test.mjs`
   (probe, automatic pick, a label that lies, another host, a pick in the menu),
-  `backgroundPageQualityControl.test.mjs` (the relay's frames), and `page-quality-menu.e2e.mjs`:
+  `backgroundPageQualityControl.test.mjs` (the relay's frames), `backgroundPageMenuQuality.test.mjs`
+  (the choice before the player and at the mpv hand-off: the switched file and the entries sent,
+  one probe and one switch, the caps, a late menu, another origin, a lying label, the player's mpv
+  button not asked, no second mpv send), `contentPageQualityProbe.test.mjs` (the size in the
+  answer), and `page-quality-menu.e2e.mjs`:
   the hoster's player rebuilt locally (cross-origin frame, controls that unmount, gear -> row ->
   list of entries each in a wrapper, no Escape, a new `<video>` per file, a lying "1080p", a teaser
   video playing beside it): the 480p file plays through its "1080p", and a pick of 360p in

@@ -8,6 +8,7 @@ import {Utils} from '../player/utils/Utils.mjs';
 import {getAddressKey} from '../player/utils/AddressKey.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
+import {startMenuChoice, withMenuQualities} from './PageMenuQuality.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {bufferKey, BufferStash, nearKey} from './BufferStash.mjs';
 import {BufferKeepAlarm, keptBufferDisk} from './KeptBufferDisk.mjs';
@@ -2381,12 +2382,15 @@ async function sendSources(frame) {
     }
   }
 
-  const {subtitles, sources} = collectSources(frame, true);
-  const lengths = Lengths.lengthsOf(sources);
-  sources.forEach((source, i) => {
+  const collected = collectSources(frame, true);
+  const subtitles = collected.subtitles;
+  const lengths = Lengths.lengthsOf(collected.sources);
+  collected.sources.forEach((source, i) => {
     source.duration = lengths[i];
   });
-  await attachPageQualities(frame.tab, sources);
+  await attachPageQualities(frame.tab, collected.sources);
+  // The file the page's menu switched to for the quality setting, with the menu's entries.
+  const sources = await withMenuQualities(frame.tab, collected.sources, video);
 
   if (frame.parent && sources.length) {
     frame.parent.noteHandedToPlayer(frame.frameId, {subtitles, sources, video});
@@ -2810,6 +2814,10 @@ async function onSourceRecieved(details, frame, mode) {
     }
     return;
   }
+
+  // The page player's menu, asked now: the player starts on the quality the setting asks for (PageMenuQuality.mjs).
+  const detected = frame.tab.isOn && !isKnownPiece(frame, url) ? getSourceFromURL(frame, url) : null;
+  if (detected) startMenuChoice(frame, detected, desiredHeight(Options.defaultQuality));
 
   // Another piece of the same stream: the first piece's captions answer is reused, not asked again.
   let scrape = frame.captionsScrape;
