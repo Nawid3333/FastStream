@@ -162,6 +162,8 @@ function playerState() {
       height: video.videoHeight,
       menu: Array.from(client.getMenuVideoLevels().values()).map((level) => level.label),
       current: client.getMenuVideoLevelID(),
+      // Sources the player set up: a switch through the page's menu is one more.
+      loads: client.sourceRequests,
     };
   });
 }
@@ -240,12 +242,17 @@ describe('A page player that makes a file only of the quality picked in its menu
   });
 
   it('lists the menu\'s qualities and plays the biggest file through it, whatever its label says', async function() {
+    const started = Date.now();
     await browser.url(`${SITE}/?t=${Date.now()}`);
     await enterPlayer();
+    const pictured = Date.now() - started;
     const state = await playingHeight(480);
+    console.log(`      first picture ${pictured} ms after the page was asked for, the 480p file ${Date.now() - started} ms`);
     expect(state.source).toContain('/media/480.mp4?key=');
     expect(state.menu).toEqual(['240p', '360p', '1080p']);
     expect(state.current).toBe('page-quality:2');
+    // Chosen before it started: no second start on the switched file (PageMenuQuality.mjs).
+    expect(state.loads).toBe(1);
   });
 
   it('switches the page\'s player for a quality picked in FastStream\'s menu, and plays its file', async function() {

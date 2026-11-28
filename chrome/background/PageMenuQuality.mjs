@@ -39,6 +39,7 @@ const MaxNoMenu = 100;
  * @property {number} started
  * @property {number} probeCapMs - How long a start waits for the menu: none for a hoster whose page had none.
  * @property {boolean} gaveUp - Something started on the page's file without the menu's answer: the page stays as it is.
+ * @property {boolean} hasMenu - The page's menu answered with its entries.
  * @property {?number} answeredAt - When the page's menu answered.
  * @property {Promise<?PageQuality[]>} entries - The menu's entries; null without a menu.
  * @property {Promise<?MenuResult>} result - Null without a menu.
@@ -75,11 +76,12 @@ function originOf(frame) {
  * @param {?string} origin
  * @param {*} answer - The probe's: null when it found no video to ask about (no word on the menu).
  * @param {?PageQuality[]} entries
+ * @param {boolean} pageHasMenu - Another video of the frame's page had one: a hoster's teaser has none.
  */
-function noteMenu(origin, answer, entries) {
+function noteMenu(origin, answer, entries, pageHasMenu) {
   if (!origin || !answer) return;
   NoMenu.delete(origin);
-  if (entries) return;
+  if (entries || pageHasMenu) return;
   NoMenu.add(origin);
   if (NoMenu.size > MaxNoMenu) NoMenu.delete(/** @type {string} */ (NoMenu.values().next().value));
 }
@@ -177,7 +179,7 @@ export function startMenuChoice(frame, source, wanted) {
   /** @type {MenuChoice} */
   const choice = {
     url: source.url, document: frame.documentKey ?? null, origin, started: Date.now(),
-    probeCapMs: origin && NoMenu.has(origin) ? 0 : MenuProbeCapMs, gaveUp: false, answeredAt: null,
+    probeCapMs: origin && NoMenu.has(origin) ? 0 : MenuProbeCapMs, gaveUp: false, hasMenu: false, answeredAt: null,
     entries: new Promise((resolve) => {
       gotEntries = resolve;
     }),
@@ -225,7 +227,8 @@ async function makeChoice(choice, frame, requested, wanted, gotEntries) {
   const width = Number(answer?.width) || 0;
   const height = Number(answer?.height) || 0;
   const entries = menuQualities(answer, choice.url, width, height);
-  noteMenu(choice.origin, answer, entries);
+  choice.hasMenu = !!entries;
+  noteMenu(choice.origin, answer, entries, choicesOf(frame).some((other) => other.hasMenu));
   gotEntries(entries);
   if (!entries) return null;
   const kept = {url: choice.url, qualities: entries};
@@ -303,9 +306,11 @@ export async function awaitMenuChoice(choice) {
  * since), it is the page's file.
  * @param {TabHolder} tab
  * @param {Array<{url: string, requestedUrl?: string, mode: string, frameId: number, qualities?: ?Array<Object>}>} sources
+ * @param {?{src?: string}} [played] - The page's video (GET_PLAYED_VIDEO): moved to the file its source was switched
+ *   to, so the player still knows it for the one the page played (StreamPick.played).
  * @return {Promise<typeof sources>}
  */
-export async function withMenuQualities(tab, sources) {
+export async function withMenuQualities(tab, sources, played = null) {
   const chosen = await Promise.all(sources.map((source) => {
     const frame = tab.getFrame(source.frameId);
     if (!frame || source.qualities || !isFile(source.mode)) return null;
@@ -325,6 +330,9 @@ export async function withMenuQualities(tab, sources) {
     const result = chosen[i];
     if (!result) return;
     if (result.url !== source.url) {
+      if (played && (played.src === source.url || (!!source.requestedUrl && played.src === source.requestedUrl))) {
+        played.src = result.url;
+      }
       source.url = result.url;
       delete source.requestedUrl;
       switched.add(result.url);

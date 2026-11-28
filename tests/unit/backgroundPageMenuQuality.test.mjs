@@ -35,12 +35,14 @@ afterEach(() => {
  * @param {Object} [page]
  * @param {*} [page.menu] - The probe's answer; a Promise for one that never comes, a function for one made when asked.
  * @param {function(number): *} [page.select] - The switch's answer, by the entry's index.
+ * @param {*} [page.played] - GET_PLAYED_VIDEO's answer.
  * @return {function(Object): *}
  */
-function hosterPage({menu = MENU, select = (index) => FILES[index]} = {}) {
+function hosterPage({menu = MENU, select = (index) => FILES[index], played} = {}) {
   return ({message}) => {
     if (message.type === 'GET_PAGE_QUALITIES') return [];
-    if (message.type === 'PAGE_QUALITY_PROBE') return typeof menu === 'function' ? menu() : menu;
+    if (message.type === 'GET_PLAYED_VIDEO') return played;
+    if (message.type === 'PAGE_QUALITY_PROBE') return typeof menu === 'function' ? menu(message) : menu;
     if (message.type === 'PAGE_QUALITY_SELECT') return select(message.index);
     return undefined;
   };
@@ -254,7 +256,7 @@ describe('FastStream\'s player and qualities only the page player\'s menu knows'
    * @param {Object} [options] - Over the defaults.
    * @param {Object} [page] - hosterPage's.
    * @param {function(): Promise<void>} [beforePlayer] - What the page does before the player asks.
-   * @return {Promise<{sources: Array<Object>, waited: number}>} What the player got, and how long after it asked.
+   * @return {Promise<{sources: Array<Object>, video: *, waited: number}>} What the player got, and how long after it asked.
    */
   async function playerStarts(options = {}, page = {}, beforePlayer = async () => {}) {
     let sourcesAt = 0;
@@ -277,7 +279,7 @@ describe('FastStream\'s player and qualities only the page player\'s menu knows'
     await bg.wait(8000);
     const sent = bg.sent('SOURCES').filter((m) => m.frameId === 5);
     expect(sent).toHaveLength(1);
-    return {sources: sent[0].message.sources, waited: sourcesAt - asked};
+    return {sources: sent[0].message.sources, video: sent[0].message.video, waited: sourcesAt - asked};
   }
 
   it('starts on the file the page switched to, with the menu\'s entries, asked once at detection', async () => {
@@ -297,6 +299,18 @@ describe('FastStream\'s player and qualities only the page player\'s menu knows'
     expect(sources.map((s) => s.url)).toEqual([file('1080p')]);
     // Not asked about either: it is the switch's.
     expect(bg.sent('PAGE_QUALITY_PROBE').length).toBe(1);
+  });
+
+  it('tells the player the page\'s video is the switched file, beside a teaser without a menu', async () => {
+    const TEASER = 'https://hoster.test/v/teaser.mp4';
+    const {sources, video} = await playerStarts({}, {
+      menu: (message) => (message.url === file('360p') ? MENU : null),
+      played: {src: file('360p'), duration: null},
+    }, async () => {
+      await bg.request({tabId: 1, url: TEASER, type: 'media'}, MP4);
+    });
+    expect(sources.map((s) => s.url).sort()).toEqual([file('1080p'), TEASER].sort());
+    expect(video?.src).toBe(file('1080p'));
   });
 
   it('starts on the page\'s file, with the menu\'s entries, when the page plays the quality asked for', async () => {
@@ -359,6 +373,39 @@ describe('FastStream\'s player and qualities only the page player\'s menu knows'
     expect(third.waited).toBeGreaterThanOrEqual(450);
     expect(third.sources.map((s) => s.url)).toEqual([file('1080p')]);
     expect(bg.sent('PAGE_QUALITY_PROBE')).toHaveLength(3);
+  });
+
+  it('does not take a hoster for one without a menu for a teaser beside its player', async () => {
+    let sourcesAt = 0;
+    const TEASER = 'https://hoster.test/v/teaser.mp4';
+    // The teaser's "none" comes after the film's menu.
+    const late = (answer, ms) => new Promise((resolve) => setTimeout(() => resolve(answer), ms));
+    let menuFor = (message) => (message.url === TEASER ? late({none: true}, 300) : MENU);
+    const answers = hosterPage({menu: (message) => menuFor(message)});
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://hoster.test/']},
+      tabs: [1, 2].map((id) => ({id, url: `https://hoster.test/embed/${id}/`})),
+      onTabMessage: (sent) => {
+        if (sent.message.type === 'SOURCES' && sent.frameId === 5) sourcesAt = Date.now();
+        return answers(sent);
+      },
+    });
+    await bg.navigated(1, 'https://hoster.test/embed/1/');
+    await bg.frameAdded(1, 0, 'https://hoster.test/embed/1/', 'page-1');
+    await bg.request({tabId: 1, url: TEASER, type: 'media'}, MP4);
+    await bg.request({tabId: 1, url: file('360p'), type: 'media'}, MP4);
+    await bg.wait(1000);
+    // The next episode's menu takes 500 ms: waited for.
+    menuFor = () => late(MENU, 500);
+    await bg.navigated(2, 'https://hoster.test/embed/2/');
+    await bg.frameAdded(2, 0, 'https://hoster.test/embed/2/', 'page-2');
+    await bg.request({tabId: 2, url: file('2-360p'), type: 'media'}, MP4);
+    await bg.message({type: 'PLAYER_LOADED', url: 'moz-extension://bg-test/player/index.html?opener=page-2',
+      parentFrameId: 0}, {tabId: 2, frameId: 5});
+    const asked = Date.now();
+    await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 2, frameId: 5});
+    await bg.wait(8000);
+    expect(sourcesAt - asked).toBeGreaterThanOrEqual(450);
   });
 
   it('gives the player the file the page switched to as the page\'s own once its first file is gone', async () => {

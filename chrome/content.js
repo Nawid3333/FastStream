@@ -162,7 +162,10 @@
     } else if (request.type === MessageTypes.PAGE_QUALITY_PROBE) {
       // A file the page's video plays: one through MSE (a blob:) switches to no file FastStream could play.
       const video = qualityVideo(request);
-      if (!video || !/^https?:/.test(video.currentSrc)) {
+      // Nor for a video shown too small for a player's menu (a teaser beside the player): probes run one at a time.
+      const box = video?.getBoundingClientRect();
+      if (!video || !/^https?:/.test(video.currentSrc) ||
+          (box && box.width > 0 && box.height > 0 && (box.width < 200 || box.height < 112))) {
         sendResponse(null);
         return;
       }

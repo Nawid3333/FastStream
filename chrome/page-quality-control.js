@@ -390,7 +390,7 @@ const PageQualityControl = (() => {
       const value = check();
       if (value) return value;
       if (performance.now() >= end) return null;
-      await sleep(100);
+      await sleep(50);
     }
   }
 
@@ -406,8 +406,11 @@ const PageQualityControl = (() => {
     for (const type of ['keydown', 'keyup']) {
       target.dispatchEvent(new KeyboardEvent(type, {key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, composed: true}));
     }
-    await sleep(250);
-    if (opener && opener.isConnected && (opener.getAttribute('aria-expanded') === 'true' || stillOpen())) press(opener);
+    // Closed by the Escape: no wait. Still open after 250 ms: its opener closes it (players without Escape).
+    const open = () => !!opener && opener.isConnected && (opener.getAttribute('aria-expanded') === 'true' || stillOpen());
+    await sleep(50);
+    if (await waitFor(() => (open() ? null : true), 200)) return;
+    if (open()) press(/** @type {HTMLElement} */ (opener));
   }
 
   /**
@@ -496,7 +499,13 @@ const PageQualityControl = (() => {
       const before = new WeakSet(allBelow(document));
       wake(video);
       press(opener);
-      let group = await waitFor(() => pickGroup(findGroups(document, before), root), STEP_WAIT_MS);
+      // The list, or a settings panel with a quality row: that one is pressed at once, the list not waited out.
+      /** @type {?Group} */
+      let group = null;
+      await waitFor(() => {
+        group = pickGroup(findGroups(document, before), root);
+        return group || qualityRows(allBelow(document).filter((el) => !before.has(el))).length ? true : null;
+      }, STEP_WAIT_MS);
       if (group) {
         const result = foundOf(video, [openerStep], group);
         await closeMenus(opener, isOpen(result));

@@ -492,11 +492,22 @@ mouse moves work on it, also after the takeover shrank the player to 0x0.
   rest of the probe, at most 2 s from detection, which the player's own wait before it asks
   (`replaceDelay`, 500 ms, then the player's page loading) partly covers. page-quality-control.js
   answers "no menu" after its 1.5 s wait for controls when a page shows none, so a page without a
-  menu can wait up to that 1.5 s less what has passed; not measured live. A hoster (the frame's
-  origin) whose page answered "no menu" is remembered (`NoMenu`, in memory, 100 at most): its next
-  file starts at once, its menu still asked meanwhile. A menu found then switches nothing (the
-  player's own probe at metadata does, as before) and the hoster is waited for again from its next
-  file on. So an episode list on one hoster pays the wait once.
+  menu can wait up to that 1.5 s less what has passed. A hoster (the frame's origin) whose page
+  answered "no menu" is remembered (`NoMenu`, in memory, 100 at most): its next file starts at
+  once, its menu still asked meanwhile. A menu found then switches nothing (the player's own probe
+  at metadata does, as before) and the hoster is waited for again from its next file on. So an
+  episode list on one hoster pays the wait once. Not for a page where another video had a menu.
+- **Measured in Firefox** (`ext-specs/page-quality-menu.e2e.mjs`, a gear, then a "Quality" row,
+  then the list, and a 160x90 teaser beside the player): the first version still reloaded. Probes
+  run one at a time; the teaser's waited its 1.5 s for controls first, then the player's own took
+  2 s (after the gear, the whole 1.5 s for a list before its "Quality" row was tried). Its answer
+  came 3.5 s after detection, past the cap. Now: a video shown smaller than 200x112 is not asked
+  about (content.js; one not laid out yet still is), a settings panel's quality row is pressed as
+  soon as it shows, the waits poll every 50 ms, and an Escape that closed the menu ends its wait.
+  And the page's video (`GET_PLAYED_VIDEO`) moves to the switched file with its source: by its old
+  address the player had taken the teaser for it. Three runs each: the player set up once (no
+  second start), its first picture the 480p file 1.23 to 1.53 s after the page was asked for.
+  Before (1.3.82.245): the 240p file at 1.0 s, then the switch, 480p at 3.75 s.
 - **Plays during a switch** (DeepSeek review, 2026-11-27): a play the page reports in the tab while
   a switch is still out waits for it (`pageMenuSwitching`, 10 s at most), any video of the tab: the
   file the page loads is unknown until the switch answers, so it cannot be told apart from another

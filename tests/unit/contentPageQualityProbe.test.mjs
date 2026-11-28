@@ -36,4 +36,15 @@ describe('the page player\'s menu, asked for', () => {
     const p = page(null);
     expect(await p.send({type: 'PAGE_QUALITY_PROBE', url: 'https://hoster.example/v/1_360p.mp4'})).toEqual({none: true});
   });
+
+  it('is not looked for beside a video shown too small for a menu (a teaser): no word on the hoster', async () => {
+    const p = page(MENU);
+    const video = p.document.querySelector('video');
+    video.rect = {x: 0, y: 0, width: 160, height: 90};
+    expect(await p.send({type: 'PAGE_QUALITY_PROBE', url: 'https://hoster.example/v/1_360p.mp4'})).toBeNull();
+    // Not laid out yet (hidden until a click): looked for.
+    video.rect = {x: 0, y: 0, width: 0, height: 0};
+    expect(await p.send({type: 'PAGE_QUALITY_PROBE', url: 'https://hoster.example/v/1_360p.mp4'}))
+        .toEqual({...MENU, width: 640, height: 360});
+  });
 });

@@ -2390,7 +2390,7 @@ async function sendSources(frame) {
   });
   await attachPageQualities(frame.tab, collected.sources);
   // The file the page's menu switched to for the quality setting, with the menu's entries.
-  const sources = await withMenuQualities(frame.tab, collected.sources);
+  const sources = await withMenuQualities(frame.tab, collected.sources, video);
 
   if (frame.parent && sources.length) {
     frame.parent.noteHandedToPlayer(frame.frameId, {subtitles, sources, video});
